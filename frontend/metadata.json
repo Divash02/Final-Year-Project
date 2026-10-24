@@ -1,0 +1,6 @@
+{
+  "name": "CollegeOS — Multi-Tenant Education Operating System",
+  "description": "Unified enterprise multi-tenant education operating system for institutions with Nepal-first Bikram Sambat dual-calendar, eSewa/Khalti finance, SIS, LMS, timetable, attendance, exams, workflow, and intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

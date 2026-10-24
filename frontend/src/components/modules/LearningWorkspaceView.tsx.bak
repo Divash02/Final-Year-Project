@@ -1,0 +1,31 @@
+﻿import React, { useState } from "react";
+import { AddCourseDialog } from "../academics/AddCourseDialog";
+
+export const LearningWorkspaceView: React.FC = () => {
+  const [showCourseForm, setShowCourseForm] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const loadData = async () => {
+    return;
+  };
+
+  return (
+    <section className="cos-page">
+      <>
+        <header className="cos-page-header">
+          <h1 className="text-2xl font-bold">Learning Workspace</h1>
+        </header>
+        <AddCourseDialog
+          isOpen={showCourseForm}
+          onClose={() => setShowCourseForm(false)}
+          onSuccess={async () => {
+            setError("");
+            setNotice("");
+            await loadData();
+          }}
+        />
+      </>
+    </section>
+  );
+};

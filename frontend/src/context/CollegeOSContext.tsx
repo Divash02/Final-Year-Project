@@ -1,0 +1,672 @@
+import React, { createContext, useContext, useEffect, useState } from "react";
+import {
+  Tenant,
+  Campus,
+  Section,
+  Course,
+  Student,
+  UserRoleType,
+  Language,
+  CalendarType,
+  AuthUser,
+} from "../types";
+import { apiFetch, apiRequest } from "../services/apiClient";
+
+interface CollegeOSContextType {
+  // Authentication & Session
+  isAuthenticated: boolean;
+  isHydrating: boolean;
+  currentUser: AuthUser | null;
+  mustChangePassword: boolean;
+  loginTransition: boolean;
+  completeLoginTransition: () => void;
+  login: (email: string, password: string, redirectTo?: string) => Promise<boolean>;
+  logout: () => void;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<boolean>;
+  intendedDestination: string | null;
+  setIntendedDestination: (path: string | null) => void;
+  viewToRoute: Record<string, string>;
+
+  // Localization & Tenancy
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  calendarType: CalendarType;
+  setCalendarType: (cal: CalendarType) => void;
+  currentTenant: Tenant;
+  currentCampus: Campus | null;
+  currentRole: UserRoleType;
+  setCurrentRole: (role: UserRoleType) => void;
+  activeView: string;
+  setActiveView: (view: string) => void;
+  /**
+   * Target opened inside the Online Coding Lab (project or
+   * assignment id), derived from the URL so deep links,
+   * refresh and history all work.
+   */
+  codingLabRoute: CodingLabRoute;
+  /** Navigates to a coding-lab target and records it in the URL. */
+  openCodingLabTarget: (target: {
+    role: "student" | "teacher";
+    projectId?: string | null;
+    assignmentId?: string | null;
+  }) => void;
+  /**
+   * Course the Course Workspace should open.
+   *
+   * My Courses and the LMS are two views onto one course system, so a card click
+   * hands the course id over here and `LmsWorkspace` opens it. It is never a
+   * second source of course data — the workspace still fetches and authorises
+   * the course itself.
+   */
+  activeCourseId: string | null;
+  openCourse: (courseId: string) => void;
+
+  /**
+   * Seeds the attendance module with a specific register, so a teacher coming from
+   * a class in My Timetable opens that class's register rather than whichever one is
+   * currently open. A hint only: the attendance module still fetches and authorises
+   * the session itself.
+   */
+  activeAttendanceSessionId: string | null;
+  openAttendanceSession: (sessionId: string | null) => void;
+
+  // Master Collections (fetched from the institution API)
+  students: Student[];
+  courses: Course[];
+  sections: Section[];
+
+  // Responsive Layout
+  isMobileMenuOpen: boolean;
+  setIsMobileMenuOpen: (open: boolean) => void;
+
+  // Active Modals
+  activeReceipt: Receipt | null;
+  setActiveReceipt: (payment: Receipt | null) => void;
+  activePaymentModal: PaymentTarget | null;
+  setActivePaymentModal: (invoice: PaymentTarget | null) => void;
+
+  // Master data loader - fetches institution data from the real API
+  loadMasterData: () => Promise<void>;
+}
+
+const communicationPathByView: Record<string, string> = {
+  communication: "/mail",
+  messages: "/messages",
+  notices: "/notices",
+};
+
+// Comprehensive route-to-view mapping for all navigable views
+const routeToView: Record<string, string> = {
+  "/": "dashboard",
+  "/mail": "communication",
+  "/messages": "messages",
+  "/notices": "notices",
+  "/timetable": "timetable_attendance",
+  "/my-timetable": "my_timetable",
+  "/attendance": "attendance_sheet",
+  "/attendance-records": "attendance_records",
+  "/learning": "learning",
+  "/my-courses": "learning",
+  "/lms": "lms",
+  "/assignments": "assignments",
+  "/materials": "materials",
+  "/examination": "examination",
+  "/finance": "finance",
+  "/requests": "requests",
+  "/documents": "documents",
+  "/calendar": "examinations_calendar",
+  "/calendar-documents": "calendar_documents",
+  "/library": "library",
+  "/analytics": "analytics",
+  "/intelligence": "intelligence",
+  "/students": "students",
+  "/user-management": "user_management",
+  "/admissions": "admissions",
+  "/profile": "profile",
+  "/facilities": "facilities_library",
+  "/account/activate": "profile", // password change screen
+  "/student/coding-lab": "student_coding_lab",
+  "/teacher/coding-lab": "teacher_coding_lab",
+};
+
+/**
+ * Coding Lab deep links carry the opened project or
+ * assignment: `/student/coding-lab/projects/:id` and
+ * `/teacher/coding-lab/assignments/:id` resolve to the
+ * role's lab view with the target attached.
+ */
+const CODING_LAB_PATH =
+  /^\/(student|teacher)\/coding-lab(?:\/projects\/([A-Za-z0-9]+))?(?:\/assignments\/([A-Za-z0-9]+))?$/;
+
+export interface CodingLabRoute {
+  projectId: string | null;
+  assignmentId: string | null;
+}
+
+function resolveRoute(pathname: string): {
+  view: string;
+  codingLab: CodingLabRoute;
+} {
+  const match = CODING_LAB_PATH.exec(pathname);
+  if (match) {
+    const isTeacher = match[1] === "teacher";
+    return {
+      view: isTeacher ? "teacher_coding_lab" : "student_coding_lab",
+      codingLab: {
+        projectId: match[2] || null,
+        assignmentId: match[3] || null,
+      },
+    };
+  }
+  return { view: routeToView[pathname] || "dashboard", codingLab: { projectId: null, assignmentId: null } };
+}
+
+const viewToRoute = Object.fromEntries(
+  Object.entries(routeToView).map(([route, view]) => [view, route]),
+);
+const communicationViewByPath = Object.fromEntries(
+  Object.entries(communicationPathByView).map(([view, route]) => [route, view]),
+);
+
+const CollegeOSContext = createContext<CollegeOSContextType | null>(null);
+
+/**
+ * Single institutional workspace descriptor. The tenant record
+ * itself is server-side configuration; this constant only names
+ * the workspace the deployed instance serves.
+ */
+const INITIAL_TENANTS: Tenant[] = [
+  {
+    id: "tenant-1",
+    slug: "institution",
+    name: "Institutional Workspace",
+    nameNe: "संस्थागत कार्यक्षेत्र",
+    code: "INST",
+    type: "UNIVERSITY",
+    status: "ACTIVE",
+    config: {
+      defaultLanguage: "en",
+      defaultCalendar: "BS",
+      defaultCurrency: "NPR",
+      timezone: "Asia/Kathmandu",
+      academicYearStartBS: "2081-01-01",
+      features: {
+        admissions: true,
+        onlinePayment: true,
+        library: true,
+        facilities: true,
+        plagiarismDetection: true,
+        aiAssistant: true,
+      },
+    },
+  },
+];
+
+/**
+ * Roles that were consolidated into `super_admin`. Mirrors
+ * `backend/src/permissions/catalog.js` so a session issued before the
+ * consolidation still resolves to the surviving role instead of an
+ * unknown-role shell.
+ */
+const LEGACY_ROLE_ALIASES: Record<string, UserRoleType> = {
+  institution_admin: "super_admin",
+};
+
+function normalizeRole(role?: string | null): UserRoleType {
+  const candidate = String(role || "student") as UserRoleType;
+  return LEGACY_ROLE_ALIASES[candidate] ?? candidate;
+}
+
+function normalizeRoleList(roles?: string[] | null): UserRoleType[] {
+  const source = Array.isArray(roles) && roles.length > 0 ? roles : ["student"];
+  const normalized: UserRoleType[] = [];
+  for (const role of source) {
+    const resolved = normalizeRole(role);
+    if (!normalized.includes(resolved)) normalized.push(resolved);
+  }
+  return normalized;
+}
+
+/**
+ * The receipt modal renders a persisted payment record returned
+ * by the finance API. The gateway modal opens for an invoice the
+ * caller selected. Both shapes mirror the API payloads so the
+ * context never fabricates financial records.
+ */
+interface Receipt {
+  id: string;
+  tenantId: string;
+  invoiceId: string;
+  studentId: string;
+  studentName: string;
+  paymentNumber: string;
+  amount: number;
+  method: string;
+  gatewayTransactionId?: string;
+  status: string;
+  confirmedAt: { bs: string; ad: string };
+  receiptNumber: string;
+  amountInWordsNe: string;
+}
+
+interface PaymentTarget {
+  id: string;
+  invoiceNumber: string;
+  termName: string;
+  studentName: string;
+  totalAmount: number;
+  paidAmount: number;
+  balanceDue: number;
+}
+
+export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  // Authentication & Session State (Login-First: starts unauthenticated)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isHydrating, setIsHydrating] = useState<boolean>(true);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
+  const [loginTransition, setLoginTransition] = useState<boolean>(false);
+  const [intendedDestination, setIntendedDestination] = useState<string | null>(null);
+
+  const [language, setLanguageState] = useState<Language>("en");
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    setCalendarType(lang === "ne" ? "BS" : "AD");
+  };
+  const [calendarType, setCalendarTypeState] = useState<CalendarType>(() =>
+    localStorage.getItem("collegeos_calendar") === "AD" ? "AD" : "BS",
+  );
+  const setCalendarType = (value: CalendarType) => {
+    setCalendarTypeState(value);
+    localStorage.setItem("collegeos_calendar", value);
+  };
+  const currentTenant = INITIAL_TENANTS[0];
+  const [currentCampus] = useState<Campus | null>(null);
+  const [currentRole, setCurrentRoleState] =
+    useState<UserRoleType>("super_admin");
+  // Initialize activeView from current URL to preserve route on refresh
+  const [activeView, setActiveViewState] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return resolveRoute(window.location.pathname).view;
+    }
+    return "dashboard";
+  });
+  const [codingLabRoute, setCodingLabRoute] = useState<CodingLabRoute>(
+    () => {
+      if (typeof window !== "undefined") {
+        return resolveRoute(window.location.pathname).codingLab;
+      }
+      return { projectId: null, assignmentId: null };
+    },
+  );
+  const setActiveView = (view: string) => {
+    setActiveViewState(view);
+    const route = viewToRoute[view];
+    if (route && window.location.pathname !== route) {
+      window.history.pushState({}, "", route);
+    }
+  };
+  const openCodingLabTarget = (target: {
+    role: "student" | "teacher";
+    projectId?: string | null;
+    assignmentId?: string | null;
+  }) => {
+    const base = target.role === "teacher" ? "/teacher/coding-lab" : "/student/coding-lab";
+    let path = base;
+    if (target.projectId) path = `${base}/projects/${target.projectId}`;
+    else if (target.assignmentId) path = `${base}/assignments/${target.assignmentId}`;
+    setCodingLabRoute({
+      projectId: target.projectId || null,
+      assignmentId: target.assignmentId || null,
+    });
+    setActiveViewState(target.role === "teacher" ? "teacher_coding_lab" : "student_coding_lab");
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+    }
+  };
+
+  useEffect(() => {
+    const syncRoute = () => {
+      const resolved = resolveRoute(window.location.pathname);
+      setActiveViewState(resolved.view);
+      setCodingLabRoute(resolved.codingLab);
+    };
+    syncRoute();
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
+  }, []);
+
+  // Master data populated exclusively from the institution API.
+  const [students, setStudents] = useState<Student[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
+
+  const [activeReceipt, setActiveReceipt] = useState<Receipt | null>(null);
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
+  /** Hands a course to the existing Course Workspace rather than opening a new one. */
+  const openCourse = (courseId: string) => {
+    setActiveCourseId(courseId);
+    setActiveView("lms");
+  };
+  /**
+   * Which attendance register the caller was last sent to.
+   *
+   * Set by My Timetable's "Take attendance" so a teacher arriving from a specific
+   * class lands on that class's register rather than on whichever one happens to be
+   * open. It seeds the attendance module; it does not replace it — the register, its
+   * marks, its corrections and its QR flow all remain the attendance module's.
+   */
+  const [activeAttendanceSessionId, setActiveAttendanceSessionId] = useState<
+    string | null
+  >(null);
+  const openAttendanceSession = (sessionId: string | null) => {
+    setActiveAttendanceSessionId(sessionId);
+  };
+  const [activePaymentModal, setActivePaymentModal] = useState<PaymentTarget | null>(
+    null,
+  );
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("collegeos_token");
+    if (!token) {
+      setIsHydrating(false);
+      return;
+    }
+
+    let active = true;
+    apiFetch("/auth/me")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Session expired");
+        return response.json();
+      })
+      .then(({ user }) => {
+        if (!active) return;
+        const role = normalizeRole(user.activeRole || user.roles?.[0]);
+        const roles = normalizeRoleList(user.roles);
+        setCurrentUser({
+          id: String(user.id),
+          email: user.email,
+          name: user.name,
+          role,
+          roles,
+          permissions: user.permissions || [],
+          tenantId: currentTenant.id,
+          campusId: currentCampus?.id,
+          mustChangePassword: Boolean(user.mustChangePassword),
+          avatarUrl: user.avatarUrl || undefined,
+        });
+        setCurrentRoleState(role);
+        setMustChangePassword(Boolean(user.mustChangePassword));
+        setIsAuthenticated(true);
+        void loadMasterData();
+      })
+      .catch(() => {
+        if (!active) return;
+        localStorage.removeItem("collegeos_token");
+        setIsAuthenticated(false);
+      })
+      .finally(() => {
+        if (active) setIsHydrating(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [currentCampus?.id, currentTenant.id]);
+
+  // Authentication Handlers
+  const login = async (
+    email: string,
+    pass: string,
+    redirectTo?: string,
+  ): Promise<boolean> => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPass = pass;
+
+    let response: Response;
+    try {
+      response = await apiFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password: normalizedPass,
+        }),
+      });
+    } catch {
+      throw new Error(
+        "Cannot reach the CollegeOS authentication server. Start the app with npm run dev and try again.",
+      );
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) return false;
+      throw new Error(data.error || "Authentication service is unavailable.");
+    }
+
+    try {
+      const userRole = normalizeRole(
+        data.user?.activeRole || data.user?.roles?.[0],
+      );
+      const nextUser: AuthUser = {
+        id: String(data.user.id),
+        email: data.user.email,
+        name: data.user.name,
+        role: userRole,
+        roles: normalizeRoleList(data.user.roles),
+        permissions: (data.user.permissions || []) as string[],
+        tenantId: currentTenant.id,
+        campusId: currentCampus?.id,
+        mustChangePassword: Boolean(data.mustChangePassword),
+        avatarUrl: data.user.avatarUrl || undefined,
+      };
+
+      localStorage.setItem("collegeos_token", data.token);
+      setCurrentUser(nextUser);
+      setCurrentRoleState(userRole);
+      setIsAuthenticated(true);
+      setLoginTransition(true);
+      setMustChangePassword(Boolean(data.mustChangePassword));
+      if (data.mustChangePassword) {
+        window.history.replaceState({}, "", "/account/activate");
+      } else if (redirectTo && routeToView[redirectTo]) {
+        // Redirect to the intended destination after successful login
+        window.history.replaceState({}, "", redirectTo);
+        setActiveViewState(routeToView[redirectTo]);
+      }
+      void loadMasterData();
+      return true;
+    } catch {
+      throw new Error(
+        "The authentication server returned an invalid response.",
+      );
+    }
+  };
+
+  const logout = () => {
+    const token = localStorage.getItem("collegeos_token");
+    if (token) void apiFetch("/auth/logout", { method: "POST" });
+    localStorage.removeItem("collegeos_token");
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    setMustChangePassword(false);
+    if (window.location.pathname === "/account/activate") {
+      window.history.replaceState({}, "", "/");
+    }
+  };
+
+  const completeLoginTransition = () => {
+    setLoginTransition(false);
+  };
+
+  const loadMasterData = async (): Promise<void> => {
+    // Master data loaded from institution API
+    try {
+      const [courseRes, studentRes, sectionRes] = await Promise.all([
+        apiRequest<{ courses: any[] }>(`/courses`).catch(() => ({
+          courses: [],
+        })),
+        apiRequest<{ students: any[] }>(`/students`).catch(() => ({
+          students: [],
+        })),
+        apiRequest<{ sections: any[] }>(`/sections`).catch(() => ({
+          sections: [],
+        })),
+      ]);
+      setCourses(courseRes.courses || []);
+      setStudents(
+        (studentRes.students || []).map((s) => ({
+          id: s.id || s._id,
+          studentId: s.studentId,
+          firstName: s.firstName,
+          lastName: s.lastName,
+          email: s.email,
+          program: s.program,
+          semester: s.semester,
+          batch: s.batch,
+          section: s.section,
+          status: s.status,
+        })) as unknown as Student[],
+      );
+      setSections(
+        (sectionRes.sections || []).map((s) => ({
+          id: s.id || s._id,
+          name: s.name,
+          code: s.code,
+        })) as unknown as Section[],
+      );
+    } catch {
+      // Master data load failure is non-fatal; modules will show empty states
+    }
+  };
+
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<boolean> => {
+    const token = localStorage.getItem("collegeos_token");
+
+    if (!token) {
+      return false;
+    }
+
+    const response = await apiFetch("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+        confirmPassword: newPassword,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const message = data.error || "Failed to update password.";
+      const err: Error & { code?: string; details?: string[] } = new Error(message);
+      err.code = data.code;
+      err.details = data.details;
+      throw err;
+    }
+
+    const data = await response.json();
+    const nextUser = data.user
+      ? {
+          ...currentUser,
+          ...data.user,
+          role: normalizeRole(data.user.activeRole || data.user.roles?.[0]),
+          roles: normalizeRoleList(data.user.roles),
+          tenantId: currentTenant.id,
+          campusId: currentCampus?.id,
+          mustChangePassword: false,
+        }
+      : currentUser;
+
+    localStorage.setItem("collegeos_token", data.token);
+    setCurrentUser(nextUser);
+    setMustChangePassword(false);
+    completeLoginTransition();
+    if (window.location.pathname === "/account/activate") {
+      window.history.replaceState({}, "", "/");
+    }
+    return true;
+  };
+
+  const setCurrentRole = (role: UserRoleType) => {
+    const token = localStorage.getItem("collegeos_token");
+    if (!token || !(currentUser?.roles || []).includes(role)) return;
+    void apiFetch("/auth/active-role", {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    }).then(async (response) => {
+      if (response.ok) {
+        const result = await response.json();
+        setCurrentUser((user) =>
+          user
+            ? { ...user, role, permissions: result.permissions || [] }
+            : user,
+        );
+        setCurrentRoleState(role);
+      }
+    });
+  };
+
+  return (
+    <CollegeOSContext.Provider
+      value={{
+        isAuthenticated,
+        isHydrating,
+        currentUser,
+        mustChangePassword,
+        loginTransition,
+        completeLoginTransition,
+        login,
+        logout,
+        loadMasterData,
+        changePassword,
+        language,
+        setLanguage,
+        calendarType,
+        setCalendarType,
+        currentTenant,
+        currentCampus,
+        currentRole,
+        setCurrentRole,
+        activeView,
+        setActiveView,
+        codingLabRoute,
+        openCodingLabTarget,
+        activeCourseId,
+        openCourse,
+        activeAttendanceSessionId,
+        openAttendanceSession,
+        students,
+        courses,
+        sections,
+        isMobileMenuOpen,
+        setIsMobileMenuOpen,
+        activeReceipt,
+        setActiveReceipt,
+        activePaymentModal,
+        setActivePaymentModal,
+        intendedDestination,
+        setIntendedDestination,
+        viewToRoute,
+      }}
+    >
+      {children}
+    </CollegeOSContext.Provider>
+  );
+};
+
+export const useCollegeOS = () => {
+  const context = useContext(CollegeOSContext);
+  if (!context) {
+    throw new Error("useCollegeOS must be used within a CollegeOSProvider");
+  }
+  return context;
+};
