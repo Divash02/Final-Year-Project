@@ -12,6 +12,10 @@ import {
 import { requireAuth, requirePermission, requireRole } from "../middleware/auth.js";
 import { hasPermission } from "../permissions/catalog.js";
 import { calculateExamCountdown, convertToNepaliDate } from "../services/nepaliDateHelper.js";
+import {
+  getDetailedInstitutionalAnalytics,
+  getAuditAnalyticsAndLogs,
+} from "../services/analyticsService.js";
 
 export function registerReportingRoutes(app) {
   app.get("/api/dashboard/summary", requireAuth, async (req, res) => {
@@ -234,6 +238,43 @@ export function registerReportingRoutes(app) {
         res.json(summary);
       } catch (err) {
         res.status(500).json({ error: "Failed to load analytics summary." });
+      }
+    }
+  );
+
+  app.get(
+    "/api/analytics/detailed",
+    requireAuth,
+    requirePermission("analytics.view"),
+    async (req, res) => {
+      try {
+        const filters = {
+          department: req.query.department || undefined,
+          program: req.query.program || undefined,
+          semester: req.query.semester || undefined,
+          startDate: req.query.startDate || undefined,
+          endDate: req.query.endDate || undefined,
+        };
+        const data = await getDetailedInstitutionalAnalytics(filters);
+        res.json(data);
+      } catch (err) {
+        console.error("Failed to load detailed analytics:", err);
+        res.status(500).json({ error: "Failed to load detailed analytics." });
+      }
+    }
+  );
+
+  app.get(
+    "/api/audit/analytics",
+    requireAuth,
+    requirePermission(["audit.view", "accounts.manage"]),
+    async (req, res) => {
+      try {
+        const data = await getAuditAnalyticsAndLogs(req.query || {});
+        res.json(data);
+      } catch (err) {
+        console.error("Failed to load audit analytics:", err);
+        res.status(500).json({ error: "Failed to load audit analytics." });
       }
     }
   );

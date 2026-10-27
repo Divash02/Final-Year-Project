@@ -576,6 +576,19 @@ export function updateQuizQuestion(
 }
 
 /**
+ * Persists the reordered question order to the backend.
+ */
+export function reorderQuizQuestions(
+  quizId: string,
+  questionIds: string[],
+): Promise<{ success: boolean; questionCount: number; questionMarks: number; reordered: boolean }> {
+  return apiRequest(`/lms/quizzes/${quizId}/questions/reorder`, {
+    method: "PATCH",
+    body: JSON.stringify({ questionIds }),
+  });
+}
+
+/**
  * The teacher's lifecycle decision.
  *
  * Opening and closing are still reconciled against the server clock on the same

@@ -997,22 +997,45 @@ export function registerExaminationRoutes(app) {
 
   async function resolveExamSubjects(exam) {
     if (exam.subjects && exam.subjects.length > 0) {
-      return exam.subjects;
+      const resolved = [];
+      for (const s of exam.subjects) {
+        let code = s.code;
+        let name = s.name;
+        let credits = s.credits;
+        if ((!code || !name) && s.course) {
+          const cDoc = await Course.findById(s.course);
+          if (cDoc) {
+            code = code || cDoc.code;
+            name = name || cDoc.name;
+            credits = credits || cDoc.credits;
+          }
+        }
+        resolved.push({
+          course: s.course || null,
+          code: code || exam.examCode || "ASSESS",
+          name: name || exam.title || "Subject Assessment",
+          totalMarks: s.totalMarks || exam.totalMarks || 100,
+          passMarks: s.passMarks || exam.passMarks || 40,
+          credits: credits || 3,
+        });
+      }
+      return resolved;
     }
     if (exam.course) {
       const courseDoc = exam.course._id ? exam.course : await Course.findById(exam.course);
-      if (courseDoc) {
-        return [
-          {
-            course: courseDoc._id,
-            code: courseDoc.code,
-            name: courseDoc.name,
-            totalMarks: exam.totalMarks || 100,
-            passMarks: exam.passMarks || 40,
-            credits: courseDoc.credits || 3,
-          },
-        ];
-      }
+      const code = courseDoc?.code || courseDoc?.courseCode || exam.examCode || "CS101";
+      const name = courseDoc?.name || courseDoc?.title || exam.title || "Subject Assessment";
+      const credits = courseDoc?.credits || 3;
+      return [
+        {
+          course: courseDoc?._id || exam.course,
+          code,
+          name,
+          totalMarks: exam.totalMarks || 100,
+          passMarks: exam.passMarks || 40,
+          credits,
+        },
+      ];
     }
     return [
       {
@@ -1625,7 +1648,6 @@ export function registerExaminationRoutes(app) {
         if (!exam) return res.status(404).json({ error: "Exam not found." });
 
         const subjects = await resolveExamSubjects(exam);
-        console.log("DEBUG finalize subjects:", JSON.stringify(subjects), "exam.course:", String(exam.course), "exam.subjects:", JSON.stringify(exam.subjects));
         const results = await ExamResult.find({
           exam: exam._id,
           workflowStatus: { $in: ["SUBMITTED", "UNDER_VERIFICATION", "VERIFIED", "DRAFT"] },

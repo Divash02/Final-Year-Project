@@ -950,7 +950,13 @@ export interface LmsAttemptSummary {
   studentId?: string | null;
   name?: string | null;
   section?: string | null;
+  studentName?: string | null;
+  studentRollNumber?: string | null;
+  score?: number | null;
+  attemptId?: string | null;
 }
+
+export type LmsAttemptRosterItem = LmsAttemptSummary;
 
 /** The runtime a student sits a quiz in. */
 export interface LmsAttemptRuntime {
@@ -1123,6 +1129,9 @@ export interface LmsQuestionInsight {
   pendingManual: number;
   failureRate: number | null;
   averageMarks: number | null;
+  attemptCount?: number;
+  correctCount?: number;
+  questionId?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1314,7 +1323,7 @@ export interface LmsTemplate {
 /* ------------------------------------------------------------------ */
 
 export interface LmsQuizDraft {
-  weekId: string;
+  weekId?: string;
   title: string;
   description?: string;
   instructions?: string;
@@ -1342,6 +1351,7 @@ export interface LmsQuizDraft {
 export interface LmsQuestionDraft {
   type?: QuestionType;
   text?: string;
+  richText?: string;
   marks?: number;
   difficulty?: "EASY" | "MEDIUM" | "HARD";
   category?: string;

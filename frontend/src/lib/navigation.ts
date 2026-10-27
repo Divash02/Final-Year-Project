@@ -23,6 +23,7 @@ import {
   faClipboardList,
   faFileImage,
   faCode,
+  faBrain,
 } from "@fortawesome/free-solid-svg-icons";
 import { UserRoleType } from "../types";
 
@@ -110,6 +111,14 @@ const profileItem: NavItem = {
   icon: faUser,
 };
 
+const intelligenceItem: NavItem = {
+  id: "intelligence",
+  labelEn: "AI Intelligence",
+  labelNe: "कृत्रिम बुद्धिमत्ता",
+  icon: faBrain,
+  permission: "ai.view",
+};
+
 const accountSection = (): NavSection =>
   defineSection("account-personal", [profileItem]);
 
@@ -147,6 +156,7 @@ const STUDENT_NAV: NavSection[] = [
     },
     { id: "documents", labelEn: "My Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
     { id: "library", labelEn: "Library", labelNe: "पुस्तकालय", icon: faBook, permission: "library.view" },
+    intelligenceItem,
   ]),
   defineSection("communication-engagement", [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
@@ -180,6 +190,7 @@ const FACULTY_NAV: NavSection[] = [
   ]),
   defineSection("administration-governance", [
     { id: "documents", labelEn: "Teaching Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
+    intelligenceItem,
   ]),
   defineSection("communication-engagement", [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
@@ -213,6 +224,7 @@ const EXAM_OFFICER_NAV: NavSection[] = [
   ]),
   defineSection("administration-governance", [
     { id: "analytics", labelEn: "Exam Analytics & Audit", labelNe: "परीक्षा विश्लेषण तथा अडिट", icon: faChartPie, permission: "analytics.view" },
+    intelligenceItem,
   ]),
   defineSection("communication-engagement", [
     { id: "notices", labelEn: "Exam Notices", labelNe: "परीक्षा सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
@@ -237,6 +249,7 @@ const DEPARTMENT_NAV: NavSection[] = [
   ]),
   defineSection("administration-governance", [
     { id: "analytics", labelEn: "Department Reports", labelNe: "विभागीय प्रतिवेदन", icon: faChartPie, permission: "analytics.view" },
+    intelligenceItem,
   ]),
   defineSection("communication-engagement", [
     {
@@ -270,6 +283,7 @@ const REGISTRAR_NAV: NavSection[] = [
   defineSection("administration-governance", [
     { id: "documents", labelEn: "Institutional Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
     { id: "analytics", labelEn: "Academic Audit & Reports", labelNe: "शैक्षिक अडिट तथा प्रतिवेदन", icon: faChartPie, permission: "analytics.view" },
+    intelligenceItem,
   ]),
   defineSection("communication-engagement", [
     {
@@ -305,6 +319,7 @@ const FINANCE_NAV: NavSection[] = [
       badgeTone: "danger",
     },
     { id: "analytics", labelEn: "Revenue & Financial Audit", labelNe: "वित्तीय विश्लेषण", icon: faChartPie, permission: "analytics.view" },
+    intelligenceItem,
   ]),
   defineSection("communication-engagement", [
     { id: "requests", labelEn: "Finance Requests", labelNe: "वित्तीय निवेदन", icon: faInbox, permission: "workflow.view" },
@@ -326,6 +341,7 @@ const CAMPUS_ADMIN_NAV: NavSection[] = [
   defineSection("administration-governance", [
     { id: "facilities_library", labelEn: "Buildings & Rooms", labelNe: "भवन तथा कोठाहरू", icon: faBuilding, permission: "library.view" },
     { id: "analytics", labelEn: "Campus Reports", labelNe: "क्याम्पस प्रतिवेदन", icon: faChartPie, permission: "analytics.view" },
+    intelligenceItem,
   ]),
   defineSection("communication-engagement", [
     {
@@ -357,6 +373,7 @@ const DEAN_NAV: NavSection[] = [
   ]),
   defineSection("administration-governance", [
     { id: "analytics", labelEn: "School Analytics & Audit", labelNe: "संकाय विश्लेषण", icon: faChartPie, permission: "analytics.view" },
+    intelligenceItem,
   ]),
   defineSection("communication-engagement", [
     {
@@ -430,6 +447,7 @@ const SUPER_ADMIN_NAV: NavSection[] = [
     { id: "facilities_library", labelEn: "Campus & Facilities", labelNe: "क्याम्पस तथा पुस्तकालय", icon: faBuilding, permission: "library.view" },
     { id: "documents", labelEn: "Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
     { id: "analytics", labelEn: "Analytics & Audit Logs", labelNe: "विश्लेषण तथा अडिट", icon: faChartPie, permission: "analytics.view" },
+    intelligenceItem,
   ]),
   defineSection("communication-engagement", [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },

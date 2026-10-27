@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useId, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { IconDefinition } from "@fortawesome/free-solid-svg-icons";
 import { faXmark } from "@fortawesome/free-solid-svg-icons";
 import { IconButton } from "./IconButton";
 
@@ -8,29 +9,28 @@ export interface ModalProps {
   onClose: () => void;
   title: string;
   subtitle?: string;
+  icon?: IconDefinition;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl";
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
 }
 
 const MAX_WIDTH_CLASSES = {
-  sm: "max-w-sm",
-  md: "max-w-lg",
+  sm: "max-w-md",
+  md: "max-w-xl",
   lg: "max-w-2xl",
   xl: "max-w-3xl",
   "2xl": "max-w-4xl",
-  "3xl": "max-w-6xl",
+  "3xl": "max-w-5xl",
+  "4xl": "max-w-6xl",
 } as const;
 
-/**
- * Accessible dialog: labelled, Escape to close, focus moved into the dialog on
- * open and focus restored on close.
- */
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
   title,
   subtitle,
+  icon,
   children,
   footer,
   maxWidth = "md",
@@ -40,10 +40,6 @@ export const Modal: React.FC<ModalProps> = ({
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
 
-  // Keep the latest `onClose` in a ref so the focus effect below can depend
-  // only on `isOpen`. Callers that pass a new inline arrow on every render
-  // (e.g. `onClose={() => {}}`) must not re-trigger focus management — doing so
-  // steals focus back to the first field on every keystroke.
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
@@ -83,10 +79,10 @@ export const Modal: React.FC<ModalProps> = ({
     const focusTimer = window.setTimeout(() => {
       panelRef.current
         ?.querySelector<HTMLElement>(
-          'input:not([type="hidden"]), textarea, select, button',
+          'input:not([type="hidden"]), textarea, select',
         )
         ?.focus();
-    }, 0);
+    }, 50);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
@@ -99,7 +95,7 @@ export const Modal: React.FC<ModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[2px]">
       <button
         type="button"
         aria-label="Close dialog"
@@ -112,30 +108,39 @@ export const Modal: React.FC<ModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative flex max-h-[calc(100dvh-2rem)] w-full ${MAX_WIDTH_CLASSES[maxWidth]} flex-col overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl`}
+        className={`relative flex max-h-[calc(100dvh-2rem)] w-full ${MAX_WIDTH_CLASSES[maxWidth]} flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_25px_50px_-12px_rgba(15,23,42,0.25)]`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
-          <div className="min-w-0">
-            <h2 id={titleId} className="text-lg font-semibold text-slate-900">
-              {title}
-            </h2>
-            {subtitle && <p className="cos-page-subtitle">{subtitle}</p>}
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+          <div className="flex items-start gap-3 min-w-0">
+            {icon && (
+              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                <FontAwesomeIcon icon={icon} className="text-base" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <h2 id={titleId} className="text-lg font-semibold leading-6 text-slate-900">
+                {title}
+              </h2>
+              {subtitle && (
+                <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+              )}
+            </div>
           </div>
           <IconButton
             icon={faXmark}
             label="Close dialog"
             onClick={onClose}
-            hideTooltip
-          className="-mr-2 -mt-1"
-            variant="danger"
+            hideTooltip={false}
+            className="-mr-1 -mt-1"
+            variant="ghost"
             tooltipPlacement="left"
           />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">{children}</div>
 
         {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-slate-200 bg-slate-50 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/50 px-6 py-4">
             {footer}
           </div>
         )}

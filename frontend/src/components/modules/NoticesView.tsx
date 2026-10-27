@@ -617,9 +617,12 @@ export const NoticesView: React.FC = () => {
                     <h2 className="mt-2 text-base font-bold text-slate-900">
                       {notice.title}
                     </h2>
-                    <p className="mt-1 line-clamp-2 text-sm text-slate-600">
-                      {notice.body}
-                    </p>
+                    <div
+                      className="mt-1 line-clamp-3 text-sm text-slate-600 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-slate-900 [&_h3]:font-semibold [&_h3]:text-slate-800 [&_ul]:ml-4 [&_ul]:list-disc [&_li]:my-0.5"
+                      dangerouslySetInnerHTML={{
+                        __html: formatNoticeBody(notice.contentHtml || notice.body),
+                      }}
+                    />
                     <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                       <span className="inline-flex items-center gap-1.5">
                         <FontAwesomeIcon icon={faUserTag} className="text-[10px]" />
@@ -715,14 +718,14 @@ export const NoticesView: React.FC = () => {
 
       {/* Composer modal */}
       {composerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[2px]">
+          <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col rounded-xl border border-slate-200 bg-white shadow-[0_25px_50px_-12px_rgba(15,23,42,0.25)]">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">
+                <h2 className="text-lg font-semibold text-slate-900">
                   {editingId ? "Edit Notice" : "New Notice"}
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="mt-1 text-sm text-slate-500">
                   {editingId
                     ? "Changes are saved to the existing notice."
                     : "Compose, target an audience and publish or save a draft."}
@@ -738,7 +741,7 @@ export const NoticesView: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   Title <span className="text-red-500">*</span>
@@ -993,7 +996,7 @@ export const NoticesView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-4">
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/50 px-6 py-4">
               <button
                 type="button"
                 onClick={() => setComposerOpen(false)}
@@ -1112,11 +1115,14 @@ const NoticeDetailModal: React.FC<NoticeDetailModalProps> = ({
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
           {notice.contentHtml ? (
             <div
-              className="cos-rendered-notice max-w-none"
+              className="cos-rendered-notice max-w-none [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-slate-900 [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-slate-800 [&_ul]:ml-6 [&_ul]:list-disc [&_li]:my-1 [&_div]:my-1"
               dangerouslySetInnerHTML={{ __html: notice.contentHtml }}
             />
           ) : (
-            <p className="whitespace-pre-wrap text-sm text-slate-700">{notice.body}</p>
+            <div
+              className="max-w-none text-sm text-slate-700 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-slate-900 [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-slate-800 [&_ul]:ml-6 [&_ul]:list-disc [&_li]:my-1 [&_div]:my-1"
+              dangerouslySetInnerHTML={{ __html: formatNoticeBody(notice.body) }}
+            />
           )}
 
           {notice.attachments.length > 0 && (
@@ -1197,5 +1203,38 @@ const NoticeDetailModal: React.FC<NoticeDetailModalProps> = ({
 function isExpiredStatic(notice: NoticeRecord): boolean {
   return Boolean(notice.expiresAt) && new Date(notice.expiresAt!) < new Date();
 }
+
+const formatNoticeBody = (text: string): string => {
+  if (!text) return "";
+  if (/<[a-z][\s\S]*>/i.test(text)) {
+    return text;
+  }
+  let formatted = text;
+
+  formatted = formatted.replace(
+    /^(Official Examination Notice:.*)$/gim,
+    "<h2>$1</h2>"
+  );
+  formatted = formatted.replace(/^(Examination:.*)$/gim, "<h3>$1</h3>");
+  formatted = formatted.replace(
+    /^(INSTRUCTIONS FOR CANDIDATES|INSTRUCTIONS|EXAMINATION DETAILS|DETAILS|SUBJECT):?$/gim,
+    "<h3>$1</h3>"
+  );
+
+  formatted = formatted.replace(
+    /(Course|Program & Semester|Date \(Gregorian\)|Date \(Nepali\)|Time|Venue \/ Rooms|Eligible Candidates|Issued By|Published On|Subject|To):\s*([^\n\r]+)/gim,
+    "<div><strong>$1:</strong> $2</div>"
+  );
+
+  formatted = formatted.replace(/^[-•]\s*(.+)$/gim, "<li>$1</li>");
+  formatted = formatted.replace(/(<li>.*<\/li>)/gms, "<ul>$1</ul>");
+
+  formatted = formatted
+    .replace(/\n\n+/g, "</p><p>")
+    .replace(/\n/g, "<br/>");
+  formatted = "<p>" + formatted + "</p>";
+
+  return formatted;
+};
 
 export default NoticesView;

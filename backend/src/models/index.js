@@ -148,3 +148,14 @@ export {
   StudentAssessmentMark,
   ASSESSMENT_WORKFLOW_STATUSES,
 } from "./StudentAssessmentMark.js";
+
+// AI Intelligence, Cybersecurity & Advanced IT Ecosystem
+export { AIActivityLog } from "./AIActivityLog.js";
+export { AnomalyAlert } from "./AnomalyAlert.js";
+export { ITAsset, ASSET_CATEGORIES, ASSET_STATUSES } from "./ITAsset.js";
+export { SoftwareLicense } from "./SoftwareLicense.js";
+export { ITTicket, TICKET_CATEGORIES, TICKET_PRIORITIES, TICKET_STATUSES } from "./ITTicket.js";
+export { SecurityEvent, SECURITY_EVENT_TYPES } from "./SecurityEvent.js";
+export { DigitalCredential, CREDENTIAL_TYPES, CREDENTIAL_STATUSES } from "./DigitalCredential.js";
+export { AttendanceQRSession } from "./AttendanceQRSession.js";
+

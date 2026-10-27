@@ -6,6 +6,7 @@ import { Drawer } from "../shared/Drawer";
 import { FormField } from "../../ui/Input";
 import { ConfirmDialog } from "../shared/ConfirmDialog";
 import { RichTextEditor } from "../../notices/RichTextEditor";
+import { richHtmlToPlainText } from "../../../lib/sanitizeHtml";
 import type { LmsQuestionDraft, LmsQuestion, LmsQuizOption } from "../../../types/lms";
 import { addQuizQuestion, updateQuizQuestion } from "../../../services/lmsApi";
 
@@ -16,7 +17,8 @@ export type QuestionEditorType =
   | "TRUE_FALSE"
   | "FILL_BLANK"
   | "SHORT_ANSWER"
-  | "LONG_ANSWER";
+  | "LONG_ANSWER"
+  | "NUMERIC";
 
 interface OptionRow {
   id: string;
@@ -185,9 +187,13 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
       return;
     }
 
+    const plainText = richHtmlToPlainText(text).trim() || text.trim();
+    const richTextHtml = text.trim();
+
     const draft: LmsQuestionDraft = {
       type,
-      text: text.trim(),
+      text: plainText,
+      richText: richTextHtml,
       marks: marksValue,
       difficulty,
       category: category.trim() || undefined,
@@ -297,6 +303,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                   <option value="FILL_BLANK">Fill in the blank</option>
                   <option value="SHORT_ANSWER">Short answer</option>
                   <option value="LONG_ANSWER">Long answer / essay</option>
+                  <option value="NUMERIC">Numerical answer</option>
                 </select>
               )}
             </FormField>
@@ -359,10 +366,10 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
             {options.map((option, index) => (
               <div
                 key={option.id}
-                className={`flex items-start gap-2 rounded-lg border p-2.5 ${
+                className={`flex items-center gap-3 rounded-lg border p-2.5 transition ${
                   correctIndices.has(index)
-                    ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]"
-                    : "border-slate-200 dark:border-slate-700"
+                    ? "border-teal-500 bg-teal-50/70 dark:bg-teal-950/30"
+                    : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900"
                 }`}
               >
                 {isChoice ? (
@@ -379,14 +386,17 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                               : new Set([...current, index]),
                           )
                     }
-                    className={`shrink-0 mt-1 h-4 w-4 rounded-full border ${
+                    className={`shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition ${
                       correctIndices.has(index)
-                        ? "bg-[var(--color-primary)] border-[var(--color-primary)]"
-                        : "border-slate-300"
+                        ? "bg-teal-600 border-teal-600 text-white"
+                        : "border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800"
                     }`}
-                  />
+                    title={correctIndices.has(index) ? "Marked as correct answer" : "Click to mark as correct"}
+                  >
+                    {correctIndices.has(index) && <span className="h-2 w-2 rounded-full bg-white" />}
+                  </button>
                 ) : (
-                  <span className="shrink-0 mt-1 h-4 w-4 rounded-full border border-slate-300 flex items-center justify-center text-[0.55rem] text-slate-500">
+                  <span className="shrink-0 h-5 w-5 rounded-full border border-slate-300 flex items-center justify-center text-[0.55rem] text-slate-500">
                     <FontAwesomeIcon icon={faSquare} />
                   </span>
                 )}
@@ -400,15 +410,15 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                         ),
                       )
                     }
-                    placeholder={`Option ${String.fromCharCode(65 + index)}`}
-                    className="min-w-0 flex-1 bg-transparent text-sm outline-none border-none focus:ring-0"
+                    placeholder={`Option ${String.fromCharCode(65 + index)} text`}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                     aria-label={`Option ${String.fromCharCode(65 + index)}`}
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => removeOption(index)}
-                  className="shrink-0 p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+                  className="shrink-0 p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded transition"
                   aria-label={`Remove option ${String.fromCharCode(65 + index)}`}
                 >
                   <FontAwesomeIcon icon={faMinus} />

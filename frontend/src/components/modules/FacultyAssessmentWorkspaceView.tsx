@@ -18,7 +18,7 @@ import {
   faSliders,
 } from "@fortawesome/free-solid-svg-icons";
 import { useCollegeOS } from "../../context/CollegeOSContext";
-import { useToast } from "../ui/Toast";
+import { useToast } from "../ui/ToastContainer";
 import {
   fetchFacultyCourses,
   fetchAssessmentCandidates,
@@ -1188,7 +1188,7 @@ export const FacultyAssessmentWorkspaceView: React.FC = () => {
                 Class Candidates ({totalStudents})
               </h4>
               <div className="divide-y divide-slate-100">
-                {assessmentData.candidates.map((cand, idx) => (
+                {assessmentData?.candidates?.map((cand, idx) => (
                   <button
                     key={cand.studentId}
                     type="button"

@@ -1,24 +1,53 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faClipboardList, faCopy, faEdit, faPlus, faTrash } from "@fortawesome/free-solid-svg-icons";
-import { PageHeader } from "../../ui/PageHeader";
+import {
+  faClipboardList,
+  faCopy,
+  faEdit,
+  faPlus,
+  faTrash,
+  faArrowUp,
+  faArrowDown,
+  faBookOpen,
+  faWandMagicSparkles,
+  faShieldHalved,
+  faEye,
+  faSlidersH,
+  faChartPie,
+  faSquareCheck,
+  faSave,
+  faRocket,
+  faArrowLeft,
+  faCheck,
+  faExclamationCircle,
+} from "@fortawesome/free-solid-svg-icons";
 import { Button } from "../../ui/Button";
 import { Badge } from "../../ui/Badge";
 import { Alert } from "../../ui/Alert";
 import { ConfirmDialog } from "../shared/ConfirmDialog";
+import { RichTextDisplay } from "../../ui/RichTextDisplay";
 import {
   createQuiz,
   fetchQuiz,
   isTeacherQuizDetail,
   setQuizStatus,
   updateQuiz,
+  reorderQuizQuestions,
+  removeQuizQuestion,
+  addQuizQuestion,
 } from "../../../services/lmsApi";
 import type { LmsQuizDraft, LmsQuizForTeacher, LmsQuestion } from "../../../types/lms";
 import { QuestionEditor } from "./QuestionEditor";
-import { QuestionBankPicker } from "./QuestionBankPicker";
+import { QuestionBankModal } from "./QuestionBankModal";
+import { AIQuizAssistantModal, GeneratedQuestion } from "./AIQuizAssistantModal";
+import { AIQualityCheckModal } from "./AIQualityCheckModal";
+import { PublishQuizModal } from "./PublishQuizModal";
+import { QuizPreview } from "./QuizPreview";
+import { QuizSettingsTab } from "./QuizSettingsTab";
+import { QuizResultsTab } from "./QuizResultsTab";
+import { QuizAnalyticsTab } from "./QuizAnalyticsTab";
 
-/** A single authored question in builder-local state. */
-interface BuilderQuestion {
+export interface BuilderQuestion {
   id: string;
   type: NonNullable<LmsQuestion["type"]>;
   text: string;
@@ -31,19 +60,17 @@ interface BuilderQuestion {
   options: Array<{ id: string; text: string }>;
   correctAnswer: unknown[];
   position: number;
+  section?: string;
 }
 
-type QuizStep = "details" | "questions" | "review";
+type StudioTab = "questions" | "preview" | "settings" | "results" | "analytics";
 
 interface QuizBuilderProps {
-  /** The course this quiz belongs to. */
   courseId: string;
-  /** Optional week the quiz is filed under. */
   weekId?: string;
-  /** Optional existing quiz to edit. */
   quizId?: string;
   onClose: () => void;
-  onPublished: (quiz: LmsQuizForTeacher) => void;
+  onPublished?: (quiz: LmsQuizForTeacher) => void;
 }
 
 export const QuizBuilder: React.FC<QuizBuilderProps> = ({
@@ -53,10 +80,13 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   onClose,
   onPublished,
 }) => {
-  const [step, setStep] = useState<QuizStep>("details");
+  const [activeTab, setActiveTab] = useState<StudioTab>("questions");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [quizStatusState, setQuizStatusState] = useState<string>("DRAFT");
+
   const [quizDraft, setQuizDraft] = useState<LmsQuizDraft>({
     weekId: initialWeekId || "",
     title: "",
@@ -79,13 +109,19 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
     openAt: "",
     closeAt: "",
   });
+
   const [questions, setQuestions] = useState<BuilderQuestion[]>([]);
-  const [questionEditorOpen, setQuestionEditorOpen] = useState(false);
-  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
-  const [bankPickerOpen, setBankPickerOpen] = useState(false);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [deleteQuestionId, setDeleteQuestionId] = useState<string | null>(null);
   const [createdQuizId, setCreatedQuizId] = useState<string | null>(null);
+
+  // Modals state
+  const [questionEditorOpen, setQuestionEditorOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<BuilderQuestion | null>(null);
+  const [bankModalOpen, setBankModalOpen] = useState(false);
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+  const [qualityCheckOpen, setQualityCheckOpen] = useState(false);
+  const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
 
   const effectiveQuizId = useMemo(
     () => initialQuizId || createdQuizId || "",
@@ -93,11 +129,11 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   );
 
   const totalQuestionMarks = useMemo(
-    () => questions.reduce((sum, q) => sum + q.marks, 0),
+    () => questions.reduce((sum, q) => sum + (q.marks || 0), 0),
     [questions],
   );
-  const marksMatch =
-    quizDraft.maxMarks != null && totalQuestionMarks === quizDraft.maxMarks;
+
+  const marksMatch = quizDraft.maxMarks != null && totalQuestionMarks === quizDraft.maxMarks;
 
   const loadQuiz = useCallback(async () => {
     if (!initialQuizId) return;
@@ -106,6 +142,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
       const detail = await fetchQuiz(initialQuizId);
       if (isTeacherQuizDetail(detail)) {
         const { quiz, questions: serverQuestions } = detail;
+        setQuizStatusState(quiz.availability || "DRAFT");
         setQuizDraft({
           weekId: quiz.weekId || "",
           title: quiz.title,
@@ -121,9 +158,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
           allowReviewBeforeSubmit: quiz.allowReviewBeforeSubmit,
           allowReopenExpired: quiz.allowReopenExpired,
           navigationMethod: quiz.navigationMethod ?? "FREE",
-          multipleSelectGrading: quiz.multipleSelectGrading as
-            | "EXACT"
-            | "PARTIAL_CREDIT",
+          multipleSelectGrading: quiz.multipleSelectGrading as "EXACT" | "PARTIAL_CREDIT",
           blankAnswerCaseSensitive: quiz.blankAnswerCaseSensitive,
           resultReleasePolicy: quiz.resultReleasePolicy,
           showCorrectAnswers: quiz.showCorrectAnswers,
@@ -135,7 +170,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
             id: q.id,
             type: q.type,
             text: q.text,
-            richText: q.richText,
+            richText: q.richText || "",
             marks: q.marks,
             difficulty: q.difficulty,
             category: q.category,
@@ -149,9 +184,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
       }
     } catch (requestError) {
       setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "This quiz could not be loaded.",
+        requestError instanceof Error ? requestError.message : "This quiz could not be loaded.",
       );
     } finally {
       setLoading(false);
@@ -162,170 +195,36 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
     void loadQuiz();
   }, [loadQuiz]);
 
-  const goToQuestions = async () => {
-    if (!quizDraft.title.trim()) {
-      setError("Enter a quiz title before continuing.");
-      return;
-    }
-    if (!quizDraft.weekId) {
-      setError("Select a week before continuing.");
-      return;
-    }
-    setError("");
+  // Persist question reordering to backend
+  const handleMoveQuestion = async (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= questions.length) return;
 
-    if (!initialQuizId) {
-      setSaving(true);
+    const nextList = [...questions];
+    const [moved] = nextList.splice(index, 1);
+    nextList.splice(targetIndex, 0, moved);
+    setQuestions(nextList);
+
+    if (effectiveQuizId) {
       try {
-        const detail = await createQuiz(courseId, {
-          weekId: quizDraft.weekId,
-          title: quizDraft.title,
-          description: quizDraft.description,
-          instructions: quizDraft.instructions,
-          maxMarks: quizDraft.maxMarks,
-          passingMarks: quizDraft.passingMarks,
-          durationMinutes: quizDraft.durationMinutes,
-          attemptsAllowed: quizDraft.attemptsAllowed,
-          openAt: quizDraft.openAt ? new Date(quizDraft.openAt).toISOString() : undefined,
-          closeAt: quizDraft.closeAt ? new Date(quizDraft.closeAt).toISOString() : undefined,
-          resultReleasePolicy: quizDraft.resultReleasePolicy,
-          randomizeQuestions: quizDraft.randomizeQuestions,
-          randomizeOptions: quizDraft.randomizeOptions,
-          allowBackNavigation: quizDraft.allowBackNavigation,
-          allowReviewBeforeSubmit: quizDraft.allowReviewBeforeSubmit,
-          allowReopenExpired: quizDraft.allowReopenExpired,
-          navigationMethod: quizDraft.navigationMethod,
-          multipleSelectGrading: quizDraft.multipleSelectGrading,
-          blankAnswerCaseSensitive: quizDraft.blankAnswerCaseSensitive,
-          showCorrectAnswers: quizDraft.showCorrectAnswers,
-        });
-        setCreatedQuizId(detail.quiz.id);
-        setStep("questions");
-      } catch (requestError) {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "The quiz could not be created.",
-        );
-      } finally {
-        setSaving(false);
+        const ids = nextList.map((q) => q.id);
+        await reorderQuizQuestions(effectiveQuizId, ids);
+      } catch (err) {
+        console.warn("Failed to persist order to backend:", err);
       }
-      return;
     }
-
-    setStep("questions");
   };
 
-  const goToReview = () => {
-    if (questions.length === 0) {
-      setError("Add at least one question before reviewing.");
-      return;
-    }
-    setStep("review");
-    setError("");
-  };
-
-  const addQuestion = (saved: LmsQuestion) => {
-    setQuestions((current) => [
-      ...current,
-      {
-        id: saved.id,
-        type: saved.type,
-        text: saved.text,
-        richText: saved.richText,
-        marks: saved.marks,
-        difficulty: saved.difficulty,
-        category: saved.category,
-        topic: saved.topic,
-        explanation: saved.explanation,
-        options: saved.options.map((o) => ({ id: o.id, text: o.text })),
-        correctAnswer: saved.correctAnswer || [],
-        position: saved.position,
-      },
-    ]);
-    setQuestionEditorOpen(false);
-  };
-
-  const updateQuestion = (saved: LmsQuestion) => {
-    setQuestions((current) =>
-      current.map((q) =>
-        q.id === saved.id
-          ? {
-              ...q,
-              type: saved.type,
-              text: saved.text,
-              richText: saved.richText,
-              marks: saved.marks,
-              difficulty: saved.difficulty,
-              category: saved.category,
-              topic: saved.topic,
-              explanation: saved.explanation,
-              options: saved.options.map((o) => ({ id: o.id, text: o.text })),
-              correctAnswer: saved.correctAnswer || [],
-            }
-          : q,
-      ),
-    );
-    setEditingQuestionId(null);
-    setQuestionEditorOpen(false);
-  };
-
-  const openEditor = (question: BuilderQuestion | null) => {
-    setEditingQuestionId(question?.id ?? null);
-    setQuestionEditorOpen(true);
-  };
-
-  const deleteQuestion = async (id: string) => {
-    const exists = questions.some((q) => q.id === id);
-    if (!exists) {
-      setConfirmDeleteOpen(false);
-      setDeleteQuestionId(null);
-      return;
-    }
-    // Optimistically remove; the server route also rejects changes once sat.
-    setQuestions((current) => current.filter((q) => q.id !== id));
-    setConfirmDeleteOpen(false);
-    setDeleteQuestionId(null);
-  };
-
-  const reorderQuestions = async (orderedIds: string[]) => {
-    setQuestions((current) => {
-      const byId = new Map(current.map((q) => [q.id, q]));
-      return orderedIds.map((id) => byId.get(id)!).filter(Boolean);
-    });
-  };
-
-  const openBankPicker = () => {
-    setBankPickerOpen(true);
-  };
-
-  const handleBankAdded = (count: number) => {
-    setBankPickerOpen(false);
-  };
-
-  const handlePublish = async () => {
-    if (!quizDraft.weekId) {
-      setError("Select a week.");
-      return;
-    }
+  const handleSaveDraft = async () => {
     if (!quizDraft.title.trim()) {
-      setError("Enter a quiz title.");
-      return;
-    }
-    if (questions.length === 0) {
-      setError("Add at least one question.");
-      return;
-    }
-    if (!marksMatch) {
-      setError(
-        `Question marks total ${totalQuestionMarks} but quiz max marks is ${quizDraft.maxMarks}. They must match before publishing.`,
-      );
+      setError("Please provide an assessment title.");
       return;
     }
     setSaving(true);
+    setError("");
     try {
-      let published: LmsQuizForTeacher | null = null;
-      if (initialQuizId) {
-        await updateQuiz(initialQuizId, {
+      if (effectiveQuizId) {
+        await updateQuiz(effectiveQuizId, {
           title: quizDraft.title,
           description: quizDraft.description,
           instructions: quizDraft.instructions,
@@ -344,40 +243,289 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
           openAt: quizDraft.openAt ? new Date(quizDraft.openAt).toISOString() : undefined,
           closeAt: quizDraft.closeAt ? new Date(quizDraft.closeAt).toISOString() : undefined,
         });
-        const detail = await fetchQuiz(initialQuizId);
-        if (isTeacherQuizDetail(detail)) published = detail.quiz;
-      } else if (effectiveQuizId) {
-        const status = quizDraft.openAt ? "SCHEDULED" : "OPEN";
-        const result = await setQuizStatus(effectiveQuizId, status);
-        published = result.quiz;
+        setNotice("Assessment draft successfully saved.");
+      } else {
+        const detail = await createQuiz(courseId, {
+          weekId: quizDraft.weekId || "",
+          title: quizDraft.title,
+          description: quizDraft.description,
+          instructions: quizDraft.instructions,
+          maxMarks: quizDraft.maxMarks,
+          passingMarks: quizDraft.passingMarks,
+          durationMinutes: quizDraft.durationMinutes,
+          attemptsAllowed: quizDraft.attemptsAllowed,
+          openAt: quizDraft.openAt ? new Date(quizDraft.openAt).toISOString() : undefined,
+          closeAt: quizDraft.closeAt ? new Date(quizDraft.closeAt).toISOString() : undefined,
+        });
+        setCreatedQuizId(detail.quiz.id);
+        setNotice("Quiz created as draft. You can now add and reorder questions.");
       }
-      onClose();
-      if (published) onPublished(published);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "The quiz could not be published.",
-      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save quiz draft.");
     } finally {
       setSaving(false);
     }
   };
 
+  const handleConfirmPublish = async () => {
+    if (!effectiveQuizId) {
+      setError("Please save the quiz draft before publishing.");
+      setPublishModalOpen(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const statusToSet = quizDraft.openAt ? "SCHEDULED" : "OPEN";
+      const result = await setQuizStatus(effectiveQuizId, statusToSet);
+      setQuizStatusState(statusToSet);
+      setPublishModalOpen(false);
+      setNotice(`Quiz published successfully (${statusToSet.toLowerCase()}).`);
+      if (onPublished && isTeacherQuizDetail(result as any)) {
+        onPublished((result as any).quiz);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to publish assessment.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleInsertAIQuestion = async (generated: GeneratedQuestion) => {
+    if (!effectiveQuizId) {
+      // Keep in local list if quiz not yet persisted
+      setQuestions((prev) => [
+        ...prev,
+        {
+          id: generated.id,
+          type: generated.type,
+          text: generated.text,
+          richText: generated.text,
+          marks: generated.marks,
+          difficulty: generated.difficulty,
+          topic: generated.topic || null,
+          category: generated.category || null,
+          explanation: generated.explanation,
+          options: generated.options,
+          correctAnswer: generated.correctAnswer,
+          position: prev.length + 1,
+        },
+      ]);
+      setNotice("AI Question inserted into draft list.");
+      return;
+    }
+
+    try {
+      const saved = await addQuizQuestion(effectiveQuizId, {
+        type: generated.type,
+        text: generated.text,
+        richText: generated.text,
+        marks: generated.marks,
+        difficulty: generated.difficulty,
+        topic: generated.topic,
+        category: generated.category,
+        explanation: generated.explanation,
+        options: generated.options.map((o) => ({ text: o.text })),
+        correctAnswer: generated.correctAnswer,
+      });
+
+      setQuestions((prev) => [
+        ...prev,
+        {
+          id: saved.question.id,
+          type: saved.question.type,
+          text: saved.question.text,
+          richText: saved.question.richText || "",
+          marks: saved.question.marks,
+          difficulty: saved.question.difficulty,
+          topic: saved.question.topic,
+          category: saved.question.category,
+          explanation: saved.question.explanation,
+          options: saved.question.options.map((o) => ({ id: o.id, text: o.text })),
+          correctAnswer: saved.question.correctAnswer || [],
+          position: saved.question.position,
+        },
+      ]);
+      setNotice("AI Question successfully saved to quiz.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save AI question.");
+    }
+  };
+
+  const handleDuplicateQuestion = async (q: BuilderQuestion) => {
+    if (!effectiveQuizId) {
+      setQuestions((prev) => [
+        ...prev,
+        {
+          ...q,
+          id: `local_dup_${Date.now()}`,
+          position: prev.length + 1,
+        },
+      ]);
+      return;
+    }
+
+    try {
+      const res = await addQuizQuestion(effectiveQuizId, {
+        type: q.type,
+        text: `${q.text} (Copy)`,
+        richText: q.richText ? `${q.richText} (Copy)` : "",
+        marks: q.marks,
+        difficulty: q.difficulty,
+        topic: q.topic || undefined,
+        category: q.category || undefined,
+        explanation: q.explanation || undefined,
+        options: q.options.map((o) => ({ text: o.text })),
+        correctAnswer: q.correctAnswer,
+      });
+
+      setQuestions((prev) => [
+        ...prev,
+        {
+          id: res.question.id,
+          type: res.question.type,
+          text: res.question.text,
+          richText: res.question.richText || "",
+          marks: res.question.marks,
+          difficulty: res.question.difficulty,
+          topic: res.question.topic,
+          category: res.question.category,
+          explanation: res.question.explanation,
+          options: res.question.options.map((o) => ({ id: o.id, text: o.text })),
+          correctAnswer: res.question.correctAnswer || [],
+          position: res.question.position,
+        },
+      ]);
+      setNotice("Question duplicated.");
+    } catch (err) {
+      setError("Failed to duplicate question.");
+    }
+  };
+
+  const handleDeleteQuestionConfirm = async () => {
+    if (!questionToDelete) return;
+    if (effectiveQuizId) {
+      try {
+        await removeQuizQuestion(effectiveQuizId, questionToDelete);
+      } catch (err) {
+        console.warn("Could not delete from backend:", err);
+      }
+    }
+    setQuestions((prev) => prev.filter((q) => q.id !== questionToDelete));
+    setDeleteConfirmOpen(false);
+    setQuestionToDelete(null);
+    setNotice("Question deleted.");
+  };
+
   return (
-    <div className="cos-page space-y-6">
-      <PageHeader
-        title={initialQuizId ? "Edit Quiz" : "New Quiz"}
-        eyebrow="Quiz builder"
-        description={
-          step === "details"
-            ? "Configure the quiz, then author its questions."
-            : step === "questions"
-              ? `Authoring questions for "${quizDraft.title}".`
-              : "Review and publish the quiz."
-        }
-        icon={faClipboardList}
-      />
+    <div className="cos-page space-y-5">
+      {/* Top Breadcrumb & Status Navigation */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <div className="flex items-center gap-2 text-xs">
+          <Button variant="ghost" size="sm" icon={faArrowLeft} onClick={onClose}>
+            Back
+          </Button>
+          <span className="text-slate-400">/</span>
+          <span className="font-semibold text-slate-500 uppercase tracking-wider">
+            {courseId}
+          </span>
+          <span className="text-slate-400">/</span>
+          <span className="font-bold text-slate-800 dark:text-slate-200">
+            {quizDraft.title || "New Assessment"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Badge
+            variant={
+              quizStatusState === "OPEN"
+                ? "success"
+                : quizStatusState === "SCHEDULED"
+                  ? "info"
+                  : quizStatusState === "CLOSED"
+                    ? "warning"
+                    : "neutral"
+            }
+          >
+            {quizStatusState}
+          </Badge>
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={faSave}
+            onClick={handleSaveDraft}
+            isLoading={saving}
+          >
+            Save Draft
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            icon={faRocket}
+            onClick={() => setPublishModalOpen(true)}
+            disabled={questions.length === 0}
+          >
+            Publish Quiz
+          </Button>
+        </div>
+      </div>
+
+      {/* Assessment Header Banner */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-lg bg-teal-600 text-white text-sm">
+              <FontAwesomeIcon icon={faClipboardList} />
+            </span>
+            <input
+              type="text"
+              value={quizDraft.title}
+              onChange={(e) => setQuizDraft({ ...quizDraft, title: e.target.value })}
+              placeholder="e.g. React Fundamentals & State Architecture Quiz"
+              className="text-lg md:text-xl font-bold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-600 focus:outline-none px-1"
+            />
+          </div>
+          <p className="text-xs text-slate-500 pl-10">
+            {courseId} · Assessment &amp; Psychometric Examination
+          </p>
+        </div>
+
+        {/* Quick Stats Badges */}
+        <div className="flex flex-wrap items-center gap-4 text-xs font-semibold bg-slate-50 dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+          <div>
+            <span className="text-slate-400 block uppercase text-[10px]">Questions</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              {questions.length}
+            </span>
+          </div>
+          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+          <div>
+            <span className="text-slate-400 block uppercase text-[10px]">Total Marks</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              {totalQuestionMarks} <span className="text-xs font-normal text-slate-400">/ {quizDraft.maxMarks}</span>
+            </span>
+          </div>
+          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+          <div>
+            <span className="text-slate-400 block uppercase text-[10px]">Time Limit</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              {quizDraft.durationMinutes || 30}m
+            </span>
+          </div>
+          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+          <div>
+            <span className="text-slate-400 block uppercase text-[10px]">Attempts</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              {quizDraft.attemptsAllowed || 1}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {notice && (
+        <Alert variant="success" onDismiss={() => setNotice(null)}>
+          {notice}
+        </Alert>
+      )}
 
       {error && (
         <Alert variant="error" onDismiss={() => setError("")}>
@@ -385,756 +533,474 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
         </Alert>
       )}
 
-      <div
-        className="flex flex-col items-center justify-center gap-2"
-        style={{ minHeight: 40 }}
-      >
-        <div className="flex items-center gap-1 text-xs font-semibold tracking-wider text-slate-500 dark:text-slate-400">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-            1
-          </span>
-          <span className="mx-1">Quiz Details</span>
-          <span className="text-slate-400">→</span>
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-            2
-          </span>
-          <span className="mx-1">Questions</span>
-          <span className="text-slate-400">→</span>
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-            3
-          </span>
-          <span className="mx-1">Review &amp; Publish</span>
-        </div>
+      {/* Main Studio Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={() => setActiveTab("questions")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+            activeTab === "questions"
+              ? "border-teal-600 text-teal-600 dark:text-teal-400"
+              : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+          }`}
+        >
+          <FontAwesomeIcon icon={faSquareCheck} />
+          <span>Questions &amp; Structure ({questions.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("preview")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+            activeTab === "preview"
+              ? "border-teal-600 text-teal-600 dark:text-teal-400"
+              : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+          }`}
+        >
+          <FontAwesomeIcon icon={faEye} />
+          <span>Student Preview</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("settings")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+            activeTab === "settings"
+              ? "border-teal-600 text-teal-600 dark:text-teal-400"
+              : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+          }`}
+        >
+          <FontAwesomeIcon icon={faSlidersH} />
+          <span>Settings</span>
+        </button>
+
+        {effectiveQuizId && (
+          <>
+            <button
+              type="button"
+              onClick={() => setActiveTab("results")}
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+                activeTab === "results"
+                  ? "border-teal-600 text-teal-600 dark:text-teal-400"
+                  : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
+            >
+              <FontAwesomeIcon icon={faClipboardList} />
+              <span>Results</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("analytics")}
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition ${
+                activeTab === "analytics"
+                  ? "border-teal-600 text-teal-600 dark:text-teal-400"
+                  : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
+            >
+              <FontAwesomeIcon icon={faChartPie} />
+              <span>Analytics &amp; Insights</span>
+            </button>
+          </>
+        )}
       </div>
 
-      {step === "details" && (
-        <QuizDetailsForm
+      {/* Tab 1: Questions Studio */}
+      {activeTab === "questions" && (
+        <div className="space-y-4">
+          {/* Builder Action Toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="primary"
+                icon={faPlus}
+                onClick={() => {
+                  setEditingQuestion(null);
+                  setQuestionEditorOpen(true);
+                }}
+              >
+                + Add Question
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={faBookOpen}
+                onClick={() => setBankModalOpen(true)}
+              >
+                Question Bank
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={faWandMagicSparkles}
+                onClick={() => setAiAssistantOpen(true)}
+              >
+                AI Assistant
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={faShieldHalved}
+                onClick={() => setQualityCheckOpen(true)}
+              >
+                AI Quality Check
+              </Button>
+            </div>
+          </div>
+
+          {!marksMatch && totalQuestionMarks > 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-200">
+              <span>
+                Total question marks ({totalQuestionMarks}) differs from quiz max marks ({quizDraft.maxMarks}).
+              </span>
+              <button
+                type="button"
+                onClick={() => setQuizDraft({ ...quizDraft, maxMarks: totalQuestionMarks })}
+                className="underline font-bold text-amber-900 dark:text-amber-100 hover:text-amber-700"
+              >
+                Sync Quiz Max Marks to {totalQuestionMarks}
+              </button>
+            </div>
+          )}
+
+          {/* Question Cards List */}
+          {questions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-12 text-center space-y-3">
+              <FontAwesomeIcon icon={faSquareCheck} className="text-4xl text-slate-300 dark:text-slate-600" />
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
+                No Questions Added Yet
+              </h3>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Author items directly using the rich-text builder, reuse vetted questions from your Question Bank, or generate candidate items with the AI Assistant.
+              </p>
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  icon={faPlus}
+                  onClick={() => {
+                    setEditingQuestion(null);
+                    setQuestionEditorOpen(true);
+                  }}
+                >
+                  Create First Question
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={faBookOpen}
+                  onClick={() => setBankModalOpen(true)}
+                >
+                  Import From Bank
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {questions.map((q, idx) => (
+                <div
+                  key={q.id || idx}
+                  className="rounded-lg border border-slate-200 bg-white p-4.5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-3 hover:border-slate-300 transition"
+                >
+                  {/* Card Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2.5 py-1 rounded">
+                        QUESTION {idx + 1}
+                      </span>
+                      <span className="text-xs font-medium text-slate-500">
+                        {q.type.replace(/_/g, " ").toLowerCase()} · <strong>{q.marks} mark{q.marks === 1 ? "" : "s"}</strong>
+                      </span>
+                      <Badge variant="neutral" size="sm" hideDot>
+                        {q.difficulty.toLowerCase()}
+                      </Badge>
+                      {q.topic && (
+                        <span className="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                          {q.topic}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={faArrowUp}
+                        disabled={idx === 0}
+                        onClick={() => handleMoveQuestion(idx, "up")}
+                        title="Move Up"
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={faArrowDown}
+                        disabled={idx === questions.length - 1}
+                        onClick={() => handleMoveQuestion(idx, "down")}
+                        title="Move Down"
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={faEdit}
+                        onClick={() => {
+                          setEditingQuestion(q);
+                          setQuestionEditorOpen(true);
+                        }}
+                        title="Edit Question"
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={faCopy}
+                        onClick={() => handleDuplicateQuestion(q)}
+                        title="Duplicate"
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={faTrash}
+                        onClick={() => {
+                          setQuestionToDelete(q.id);
+                          setDeleteConfirmOpen(true);
+                        }}
+                        title="Delete Question"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Formatted Question Body */}
+                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                    <RichTextDisplay content={q.richText || q.text} />
+                  </div>
+
+                  {/* Options List */}
+                  {q.options && q.options.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                      {q.options.map((opt, oIdx) => {
+                        const correctList = Array.isArray(q.correctAnswer)
+                          ? q.correctAnswer.map(String)
+                          : [];
+                        const isCorrect = correctList.includes(opt.id);
+
+                        return (
+                          <div
+                            key={opt.id}
+                            className={`p-2.5 rounded-md border flex items-center gap-2 ${
+                              isCorrect
+                                ? "border-teal-300 bg-teal-50/80 text-teal-950 dark:bg-teal-950/40 dark:border-teal-700 dark:text-teal-200 font-medium"
+                                : "border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                            }`}
+                          >
+                            <span className="font-bold text-slate-400">
+                              {String.fromCharCode(65 + oIdx)}.
+                            </span>
+                            <span className="flex-1">{opt.text}</span>
+                            {isCorrect && (
+                              <span className="text-teal-600 font-bold ml-1">✓</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {q.explanation && (
+                    <div className="text-xs bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                      <strong className="text-slate-700 dark:text-slate-200 font-semibold">
+                        Explanation:{" "}
+                      </strong>
+                      {q.explanation}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 2: Preview Mode */}
+      {activeTab === "preview" && (
+        <QuizPreview
+          quizTitle={quizDraft.title || "Assessment Preview"}
+          instructions={quizDraft.instructions}
+          durationMinutes={quizDraft.durationMinutes || 30}
+          maxMarks={quizDraft.maxMarks || 20}
+          questions={questions.map((q) => ({
+            id: q.id,
+            type: q.type,
+            text: q.richText || q.text,
+            marks: q.marks,
+            options: q.options,
+          }))}
+          onExitPreview={() => setActiveTab("questions")}
+        />
+      )}
+
+      {/* Tab 3: Settings Mode */}
+      {activeTab === "settings" && (
+        <QuizSettingsTab
           draft={quizDraft}
           onChange={setQuizDraft}
-          onContinue={goToQuestions}
-          onClose={onClose}
-          courseId={courseId}
-        />
-      )}
-
-      {step === "questions" && (
-        <QuestionBoard
-          quizId={effectiveQuizId}
-          questions={questions}
-          totalMarks={totalQuestionMarks}
-          maxMarks={quizDraft.maxMarks ?? 0}
-          marksMatch={marksMatch}
-          onAdd={() => setQuestionEditorOpen(true)}
-          onEdit={openEditor}
-          onDuplicate={(q) => {
-            setQuestions((current) => [
-              ...current,
-              { ...q, id: "", position: current.length + 1 },
-            ]);
-          }}
-          onDelete={(id) => {
-            setDeleteQuestionId(id);
-            setConfirmDeleteOpen(true);
-          }}
-          onReorder={reorderQuestions}
-          onBank={openBankPicker}
-          courseId={courseId}
-        />
-      )}
-
-      {step === "review" && (
-        <QuizReview
-          draft={quizDraft}
-          questions={questions}
-          totalMarks={totalQuestionMarks}
-          maxMarks={quizDraft.maxMarks ?? 0}
-          marksMatch={marksMatch}
-          onBack={() => setStep("questions")}
-          onPublish={handlePublish}
-          onClose={onClose}
+          onSave={handleSaveDraft}
           saving={saving}
         />
       )}
 
+      {/* Tab 4: Results */}
+      {activeTab === "results" && effectiveQuizId && (
+        <QuizResultsTab
+          quizId={effectiveQuizId}
+          quizTitle={quizDraft.title}
+          maxMarks={quizDraft.maxMarks || totalQuestionMarks}
+        />
+      )}
+
+      {/* Tab 5: Analytics */}
+      {activeTab === "analytics" && effectiveQuizId && (
+        <QuizAnalyticsTab
+          quizId={effectiveQuizId}
+          quizTitle={quizDraft.title}
+          maxMarks={quizDraft.maxMarks || totalQuestionMarks}
+        />
+      )}
+
+      {/* Question Editor Drawer */}
       {questionEditorOpen && (
         <QuestionEditor
-          quizId={effectiveQuizId || "new"}
-          question={editingQuestionId
-            ? questions.find((q) => q.id === editingQuestionId) ?? null
-            : null}
-          onClose={() => setQuestionEditorOpen(false)}
-          onSaved={editingQuestionId ? updateQuestion : addQuestion}
-          onError={setError}
-        />
-      )}
-
-      {bankPickerOpen && (
-        <QuestionBankPicker
-          courseId={courseId}
-          quizId={effectiveQuizId || "new"}
-          onClose={() => setBankPickerOpen(false)}
-          onAdded={handleBankAdded}
-          onError={setError}
-        />
-      )}
-
-      {confirmDeleteOpen && (
-        <ConfirmDialog
-          isOpen={confirmDeleteOpen}
-          onClose={() => setConfirmDeleteOpen(false)}
-          confirmLabel="Delete question"
-          title="Delete question?"
-          message="This question and its answer configuration will be removed from the quiz."
-          severity="warning"
-          onConfirm={() => {
-            if (deleteQuestionId) void deleteQuestion(deleteQuestionId);
+          quizId={effectiveQuizId || "temp"}
+          question={editingQuestion as any}
+          onClose={() => {
+            setQuestionEditorOpen(false);
+            setEditingQuestion(null);
           }}
+          onSaved={(savedQuestion) => {
+            if (editingQuestion) {
+              setQuestions((prev) =>
+                prev.map((q) =>
+                  q.id === savedQuestion.id
+                    ? {
+                        id: savedQuestion.id,
+                        type: savedQuestion.type,
+                        text: savedQuestion.text,
+                        richText: savedQuestion.richText || "",
+                        marks: savedQuestion.marks,
+                        difficulty: savedQuestion.difficulty,
+                        category: savedQuestion.category,
+                        topic: savedQuestion.topic,
+                        explanation: savedQuestion.explanation,
+                        options: savedQuestion.options.map((o) => ({ id: o.id, text: o.text })),
+                        correctAnswer: savedQuestion.correctAnswer || [],
+                        position: savedQuestion.position,
+                      }
+                    : q,
+                ),
+              );
+            } else {
+              setQuestions((prev) => [
+                ...prev,
+                {
+                  id: savedQuestion.id,
+                  type: savedQuestion.type,
+                  text: savedQuestion.text,
+                  richText: savedQuestion.richText || "",
+                  marks: savedQuestion.marks,
+                  difficulty: savedQuestion.difficulty,
+                  category: savedQuestion.category,
+                  topic: savedQuestion.topic,
+                  explanation: savedQuestion.explanation,
+                  options: savedQuestion.options.map((o) => ({ id: o.id, text: o.text })),
+                  correctAnswer: savedQuestion.correctAnswer || [],
+                  position: savedQuestion.position,
+                },
+              ]);
+            }
+            setQuestionEditorOpen(false);
+            setEditingQuestion(null);
+            setNotice("Question successfully saved.");
+          }}
+          onError={setError}
         />
       )}
-    </div>
-  );
-};
 
-interface QuizDetailsFormProps {
-  draft: LmsQuizDraft;
-  onChange: (draft: LmsQuizDraft) => void;
-  onContinue: () => void;
-  onClose: () => void;
-  courseId: string;
-}
-
-const QuizDetailsForm: React.FC<QuizDetailsFormProps> = ({
-  draft,
-  onChange,
-  onContinue,
-  onClose,
-  courseId,
-}) => {
-  const [weeks, setWeeks] = useState<Array<{ id: string; weekNumber: number; title: string }>>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { fetchCourseWeeks } = await import(
-          "../../../services/lmsApi"
-        );
-        const result = await fetchCourseWeeks(courseId);
-        if (!cancelled) setWeeks(result.weeks);
-      } catch {
-        // Leave the week list empty; the form says what is missing.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [courseId]);
-
-  return (
-    <form onSubmit={(event) => { event.preventDefault(); onContinue(); }} className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
-          Course
-          <select
-            disabled
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 bg-slate-50"
-          >
-            <option value={courseId}>{courseId}</option>
-          </select>
-        </label>
-        <label className="text-sm">
-          Week
-          <select
-            required
-            value={draft.weekId}
-            onChange={(event) =>
-              onChange({ ...draft, weekId: event.target.value })
-            }
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          >
-            <option value="">Select a week</option>
-            {weeks.map((week) => (
-              <option key={week.id} value={week.id}>
-                Week {week.weekNumber} · {week.title}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <label className="block text-sm">
-        Title
-        <input
-          required
-          maxLength={180}
-          value={draft.title}
-          onChange={(event) =>
-            onChange({ ...draft, title: event.target.value })
-          }
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          placeholder="Database Fundamentals Quiz"
+      {/* Question Bank Modal */}
+      {bankModalOpen && (
+        <QuestionBankModal
+          isOpen={bankModalOpen}
+          onClose={() => setBankModalOpen(false)}
+          courseId={courseId}
+          quizId={effectiveQuizId}
+          onQuestionsAdded={(count) => {
+            setNotice(`${count} question${count === 1 ? "" : "s"} added from question bank.`);
+            void loadQuiz();
+          }}
+          onError={setError}
         />
-      </label>
-
-      <div className="grid gap-3 sm:grid-cols-4">
-        <label className="text-sm">
-          Max marks
-          <input
-            required
-            type="number"
-            min={0}
-            value={String(draft.maxMarks ?? 20)}
-            onChange={(event) =>
-              onChange({ ...draft, maxMarks: Number(event.target.value) || 0 })
-            }
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          />
-        </label>
-        <label className="text-sm">
-          Pass mark
-          <input
-            type="number"
-            min={0}
-            value={String(draft.passingMarks ?? 10)}
-            onChange={(event) =>
-              onChange({ ...draft, passingMarks: Number(event.target.value) || 0 })
-            }
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          />
-        </label>
-        <label className="text-sm">
-          Minutes
-          <input
-            required
-            type="number"
-            min={1}
-            max={600}
-            value={String(draft.durationMinutes ?? 30)}
-            onChange={(event) =>
-              onChange({ ...draft, durationMinutes: Number(event.target.value) || 30 })
-            }
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          />
-        </label>
-        <label className="text-sm">
-          Attempts
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={String(draft.attemptsAllowed ?? 1)}
-            onChange={(event) =>
-              onChange({ ...draft, attemptsAllowed: Number(event.target.value) || 1 })
-            }
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          />
-        </label>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
-          Opens at
-          <input
-            required
-            type="datetime-local"
-            value={draft.openAt}
-            onChange={(event) =>
-              onChange({ ...draft, openAt: event.target.value })
-            }
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          />
-        </label>
-        <label className="text-sm">
-          Closes at
-          <input
-            required
-            type="datetime-local"
-            value={draft.closeAt}
-            onChange={(event) =>
-              onChange({ ...draft, closeAt: event.target.value })
-            }
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          />
-        </label>
-      </div>
-
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Quiz settings
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.randomizeQuestions}
-              onChange={(event) =>
-                onChange({ ...draft, randomizeQuestions: event.target.checked })
-              }
-              className="h-4 w-4 accent-[var(--color-primary)]"
-            />
-            Randomize questions
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.randomizeOptions}
-              onChange={(event) =>
-                onChange({ ...draft, randomizeOptions: event.target.checked })
-              }
-              className="h-4 w-4 accent-[var(--color-primary)]"
-            />
-            Randomize options
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.allowBackNavigation}
-              onChange={(event) =>
-                onChange({ ...draft, allowBackNavigation: event.target.checked })
-              }
-              className="h-4 w-4 accent-[var(--color-primary)]"
-            />
-            Allow back navigation
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.allowReviewBeforeSubmit}
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  allowReviewBeforeSubmit: event.target.checked,
-                })
-              }
-              className="h-4 w-4 accent-[var(--color-primary)]"
-            />
-            Allow review before submit
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.allowReopenExpired}
-              onChange={(event) =>
-                onChange({ ...draft, allowReopenExpired: event.target.checked })
-              }
-              className="h-4 w-4 accent-[var(--color-primary)]"
-            />
-            Allow reopen expired attempts
-          </label>
-          <label className="text-sm">
-            Navigation method
-            <select
-              value={draft.navigationMethod ?? "FREE"}
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  navigationMethod: event.target.value as "FREE" | "SEQUENTIAL",
-                })
-              }
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-            >
-              <option value="FREE">Free navigation</option>
-              <option value="SEQUENTIAL">Sequential navigation</option>
-            </select>
-          </label>
-          <label className="text-sm">
-            Multiple-select grading
-            <select
-              value={draft.multipleSelectGrading ?? "EXACT"}
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  multipleSelectGrading: event.target.value as
-                    | "EXACT"
-                    | "PARTIAL_CREDIT",
-                })
-              }
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-            >
-              <option value="EXACT">Exact match</option>
-              <option value="PARTIAL_CREDIT">Partial credit</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.blankAnswerCaseSensitive}
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  blankAnswerCaseSensitive: event.target.checked,
-                })
-              }
-              className="h-4 w-4 accent-[var(--color-primary)]"
-            />
-            Case-sensitive blanks
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.showCorrectAnswers}
-              onChange={(event) =>
-                onChange({ ...draft, showCorrectAnswers: event.target.checked })
-              }
-              className="h-4 w-4 accent-[var(--color-primary)]"
-            />
-            Show correct answers
-          </label>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-sm">
-            Results release policy
-            <select
-              value={draft.resultReleasePolicy ?? "AFTER_GRADING"}
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  resultReleasePolicy: event.target.value as
-                    | "IMMEDIATELY"
-                    | "AFTER_CLOSE"
-                    | "AFTER_GRADING"
-                    | "MANUAL",
-                })
-              }
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-            >
-              <option value="IMMEDIATELY">Immediately</option>
-              <option value="AFTER_CLOSE">After the window closes</option>
-              <option value="AFTER_GRADING">After grading</option>
-              <option value="MANUAL">When the teacher releases them</option>
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
-        <Button variant="ghost" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          type="submit"
-          disabled={!draft.title.trim() || !draft.weekId}
-        >
-          Save & Continue
-        </Button>
-      </div>
-    </form>
-  );
-};
-
-interface QuestionBoardProps {
-  quizId: string;
-  questions: BuilderQuestion[];
-  totalMarks: number;
-  maxMarks: number;
-  marksMatch: boolean;
-  onAdd: () => void;
-  onEdit: (question: BuilderQuestion | null) => void;
-  onDuplicate: (question: BuilderQuestion) => void;
-  onDelete: (id: string) => void;
-  onReorder: (orderedIds: string[]) => void;
-  onBank: () => void;
-  courseId: string;
-}
-
-const QuestionBoard: React.FC<QuestionBoardProps> = ({
-  quizId,
-  questions,
-  totalMarks,
-  maxMarks,
-  marksMatch,
-  onAdd,
-  onEdit,
-  onDuplicate,
-  onDelete,
-  onReorder,
-  onBank,
-  courseId,
-}) => {
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Questions &amp; Answers
-          </h2>
-          <p className="cos-page-subtitle">
-            {quizId
-              ? `Quiz: ${questions.length} question${questions.length === 1 ? "" : "s"} · ${totalMarks} / ${maxMarks} marks`
-              : `Draft quiz · ${totalMarks} / ${maxMarks} marks`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onBank}
-            disabled={!quizId}
-          >
-            Question bank
-          </Button>
-          <Button variant="primary" size="sm" icon={faPlus} onClick={onAdd}>
-            Add question
-          </Button>
-        </div>
-      </div>
-
-      {!marksMatch && totalMarks > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-          <p className="text-sm text-amber-800">
-            Total question marks: {totalMarks} · Quiz max marks: {maxMarks}. They must match before publishing.
-          </p>
-        </div>
       )}
 
-      {questions.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-200 bg-white p-10 text-center dark:border-slate-800 dark:bg-slate-950">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No questions yet. Add questions to build the paper.
-          </p>
-        </div>
-      ) : (
-        <ol className="space-y-2">
-          {questions.map((question, index) => (
-            <li
-              key={question.id}
-              className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
-            >
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                {index + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="block truncate text-sm font-medium text-slate-800 dark:text-slate-200">
-                    {question.text}
-                  </span>
-                  <span className="shrink-0 text-xs font-medium text-slate-600 dark:text-slate-300">
-                    {question.marks} marks
-                  </span>
-                </div>
-                <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
-                  <Badge variant="neutral" size="sm" hideDot>
-                    {question.type.replace(/_/g, " ").toLowerCase()}
-                  </Badge>
-                  <Badge variant="neutral" size="sm" hideDot>
-                    {question.difficulty.toLowerCase()}
-                  </Badge>
-                  {question.options.length > 0 && (
-                    <span>{question.options.length} options</span>
-                  )}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={faEdit}
-                  onClick={() => onEdit(question)}
-                  aria-label={`Edit question ${index + 1}`}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={faCopy}
-                  onClick={() => onDuplicate(question)}
-                  aria-label={`Duplicate question ${index + 1}`}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={faTrash}
-                  onClick={() => onDelete(question.id)}
-                  aria-label={`Delete question ${index + 1}`}
-                />
-              </div>
-            </li>
-          ))}
-        </ol>
+      {/* AI Assistant Modal */}
+      {aiAssistantOpen && (
+        <AIQuizAssistantModal
+          isOpen={aiAssistantOpen}
+          onClose={() => setAiAssistantOpen(false)}
+          onInsertQuestion={handleInsertAIQuestion}
+          courseName={courseId}
+          quizTitle={quizDraft.title}
+        />
       )}
 
-      <div className="mt-2 flex items-baseline gap-3">
-        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-          Total:
-        </span>
-        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-          {totalMarks} / {maxMarks} marks
-        </span>
-      </div>
-    </div>
-  );
-};
-
-interface QuizReviewProps {
-  draft: LmsQuizDraft;
-  questions: BuilderQuestion[];
-  totalMarks: number;
-  maxMarks: number;
-  marksMatch: boolean;
-  onBack: () => void;
-  onPublish: () => void;
-  onClose: () => void;
-  saving: boolean;
-}
-
-const QuizReview: React.FC<QuizReviewProps> = ({
-  draft,
-  questions,
-  totalMarks,
-  maxMarks,
-  marksMatch,
-  onBack,
-  onPublish,
-  onClose,
-  saving,
-}) => {
-  const availabilityLabel: Record<string, string> = {
-    DRAFT: "Draft",
-    SCHEDULED: "Scheduled",
-    OPEN: "Open",
-    CLOSED: "Closed",
-  };
-
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Review &amp; Publish
-          </h2>
-          <p className="cos-page-subtitle">
-            Final check before students can see this quiz.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-950">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Quiz summary
-          </p>
-          <dl className="mt-2 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Week</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">{draft.weekId}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Title</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100 truncate md:max-w-[200px]">{draft.title}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Total marks</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">{draft.maxMarks}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Pass mark</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">{draft.passingMarks}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Duration</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">
-                {draft.durationMinutes} minutes
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Attempts</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">
-                {draft.attemptsAllowed}
-              </dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-950">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Settings
-          </p>
-          <dl className="mt-2 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Randomize questions</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">
-                {draft.randomizeQuestions ? "Yes" : "No"}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Randomize options</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">
-                {draft.randomizeOptions ? "Yes" : "No"}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Back navigation</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">
-                {draft.allowBackNavigation ? "Allowed" : "Disabled"}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Results release</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100">
-                {(draft.resultReleasePolicy ?? "AFTER_GRADING").replace(/_/g, " ").toLowerCase()}
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-950">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Questions ({questions.length})
-        </p>
-        <ol className="mt-2 space-y-1.5">
-          {questions.map((question, index) => (
-            <div
-              key={question.id}
-              className="flex items-start gap-2 px-3 py-1.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50"
-            >
-              <span className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">
-                Q{index + 1}
-              </span>
-              <span className="min-w-0 flex-1 text-sm text-slate-700 dark:text-slate-300 truncate md:max-w-[320px]">
-                {question.text}
-              </span>
-              <span className="shrink-0 text-xs font-medium text-slate-600 dark:text-slate-400">
-                {question.marks} marks
-              </span>
-            </div>
-          ))}
-          <div className="flex items-baseline justify-between mt-2 pt-2 border-t border-slate-200/50">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              Total marks
-            </span>
-            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              {totalMarks} / {maxMarks}
-            </span>
-          </div>
-        </ol>
-      </div>
-
-      {!marksMatch && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-800">
-            Question total ({totalMarks}) does not match quiz max marks ({maxMarks}). Adjust question marks before publishing.
-          </p>
-        </div>
+      {/* AI Quality Check Modal */}
+      {qualityCheckOpen && (
+        <AIQualityCheckModal
+          isOpen={qualityCheckOpen}
+          onClose={() => setQualityCheckOpen(false)}
+          quizTitle={quizDraft.title}
+          questions={questions}
+          maxMarks={quizDraft.maxMarks ?? 100}
+        />
       )}
 
-      <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
-        <Button variant="ghost" onClick={onBack}>
-          Back
-        </Button>
-        <Button variant="secondary" onClick={onClose}>
-          Save draft
-        </Button>
-        <Button
-          variant="primary"
-          onClick={onPublish}
-          isLoading={saving}
-          loadingLabel="Publishing"
-          disabled={saving || !marksMatch || questions.length === 0}
-        >
-          Publish Quiz
-        </Button>
-      </div>
+      {/* Publish Quiz Confirmation Modal */}
+      {publishModalOpen && (
+        <PublishQuizModal
+          isOpen={publishModalOpen}
+          onClose={() => setPublishModalOpen(false)}
+          onConfirmPublish={handleConfirmPublish}
+          publishing={saving}
+          quizTitle={quizDraft.title}
+          courseName={courseId}
+          questionCount={questions.length}
+          totalMarks={totalQuestionMarks}
+          maxMarks={quizDraft.maxMarks ?? 100}
+          durationMinutes={quizDraft.durationMinutes || 30}
+          openAt={quizDraft.openAt}
+          closeAt={quizDraft.closeAt}
+          attemptsAllowed={quizDraft.attemptsAllowed || 1}
+        />
+      )}
+
+      {/* Confirm Delete Dialog */}
+      {deleteConfirmOpen && (
+        <ConfirmDialog
+          isOpen={deleteConfirmOpen}
+          onClose={() => {
+            setDeleteConfirmOpen(false);
+            setQuestionToDelete(null);
+          }}
+          confirmLabel="Delete Question"
+          title="Delete Question?"
+          message="Are you sure you want to remove this question from the assessment? This cannot be undone."
+          severity="danger"
+          onConfirm={handleDeleteQuestionConfirm}
+        />
+      )}
     </div>
   );
 };

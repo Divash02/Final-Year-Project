@@ -13,6 +13,7 @@ const PaymentSchema = new mongoose.Schema(
       default: "esewa",
     },
     transactionId: { type: String, default: null },
+    transactionReference: { type: String, default: null },
     status: { type: String, enum: ["SUCCESS", "FAILED", "REFUNDED"], default: "SUCCESS" },
     receivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     remarks: { type: String, default: "" },

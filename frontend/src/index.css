@@ -1,4 +1,5 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 /* Devanagari only: the Latin UI face comes from the system stack below,
    so these subsets never compete for Latin glyphs. */
 @import "@fontsource/noto-sans-devanagari/devanagari-400.css";

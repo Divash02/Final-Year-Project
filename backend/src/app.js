@@ -27,6 +27,7 @@ import { registerExaminationRoutes } from "./routes/examinations.js";
 import { registerExamSeatingRoutes } from "./routes/examSeating.js";
 import { registerCodingRoutes } from "./routes/coding.js";
 import { registerAssessmentRoutes } from "./routes/assessments.js";
+import { registerAIRoutes } from "./routes/ai.js";
 import { toErrorResponse } from "./utils/apiError.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -89,6 +90,7 @@ export function createApp() {
   registerDepartmentalRoutes(app);
   registerAttendanceRoutes(app);
   registerCodingRoutes(app);
+  registerAIRoutes(app);
 
   // Unknown API routes answer in the same structured shape as every other
   // error, so the frontend never has to special-case a bare HTML 404.
