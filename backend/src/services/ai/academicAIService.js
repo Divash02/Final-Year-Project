@@ -155,8 +155,16 @@ export async function facultyCopilotAssist({
   courseId,
   contextPayload = {},
 }) {
-  const course = await Course.findById(courseId).lean();
-  if (!course) throw new Error("Course not found.");
+  let course = null;
+  try {
+    course = await Course.findById(courseId).lean();
+  } catch {
+    course = await Course.findOne({ code: courseId }).lean();
+  }
+  if (!course) {
+    // Fallback for demo/invalid course identifiers
+    course = { _id: null, code: courseId || "DEMO-COURSE", name: courseId || "Demo Course", credits: 3 };
+  }
 
   let result = {};
 

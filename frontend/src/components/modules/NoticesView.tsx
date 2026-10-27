@@ -1068,7 +1068,7 @@ const NoticeDetailModal: React.FC<NoticeDetailModalProps> = ({
 }) => {
   const expired = isExpiredStatic(notice);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
+    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-4">
           <div className="min-w-0">

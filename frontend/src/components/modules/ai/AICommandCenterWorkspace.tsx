@@ -444,28 +444,28 @@ Summary CGPA: 3.47`);
           </div>
 
           {/* Quick Operations Agent Bar */}
-          <Card className="p-5 bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <FontAwesomeIcon icon={faWandMagicSparkles} className="text-indigo-400" />
-              <h2 className="text-sm font-semibold">Instant AI Operations Agent</h2>
-            </div>
-            <p className="text-xs text-indigo-200 mb-4">
-              Ask natural-language institutional queries. The agent queries verified database models and cites records.
-            </p>
-            <form onSubmit={handleAgentSubmit} className="flex gap-2">
-              <input
-                type="text"
-                value={agentQuery}
-                onChange={(e) => setAgentQuery(e.target.value)}
-                placeholder="e.g., Which students have attendance below 75%? or Summarize this month's fee collections"
-                className="flex-1 bg-slate-800/80 border border-indigo-700/50 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-400"
-              />
-              <Button type="submit" size="sm" variant="primary" disabled={agentLoading}>
-                {agentLoading ? <Spinner size={14} /> : <FontAwesomeIcon icon={faPaperPlane} />}
-                <span className="ml-1.5">Ask Agent</span>
-              </Button>
-            </form>
-          </Card>
+           <Card className="p-5 bg-slate-50 border border-slate-200 rounded-xl">
+             <div className="flex items-center gap-2 mb-2">
+               <FontAwesomeIcon icon={faRobot} className="text-slate-600" />
+               <h2 className="text-base font-semibold text-slate-900">Instant AI Operations Agent</h2>
+             </div>
+             <p className="text-sm text-slate-600 mb-4">
+               Ask natural-language institutional queries. The agent queries verified database models and cites records.
+             </p>
+             <form onSubmit={handleAgentSubmit} className="flex gap-2">
+               <input
+                 type="text"
+                 value={agentQuery}
+                 onChange={(e) => setAgentQuery(e.target.value)}
+                 placeholder="e.g., Which students have attendance below 75%? or Summarize this month's fee collections"
+                 className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-slate-400"
+               />
+               <Button type="submit" size="sm" variant="primary" disabled={agentLoading}>
+                 {agentLoading ? <Spinner size={14} /> : <FontAwesomeIcon icon={faPaperPlane} />}
+                 <span className="ml-1.5">Ask Agent</span>
+               </Button>
+             </form>
+           </Card>
 
           {/* Pending Human Confirmations List */}
           {pendingConfirmations.length > 0 && (

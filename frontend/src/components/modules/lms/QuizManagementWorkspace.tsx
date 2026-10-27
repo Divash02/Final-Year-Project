@@ -275,7 +275,7 @@ export const QuizManagementWorkspace: React.FC = () => {
             onClick={() => setCreateModalOpen(true)}
             disabled={!courses?.courses?.length}
           >
-            + Create Quiz
+             Create Quiz
           </Button>
         </div>
       </div>
@@ -418,7 +418,7 @@ export const QuizManagementWorkspace: React.FC = () => {
               icon={faPlus}
               onClick={() => setCreateModalOpen(true)}
             >
-              + Create Assessment
+               Create Assessment
             </Button>
           </div>
         </div>

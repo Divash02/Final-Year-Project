@@ -107,7 +107,7 @@ export async function getDetailedInstitutionalAnalytics(filters = {}) {
     totalAttendanceRecords,
     attendanceStatusRaw,
     attendanceByDateRaw,
-    attendanceSessionsCount,
+    totalAttendanceSessions,
   ] = await Promise.all([
     Attendance.countDocuments(attendanceMatch),
     Attendance.aggregate([
@@ -515,7 +515,7 @@ export async function getDetailedInstitutionalAnalytics(filters = {}) {
     },
     attendance: {
       totalRecords: totalAttendanceRecords,
-      totalSessions: attendanceSessionsCount,
+      totalSessions: totalAttendanceSessions,
       distribution: attendanceDistribution,
       overallRate: overallAttendanceRate,
       trends: attendanceTrends,
