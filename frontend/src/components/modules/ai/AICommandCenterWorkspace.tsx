@@ -9,16 +9,12 @@ import { EmptyState } from "../../ui/EmptyState";
 import { Modal } from "../../ui/Modal";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faBrain,
   faRobot,
   faGraduationCap,
   faFileLines,
   faFileInvoiceDollar,
   faUserPlus,
   faInbox,
-  faShieldHalved,
-  faServer,
-  faTriangleExclamation,
   faListCheck,
   faBookBookmark,
   faFilePdf,
@@ -34,6 +30,25 @@ import {
   faCircleCheck,
   faCircleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
+import {
+  BrainCircuit,
+  ShieldCheck,
+  Activity,
+  Database,
+  AlertTriangle,
+  Lock,
+  FileText,
+  Users,
+  ServerCog,
+  BookOpen,
+  BarChart3,
+  Network,
+  KeyRound,
+  Sparkles,
+  RefreshCw,
+  ArrowRight,
+  Send,
+} from "lucide-react";
 import {
   aiApi,
   AIAnomalyAlert,
@@ -189,23 +204,23 @@ Summary CGPA: 3.47`);
 
   // Filter tabs by role permissions
   const allTabs: Array<{ id: AITab; labelEn: string; icon: any }> = [
-    { id: "overview", labelEn: "Overview", icon: faBrain },
-    { id: "operations", labelEn: "Operations Agent", icon: faRobot },
-    { id: "academic", labelEn: "Academic & Copilot", icon: faGraduationCap },
-    { id: "examination", labelEn: "Exam Analytics", icon: faFileLines },
-    { id: "finance", labelEn: "Finance Analytics", icon: faFileInvoiceDollar },
-    { id: "admissions", labelEn: "Admissions AI", icon: faUserPlus },
-    { id: "cases", labelEn: "Cases & SLA", icon: faInbox },
-    { id: "security", labelEn: "Security Ops", icon: faShieldHalved },
-    { id: "system_health", labelEn: "System Health", icon: faServer },
-    { id: "alerts", labelEn: "Anomaly Alerts", icon: faTriangleExclamation },
-    { id: "activity_log", labelEn: "Audit Trail", icon: faListCheck },
-    { id: "knowledge", labelEn: "Policy RAG", icon: faBookBookmark },
-    { id: "documents", labelEn: "Document AI", icon: faFilePdf },
-    { id: "simulator", labelEn: "What-If Simulator", icon: faSliders },
-    { id: "process_mining", labelEn: "Process Mining", icon: faDiagramProject },
-    { id: "it_services", labelEn: "IT Asset & Service", icon: faLaptopFile },
-    { id: "credentials_attendance", labelEn: "Credentials & QR", icon: faIdCard },
+    { id: "overview", labelEn: "Overview", icon: BrainCircuit },
+    { id: "operations", labelEn: "Operations Agent", icon: Sparkles },
+    { id: "academic", labelEn: "Academic & Copilot", icon: BookOpen },
+    { id: "examination", labelEn: "Exam Analytics", icon: FileText },
+    { id: "finance", labelEn: "Finance Analytics", icon: BarChart3 },
+    { id: "admissions", labelEn: "Admissions AI", icon: Users },
+    { id: "cases", labelEn: "Cases & SLA", icon: Inbox },
+    { id: "security", labelEn: "Security Ops", icon: ShieldCheck },
+    { id: "system_health", labelEn: "System Health", icon: ServerCog },
+    { id: "alerts", labelEn: "Anomaly Alerts", icon: AlertTriangle },
+    { id: "activity_log", labelEn: "Audit Trail", icon: ListCheck },
+    { id: "knowledge", labelEn: "Policy RAG", icon: BookOpen },
+    { id: "documents", labelEn: "Document AI", icon: FileText },
+    { id: "simulator", labelEn: "What-If Simulator", icon: Activity },
+    { id: "process_mining", labelEn: "Process Mining", icon: Network },
+    { id: "it_services", labelEn: "IT Asset & Service", icon: LaptopFile },
+    { id: "credentials_attendance", labelEn: "Credentials & QR", icon: KeyRound },
   ];
 
   const availableTabs = allTabs.filter((t) => {
@@ -306,163 +321,167 @@ Summary CGPA: 3.47`);
   }, [activeTab]);
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto bg-slate-50 min-h-screen">
+    <div className="p-6 lg:p-8 space-y-8 max-w-[1400px] mx-auto bg-neutral-50 min-h-screen">
       {/* Top Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-200 gap-4 bg-white p-5 rounded-xl shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 bg-indigo-50 text-indigo-700 rounded-lg">
-              <FontAwesomeIcon icon={faBrain} className="text-xl" />
-            </span>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                AI Intelligence & Advanced IT Operations
-              </h1>
-              <p className="text-xs text-slate-500">
-                Institutional AI Services, Deterministic Anomaly Detections, Cybersecurity & Verified Analytics
-              </p>
-            </div>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-neutral-200">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-neutral-900 text-white">
+            <BrainCircuit className="w-5 h-5" strokeWidth={1.5} />
+          </div>
+          <div>
+            <h1 className="text-lg md:text-xl font-semibold text-neutral-900 tracking-tight">
+              AI Intelligence & Advanced IT Operations
+            </h1>
+            <p className="text-sm text-neutral-500 mt-0.5">
+              Institutional AI services, anomaly detection, security operations & verified analytics
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Badge variant={systemHealth?.database?.status === "CONNECTED" ? "success" : "neutral"} size="sm">
-            DB: {systemHealth?.database?.status || "ONLINE"} ({systemHealth?.database?.latencyMs ?? 2}ms)
-          </Badge>
-          <Button
+        <div className="flex items-center gap-2">
+          <Badge
+            variant={systemHealth?.database?.status === "CONNECTED" ? "success" : "neutral"}
             size="sm"
-            variant="outline"
-            onClick={loadOverviewData}
-            disabled={loading}
+            hideDot={false}
           >
-            <FontAwesomeIcon icon={faArrowsRotate} className={loading ? "animate-spin mr-1.5" : "mr-1.5"} />
-            Refresh
+            DB: {systemHealth?.database?.status || "ONLINE"} · {systemHealth?.database?.latencyMs ?? 2}ms
+          </Badge>
+          <Button size="sm" variant="outline" onClick={loadOverviewData} disabled={loading}>
+            <RefreshCw className={loading ? "w-3.5 h-3.5 animate-spin" : "w-3.5 h-3.5"} strokeWidth={1.5} />
+            <span>Refresh</span>
           </Button>
         </div>
-      </div>
+      </header>
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-200 scrollbar-thin">
-        {availableTabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
-                isActive
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200"
-              }`}
-            >
-              <FontAwesomeIcon icon={tab.icon} />
-              <span>{tab.labelEn}</span>
-              {tab.id === "alerts" && anomalies.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 bg-rose-500 text-white text-[10px] font-bold rounded-full">
-                  {anomalies.length}
-                </span>
-              )}
-              {tab.id === "overview" && pendingConfirmations.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white text-[10px] font-bold rounded-full">
-                  {pendingConfirmations.length}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <nav className="relative">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-thin">
+          {availableTabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            const Icon = tab.icon as any;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`group relative flex items-center gap-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                  isActive
+                    ? "text-neutral-900"
+                    : "text-neutral-500 hover:text-neutral-900"
+                }`}
+              >
+                <Icon className="w-4 h-4" strokeWidth={1.5} />
+                <span>{tab.labelEn}</span>
+                {tab.id === "alerts" && anomalies.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-neutral-900 text-white">
+                    {anomalies.length}
+                  </span>
+                )}
+                {tab.id === "overview" && pendingConfirmations.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-600 text-white">
+                    {pendingConfirmations.length}
+                  </span>
+                )}
+                {isActive && (
+                  <span className="absolute -bottom-[1px] left-0 right-0 h-px bg-neutral-900" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="absolute -bottom-px left-0 right-0 h-px bg-neutral-200" />
+      </nav>
 
       {/* Tab 1: AI OVERVIEW */}
       {activeTab === "overview" && (
         <div className="space-y-6">
           {/* Telemetry KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-4 bg-white border border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-slate-500">Active Integrity Anomalies</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">{anomalies.length}</p>
+            <Card className="p-5 bg-white border border-neutral-200 rounded-xl hover:border-neutral-300 transition-colors">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm text-neutral-500">Active Integrity Anomalies</p>
+                  <p className="text-2xl font-semibold tracking-tight text-neutral-900">{anomalies.length}</p>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-                  <FontAwesomeIcon icon={faTriangleExclamation} />
+                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-neutral-50 text-neutral-600">
+                  <AlertTriangle className="w-4 h-4" strokeWidth={1.5} />
                 </div>
               </div>
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-4">
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="text-xs w-full"
+                  variant="ghost"
+                  className="text-sm text-neutral-600 hover:text-neutral-900 px-0 h-auto"
                   onClick={() => setActiveTab("alerts")}
                 >
-                  View Detected Alerts
+                  View alerts
+                  <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.5} />
                 </Button>
               </div>
             </Card>
 
-            <Card className="p-4 bg-white border border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-slate-500">Pending Human Confirmations</p>
-                  <p className="text-2xl font-bold text-amber-600 mt-1">{pendingConfirmations.length}</p>
+            <Card className="p-5 bg-white border border-neutral-200 rounded-xl hover:border-neutral-300 transition-colors">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm text-neutral-500">Pending Human Confirmations</p>
+                  <p className="text-2xl font-semibold tracking-tight text-neutral-900">{pendingConfirmations.length}</p>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                  <FontAwesomeIcon icon={faShieldHalved} />
+                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-neutral-50 text-neutral-600">
+                  <Lock className="w-4 h-4" strokeWidth={1.5} />
                 </div>
               </div>
-              <p className="text-[11px] text-slate-500 mt-3">Consequential AI changes gated by policy</p>
+              <p className="text-xs text-neutral-500 mt-4">Consequential AI actions gated by policy</p>
             </Card>
 
-            <Card className="p-4 bg-white border border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-slate-500">API Error Rate (Window)</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">
+            <Card className="p-5 bg-white border border-neutral-200 rounded-xl hover:border-neutral-300 transition-colors">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm text-neutral-500">API Error Rate (Window)</p>
+                  <p className="text-2xl font-semibold tracking-tight text-neutral-900">
                     {systemHealth?.apiHealth?.errorRatePercentage ?? 0}%
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <FontAwesomeIcon icon={faServer} />
+                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-neutral-50 text-neutral-600">
+                  <Activity className="w-4 h-4" strokeWidth={1.5} />
                 </div>
               </div>
-              <p className="text-[11px] text-slate-500 mt-3">
-                p95 Latency: {systemHealth?.apiHealth?.p95LatencyMs ?? 15}ms
+              <p className="text-xs text-neutral-500 mt-4">
+                p95 Latency · {systemHealth?.apiHealth?.p95LatencyMs ?? 15}ms
               </p>
             </Card>
 
-            <Card className="p-4 bg-white border border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-slate-500">Active Role Scoping</p>
-                  <p className="text-lg font-bold text-indigo-700 mt-1 uppercase">{currentRole}</p>
+            <Card className="p-5 bg-white border border-neutral-200 rounded-xl hover:border-neutral-300 transition-colors">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm text-neutral-500">Active Role Scoping</p>
+                  <p className="text-lg font-semibold tracking-tight text-neutral-900 uppercase mt-1">{currentRole}</p>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                  <FontAwesomeIcon icon={faBrain} />
+                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-neutral-50 text-neutral-600">
+                  <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
                 </div>
               </div>
-              <p className="text-[11px] text-slate-500 mt-3">Strict server-side permission gating active</p>
+              <p className="text-xs text-neutral-500 mt-4">Strict server-side permission gating active</p>
             </Card>
           </div>
 
-          {/* Quick Operations Agent Bar */}
-           <Card className="p-5 bg-slate-50 border border-slate-200 rounded-xl">
-             <div className="flex items-center gap-2 mb-2">
-               <FontAwesomeIcon icon={faRobot} className="text-slate-600" />
-               <h2 className="text-base font-semibold text-slate-900">Instant AI Operations Agent</h2>
+           <Card className="p-6 bg-white border border-neutral-200 rounded-xl">
+             <div className="flex items-center gap-2 mb-1">
+               <Sparkles className="w-4 h-4 text-neutral-700" strokeWidth={1.5} />
+               <h2 className="text-base font-semibold text-neutral-900 tracking-tight">Instant AI Operations Agent</h2>
              </div>
-             <p className="text-sm text-slate-600 mb-4">
+             <p className="text-sm text-neutral-500 mb-5">
                Ask natural-language institutional queries. The agent queries verified database models and cites records.
              </p>
-             <form onSubmit={handleAgentSubmit} className="flex gap-2">
+             <form onSubmit={handleAgentSubmit} className="flex flex-col sm:flex-row gap-2">
                <input
                  type="text"
                  value={agentQuery}
                  onChange={(e) => setAgentQuery(e.target.value)}
                  placeholder="e.g., Which students have attendance below 75%? or Summarize this month's fee collections"
-                 className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-slate-400"
+                 className="flex-1 bg-white border border-neutral-200 rounded-lg px-3.5 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/5 focus:border-neutral-300 transition-shadow"
                />
                <Button type="submit" size="sm" variant="primary" disabled={agentLoading}>
-                 {agentLoading ? <Spinner size={14} /> : <FontAwesomeIcon icon={faPaperPlane} />}
-                 <span className="ml-1.5">Ask Agent</span>
+                 {agentLoading ? <Spinner size={14} /> : <Send className="w-3.5 h-3.5" strokeWidth={1.5} />}
+                 <span>Ask Agent</span>
                </Button>
              </form>
            </Card>

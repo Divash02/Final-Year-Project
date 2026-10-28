@@ -52,6 +52,7 @@
     "motion": "^12.23.24",
     "multer": "^2.4.0",
     "nepali-date-converter": "^3.4.0",
+    "nodemailer": "^10.2.1",
     "pdfjs-dist": "^4.10.38",
     "playwright": "1.50",
     "qrcode": "^1.5.4",
