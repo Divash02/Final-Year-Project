@@ -1,6 +1,9 @@
 export { User } from "./User.js";
 export { Student } from "./Student.js";
 export { Staff } from "./Staff.js";
+export { Employee } from "./Employee.js";
+export { LeaveRequest } from "./LeaveRequest.js";
+export { LibraryBook, LibraryLoan } from "./Library.js";
 export { Department } from "./Department.js";
 export { Program } from "./Program.js";
 export { Section } from "./Section.js";

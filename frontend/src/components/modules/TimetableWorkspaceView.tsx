@@ -1011,11 +1011,11 @@ const SessionDetailDrawer: React.FC<{
             <h2 id="session-drawer-title" className="truncate text-xl font-bold text-slate-900">
               {session.courseCode || "Session"}
             </h2>
-            <p className="mt-0.5 text-sm text-slate-500">
+            <p className="mt-0.5 truncate text-sm text-slate-500">
               Section {session.sectionCode} · {sessionTypeLabel(session.sessionType)}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={onEdit}
@@ -1187,9 +1187,9 @@ const SessionDetailDrawer: React.FC<{
 
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-0.5 font-medium text-slate-900">{value}</dd>
+      <dd className="mt-0.5 break-words font-medium text-slate-900">{value}</dd>
     </div>
   );
 }

@@ -174,12 +174,12 @@ export const UserManagementView: React.FC = () => {
   const [deleteConfirmLoading, setDeleteConfirmLoading] = useState(false);
 
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkAcademicYear, setBulkAcademicYear] = useState("2083/84");
-  const [bulkProgram, setBulkProgram] = useState("BCA");
-  const [bulkDepartment, setBulkDepartment] = useState("Computer Science");
-  const [bulkBatch, setBulkBatch] = useState("2083");
-  const [bulkSemester, setBulkSemester] = useState(1);
-  const [bulkSection, setBulkSection] = useState("A");
+  const [bulkAcademicYear, setBulkAcademicYear] = useState("");
+  const [bulkProgram, setBulkProgram] = useState("");
+  const [bulkDepartment, setBulkDepartment] = useState("");
+  const [bulkBatch, setBulkBatch] = useState("");
+  const [bulkSemester, setBulkSemester] = useState("");
+  const [bulkSection, setBulkSection] = useState("");
   const [bulkText, setBulkText] = useState("");
   const [bulkRecords, setBulkRecords] = useState<any[]>([]);
   const [bulkValid, setBulkValid] = useState<any[]>([]);
@@ -657,11 +657,12 @@ export const UserManagementView: React.FC = () => {
         </div>
         <button
           type="button"
-          onClick={() => {
-            setBulkOpen(true);
-            setBulkResult(null);
-            setBulkError("");
-          }}
+        onClick={() => {
+          setBulkOpen(true);
+          setBulkAcademicYear(""); setBulkProgram(""); setBulkDepartment(""); setBulkBatch("");
+          setBulkSemester(""); setBulkSection(""); setBulkText("");
+          setBulkResult(null); setBulkError("");
+        }}
           className="inline-flex items-center gap-2 rounded-md border border-blue-700 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
         >
           <FontAwesomeIcon icon={faUserPlus} /> Bulk Student Creation
@@ -1656,7 +1657,7 @@ export const UserManagementView: React.FC = () => {
               <label className="text-xs">Program<input className="w-full rounded border border-slate-300 px-2 py-1" value={bulkProgram} onChange={(e)=>setBulkProgram(e.target.value)} placeholder="BCA" /></label>
               <label className="text-xs">Department<input className="w-full rounded border border-slate-300 px-2 py-1" value={bulkDepartment} onChange={(e)=>setBulkDepartment(e.target.value)} placeholder="Computer Science" /></label>
               <label className="text-xs">Batch<input className="w-full rounded border border-slate-300 px-2 py-1" value={bulkBatch} onChange={(e)=>setBulkBatch(e.target.value)} placeholder="2083" /></label>
-              <label className="text-xs">Semester<input type="number" className="w-full rounded border border-slate-300 px-2 py-1" value={bulkSemester} onChange={(e)=>setBulkSemester(Number(e.target.value)||1)} /></label>
+              <label className="text-xs">Semester<input type="number" className="w-full rounded border border-slate-300 px-2 py-1" value={bulkSemester} onChange={(e)=>setBulkSemester(e.target.value)} min="1" max="8" /></label>
               <label className="text-xs">Section<input className="w-full rounded border border-slate-300 px-2 py-1" value={bulkSection} onChange={(e)=>setBulkSection(e.target.value.toUpperCase())} placeholder="A" /></label>
             </div>
             <label className="block text-xs font-semibold">Student Names (one name per line)
@@ -1669,7 +1670,7 @@ export const UserManagementView: React.FC = () => {
               <button type="button" disabled={bulkLoading} onClick={async () => {
                 setBulkError(""); setBulkLoading(true);
                 try {
-                  const result = await apiRequest<any>("/admin/students/bulk", { method: "POST", body: JSON.stringify({ academicYear: bulkAcademicYear, program: bulkProgram, department: bulkDepartment, batch: bulkBatch, semester: bulkSemester, section: bulkSection, names: bulkText }) });
+                  const result = await apiRequest<any>("/admin/students/bulk", { method: "POST", body: JSON.stringify({ academicYear: bulkAcademicYear, program: bulkProgram, department: bulkDepartment, batch: bulkBatch, semester: bulkSemester === "" ? undefined : Number(bulkSemester), section: bulkSection, names: bulkText }) });
                   setBulkResult(result);
                 } catch (e) { setBulkError(e instanceof Error ? e.message : "Failed"); }
                 finally { setBulkLoading(false); }

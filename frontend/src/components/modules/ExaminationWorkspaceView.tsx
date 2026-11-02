@@ -156,6 +156,17 @@ export const ExaminationWorkspaceView: React.FC = () => {
   const [exams, setExams] = useState<FullExamRecord[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [availableRooms, setAvailableRooms] = useState<RoomOption[]>([]);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedVenue, setSelectedVenue] = useState<RoomOption | null>(null);
+  const [isAddMode, setIsAddMode] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [venueToDelete, setVenueToDelete] = useState<RoomOption | null>(null);
+  const [editCapacity, setEditCapacity] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editBuilding, setEditBuilding] = useState("");
+  const [editRoomNumber, setEditRoomNumber] = useState("");
+  const [editFacilities, setEditFacilities] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [availableInvigilators, setAvailableInvigilators] = useState<InvigilatorOption[]>([]);
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummaryData | null>(null);
   const [recentActivities, setRecentActivities] = useState<AuditItem[]>([]);
@@ -798,7 +809,7 @@ export const ExaminationWorkspaceView: React.FC = () => {
                 <span>Today's Exams</span>
                 <FontAwesomeIcon icon={faClock} className="text-blue-500" />
               </div>
-              <p className="mt-2 text-3xl font-bold text-slate-900">{dashboardSummary?.todayExams ?? 0}</p>
+               <p className="mt-2 text-2xl font-bold text-slate-900">{dashboardSummary?.todayExams ?? 0}</p>
               <p className="mt-1 text-xs text-slate-500">Scheduled on today's calendar</p>
             </div>
 
@@ -807,7 +818,7 @@ export const ExaminationWorkspaceView: React.FC = () => {
                 <span>This Week</span>
                 <FontAwesomeIcon icon={faCalendarDays} className="text-emerald-500" />
               </div>
-              <p className="mt-2 text-3xl font-bold text-slate-900">{dashboardSummary?.thisWeekExams ?? 0}</p>
+               <p className="mt-2 text-2xl font-bold text-slate-900">{dashboardSummary?.thisWeekExams ?? 0}</p>
               <p className="mt-1 text-xs text-slate-500">Upcoming in next 7 days</p>
             </div>
 
@@ -816,7 +827,7 @@ export const ExaminationWorkspaceView: React.FC = () => {
                 <span>Total Candidates</span>
                 <FontAwesomeIcon icon={faUsers} className="text-purple-500" />
               </div>
-              <p className="mt-2 text-3xl font-bold text-slate-900">{dashboardSummary?.totalCandidates ?? 0}</p>
+               <p className="mt-2 text-2xl font-bold text-slate-900">{dashboardSummary?.totalCandidates ?? 0}</p>
               <p className="mt-1 text-xs text-slate-500">Total resolved candidate seats</p>
             </div>
 
@@ -872,11 +883,25 @@ export const ExaminationWorkspaceView: React.FC = () => {
           {/* Recent Examination Activity */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <h3 className="font-semibold text-slate-900">Recent Examination Activity</h3>
-            {recentActivities.length === 0 ? (
+            {recentActivities.filter((act) => {
+              const action = (act.action || '').toUpperCase();
+              if (action.includes('SEATING_PLAN_CANCELLED') || action.includes('SEATING_PLAN_RESET')) return false;
+              if (action.includes('RESULTS_VERIFIED') || action.includes('RESULTS_SUBMITTED')) return false;
+              if (action.includes('RESULT_MARKS_CHANGED')) return false;
+              return true;
+            }).length === 0 ? (
               <p className="mt-3 text-sm text-slate-500">No recent examination audit activity recorded.</p>
             ) : (
               <div className="mt-3 divide-y divide-slate-100 text-sm">
-                {recentActivities.map((act) => (
+                {recentActivities
+                  .filter((act) => {
+                    const action = (act.action || '').toUpperCase();
+                    if (action.includes('SEATING_PLAN_CANCELLED') || action.includes('SEATING_PLAN_RESET')) return false;
+                    if (action.includes('RESULTS_VERIFIED') || action.includes('RESULTS_SUBMITTED')) return false;
+                    if (action.includes('RESULT_MARKS_CHANGED')) return false;
+                    return true;
+                  })
+                  .map((act) => (
                   <div key={act.id} className="py-2.5 flex items-center justify-between">
                     <div>
                       <span className="font-medium text-slate-800">{act.action}</span>
@@ -1777,14 +1802,20 @@ export const ExaminationWorkspaceView: React.FC = () => {
               <h3 className="font-bold text-slate-900">Institutional Examination Rooms &amp; Venues</h3>
               <p className="text-xs text-slate-500">Available physical venues with capacity management &amp; conflict tracking:</p>
             </div>
-            <span className="text-xs font-semibold text-slate-600">
-              Total Venues: {availableRooms.length}
-            </span>
+             <span className="text-xs font-semibold text-slate-600">
+               Total Venues: {availableRooms.length}
+             </span>
+             <button
+               onClick={() => { setIsAddMode(true); setSelectedVenue(null); setEditName(""); setEditCapacity(""); setEditBuilding(""); setEditRoomNumber(""); setEditFacilities(""); setEditDescription(""); setIsEditModalOpen(true); }}
+               className="rounded bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
+             >
+               + Add Venue
+             </button>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {availableRooms.map((rm) => (
-              <div key={rm.name} className="rounded-xl border border-slate-200 p-4 shadow-2xs">
+              <div key={rm._id || rm.name} className="rounded-xl border border-slate-200 p-4 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-900">{rm.name}</span>
                   <span className="rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-bold text-emerald-800">
@@ -1794,16 +1825,109 @@ export const ExaminationWorkspaceView: React.FC = () => {
                 <div className="mt-1 text-xs text-slate-500">{rm.building} · Room {rm.roomNumber}</div>
                 <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
                   <span>Facilities: CCTV, AC</span>
-                  <span className="font-medium text-emerald-600">Available</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setSelectedVenue(rm); setEditName(rm.name); setEditCapacity(String(rm.capacity)); setEditBuilding(rm.building); setEditRoomNumber(rm.roomNumber); setEditFacilities(""); setEditDescription(""); setIsEditModalOpen(true); }}
+                      className="rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => { setVenueToDelete(rm); setIsDeleteModalOpen(true); }}
+                      className="rounded bg-rose-600 px-2 py-1 text-xs font-semibold text-white hover:bg-rose-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
+          {isDeleteModalOpen && venueToDelete && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
+                <h4 className="font-bold text-slate-900 mb-3">Delete Venue</h4>
+                <p className="text-sm text-slate-600 mb-4">Are you sure you want to delete {venueToDelete.name}?</p>
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setIsDeleteModalOpen(false)} className="rounded bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">Cancel</button>
+                  <button
+                    onClick={async () => {
+                      await apiRequest(`/exams/rooms/${venueToDelete._id || venueToDelete.id}`, { method: "DELETE" });
+                      setIsDeleteModalOpen(false);
+                      loadMasterData();
+                    }}
+                    className="rounded bg-rose-600 px-3 py-1 text-xs font-semibold text-white"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+           )}
+           {isEditModalOpen && (
+             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+                <div className="flex items-center justify-between mb-3">
+                   <h4 className="font-bold text-slate-900">{isAddMode ? "Add Venue & Room" : "Edit Venue & Room Details"}</h4>
+                  <button onClick={() => setIsEditModalOpen(false)} className="text-slate-500 hover:text-slate-800">✕</button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-slate-600">Venue / Room Name</label>
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600">Capacity</label>
+                    <input type="number" value={editCapacity} onChange={(e) => setEditCapacity(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600">Location / Block</label>
+                    <input value={editBuilding} onChange={(e) => setEditBuilding(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600">Room Number</label>
+                    <input value={editRoomNumber} onChange={(e) => setEditRoomNumber(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600">Facilities (comma separated)</label>
+                    <input value={editFacilities} onChange={(e) => setEditFacilities(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="CCTV, AC" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600">Description</label>
+                    <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" rows={3} />
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button onClick={() => setIsEditModalOpen(false)} className="rounded bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">Cancel</button>
+                  <button
+                    onClick={async () => {
+                      const payload = {
+                        name: editName,
+                        capacity: Number(editCapacity),
+                        building: editBuilding,
+                        roomNumber: editRoomNumber,
+                        facilities: editFacilities.split(",").map((s) => s.trim()).filter(Boolean),
+                        description: editDescription,
+                      };
+                      if (isAddMode) {
+                        await apiRequest("/exams/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                      } else {
+                        await apiRequest(`/exams/rooms/${selectedVenue?._id || selectedVenue?.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                      }
+                      setIsAddMode(false);
+                      setIsEditModalOpen(false);
+                      loadMasterData();
+                    }}
+                    className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* TAB 7: INVIGILATORS (Section 12) */}
       {/* ------------------------------------------------------------- */}
       {activeTab === "invigilators" && (
         <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-xs">

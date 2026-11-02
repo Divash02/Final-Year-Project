@@ -81,6 +81,10 @@ const CollegeMailView = lazyModule(
   () => import("./components/modules/CollegeMailView"),
   (m) => m.CollegeMailView,
 );
+const EmailSignatureSettingsView = lazyModule(
+  () => import("./components/modules/EmailSignatureSettingsView"),
+  (m) => m.EmailSignatureSettingsView,
+);
 const AcademicCalendarView = lazyModule(
   () => import("./components/modules/AcademicCalendarView"),
   (m) => m.AcademicCalendarView,
@@ -120,6 +124,46 @@ const AccountProfileView = lazyModule(
 const CodingLabWorkspace = lazyModule(
   () => import("./components/modules/coding/CodingLabWorkspace"),
   (m) => m.CodingLabWorkspace,
+);
+const HRDashboardView = lazyModule(
+  () => import("./components/modules/hr/HRDashboardView"),
+  (m) => m.HRDashboardView,
+);
+const StaffPortalView = lazyModule(
+  () => import("./components/modules/StaffPortalView"),
+  (m) => m.StaffPortalView,
+);
+const LeaveApprovalWorkspace = lazyModule(
+  () => import("./components/modules/hr/LeaveApprovalWorkspace"),
+  (m) => m.LeaveApprovalWorkspace,
+);
+const CareerPlacementView = lazyModule(
+  () => import("./components/modules/career/CareerPlacementView"),
+  (m) => m.CareerPlacementView,
+);
+const HostelAccommodationView = lazyModule(
+  () => import("./components/modules/hostel/HostelAccommodationView"),
+  (m) => m.HostelAccommodationView,
+);
+const LibraryLearningResourcesView = lazyModule(
+  () => import("./components/modules/library/LibraryLearningResourcesView"),
+  (m) => m.LibraryLearningResourcesView,
+);
+const StudentClubsEventsView = lazyModule(
+  () => import("./components/modules/clubs/StudentClubsEventsView"),
+  (m) => m.StudentClubsEventsView,
+);
+const WorkflowAutomationView = lazyModule(
+  () => import("./components/modules/workflow/WorkflowAutomationView"),
+  (m) => m.WorkflowAutomationView,
+);
+const StudentLifecycleView = lazyModule(
+  () => import("./components/modules/student-life/StudentLifecycleView"),
+  (m) => m.StudentLifecycleView,
+);
+const CampusFacilitiesExtendedView = lazyModule(
+  () => import("./components/modules/campus/CampusFacilitiesExtendedView"),
+  (m) => m.CampusFacilitiesExtendedView,
 );
 const ReceiptModal = lazyModule(
   () => import("./components/common/ReceiptModal"),
@@ -316,6 +360,8 @@ const AppContent: React.FC = () => {
 
       case "communication":
         return <CollegeMailView />;
+      case "email_signature":
+        return <EmailSignatureSettingsView />;
 
       case "examinations_calendar":
         return <AcademicCalendarView />;
@@ -341,6 +387,43 @@ const AppContent: React.FC = () => {
 
       case "profile":
         return <AccountProfileView />;
+
+      case "hr_dashboard":
+        return <HRDashboardView />;
+
+      case "staff_portal":
+        return <StaffPortalView />;
+
+      case "recruitment":
+        return <HRDashboardView />;
+
+      case "workforce_planning":
+        return <HRDashboardView />;
+
+      case "leave_approval":
+        return <LeaveApprovalWorkspace />;
+
+      case "career_placement":
+        return <CareerPlacementView />;
+
+      case "hostel_accommodation":
+        return <HostelAccommodationView />;
+
+      case "library_learning":
+      case "library":
+        return <LibraryLearningResourcesView />;
+
+      case "student_clubs":
+        return <StudentClubsEventsView />;
+
+      case "workflow_automation":
+        return <WorkflowAutomationView />;
+
+      case "student_lifecycle":
+        return <StudentLifecycleView />;
+
+      case "campus_facilities_ext":
+        return <CampusFacilitiesExtendedView />;
 
       case "student_coding_lab":
         // The student lab is for student accounts only; any other

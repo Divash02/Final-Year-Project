@@ -442,7 +442,11 @@ export const QuizManagementWorkspace: React.FC = () => {
               return (
                 <tr
                   key={quiz.id}
-                  className="hover:bg-slate-50 transition"
+                  className={`transition ${
+                    quiz.title.toLowerCase().includes("mid term")
+                      ? "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/20 dark:hover:bg-amber-950/30"
+                      : "hover:bg-slate-50"
+                  }`}
                 >
                   <td className="font-semibold text-slate-900">
                     <button

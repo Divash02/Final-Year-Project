@@ -48,6 +48,9 @@ import {
   RefreshCw,
   ArrowRight,
   Send,
+  Inbox,
+  ListChecks,
+  Laptop,
 } from "lucide-react";
 import {
   aiApi,
@@ -150,15 +153,7 @@ export const AICommandCenterWorkspace: React.FC = () => {
   const [ragLoading, setRagLoading] = useState(false);
 
   // Document Intelligence State
-  const [rawTranscriptText, setRawTranscriptText] = useState(`KATHMANDU UNIVERSITY AFFILIATED COLLEGE
-OFFICIAL ACADEMIC TRANSCRIPT
-Student ID: BCA25011
-Program: Bachelor of Computer Applications (BCA)
-Semester: 1
-CS101 Programming Principles 3 A 3.6
-CS102 Discrete Mathematics 3 B+ 3.2
-CS103 Digital Logic Systems 3 A 3.6
-Summary CGPA: 3.47`);
+  const [rawTranscriptText, setRawTranscriptText] = useState(``);
   const [extractedTranscript, setExtractedTranscript] = useState<any>(null);
 
   // What-If Simulator State
@@ -214,12 +209,12 @@ Summary CGPA: 3.47`);
     { id: "security", labelEn: "Security Ops", icon: ShieldCheck },
     { id: "system_health", labelEn: "System Health", icon: ServerCog },
     { id: "alerts", labelEn: "Anomaly Alerts", icon: AlertTriangle },
-    { id: "activity_log", labelEn: "Audit Trail", icon: ListCheck },
+    { id: "activity_log", labelEn: "Audit Trail", icon: ListChecks },
     { id: "knowledge", labelEn: "Policy RAG", icon: BookOpen },
     { id: "documents", labelEn: "Document AI", icon: FileText },
     { id: "simulator", labelEn: "What-If Simulator", icon: Activity },
     { id: "process_mining", labelEn: "Process Mining", icon: Network },
-    { id: "it_services", labelEn: "IT Asset & Service", icon: LaptopFile },
+    { id: "it_services", labelEn: "IT Asset & Service", icon: Laptop },
     { id: "credentials_attendance", labelEn: "Credentials & QR", icon: KeyRound },
   ];
 
@@ -346,9 +341,15 @@ Summary CGPA: 3.47`);
           >
             DB: {systemHealth?.database?.status || "ONLINE"} · {systemHealth?.database?.latencyMs ?? 2}ms
           </Badge>
-          <Button size="sm" variant="outline" onClick={loadOverviewData} disabled={loading}>
-            <RefreshCw className={loading ? "w-3.5 h-3.5 animate-spin" : "w-3.5 h-3.5"} strokeWidth={1.5} />
-            <span>Refresh</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={loadOverviewData}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 align-middle"
+          >
+            <RefreshCw className={loading ? "w-3.5 h-3.5 animate-spin inline-block align-middle" : "w-3.5 h-3.5 inline-block align-middle"} strokeWidth={1.5} />
+            <span className="inline-block align-middle">Refresh</span>
           </Button>
         </div>
       </header>
@@ -396,13 +397,13 @@ Summary CGPA: 3.47`);
         <div className="space-y-6">
           {/* Telemetry KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-5 bg-white border border-neutral-200 rounded-xl hover:border-neutral-300 transition-colors">
+            <Card className="p-5 bg-rose-50/40 border border-rose-200 rounded-xl hover:border-rose-300 transition-colors">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm text-neutral-500">Active Integrity Anomalies</p>
+                  <p className="text-sm text-neutral-600">Active Integrity Anomalies</p>
                   <p className="text-2xl font-semibold tracking-tight text-neutral-900">{anomalies.length}</p>
                 </div>
-                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-neutral-50 text-neutral-600">
+                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-rose-100 text-rose-600">
                   <AlertTriangle className="w-4 h-4" strokeWidth={1.5} />
                 </div>
               </div>
@@ -410,56 +411,54 @@ Summary CGPA: 3.47`);
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-sm text-neutral-600 hover:text-neutral-900 px-0 h-auto"
+                  className="text-sm text-rose-700 hover:text-rose-900 px-0 h-auto inline-flex items-center gap-1 align-middle"
                   onClick={() => setActiveTab("alerts")}
                 >
-                  View alerts
-                  <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  <span className="inline-block align-middle">View alerts</span>
+                  <ArrowRight className="w-3.5 h-3.5 inline-block align-middle" strokeWidth={1.5} />
                 </Button>
               </div>
             </Card>
 
-            <Card className="p-5 bg-white border border-neutral-200 rounded-xl hover:border-neutral-300 transition-colors">
+            <Card className="p-5 bg-amber-50/40 border border-amber-200 rounded-xl hover:border-amber-300 transition-colors">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm text-neutral-500">Pending Human Confirmations</p>
+                  <p className="text-sm text-neutral-600">Pending Human Confirmations</p>
                   <p className="text-2xl font-semibold tracking-tight text-neutral-900">{pendingConfirmations.length}</p>
                 </div>
-                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-neutral-50 text-neutral-600">
+                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-amber-100 text-amber-700">
                   <Lock className="w-4 h-4" strokeWidth={1.5} />
                 </div>
               </div>
-              <p className="text-xs text-neutral-500 mt-4">Consequential AI actions gated by policy</p>
+              <p className="text-xs text-neutral-600 mt-4">Consequential AI actions gated by policy</p>
             </Card>
 
-            <Card className="p-5 bg-white border border-neutral-200 rounded-xl hover:border-neutral-300 transition-colors">
+            <Card className="p-5 bg-slate-50/60 border border-neutral-200 rounded-xl hover:border-neutral-300 transition-colors">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm text-neutral-500">API Error Rate (Window)</p>
+                  <p className="text-sm text-neutral-600">API Error Rate (Window)</p>
                   <p className="text-2xl font-semibold tracking-tight text-neutral-900">
                     {systemHealth?.apiHealth?.errorRatePercentage ?? 0}%
                   </p>
                 </div>
-                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-neutral-50 text-neutral-600">
+                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-200/70 text-neutral-700">
                   <Activity className="w-4 h-4" strokeWidth={1.5} />
                 </div>
               </div>
-              <p className="text-xs text-neutral-500 mt-4">
-                p95 Latency · {systemHealth?.apiHealth?.p95LatencyMs ?? 15}ms
-              </p>
+              <p className="text-xs text-neutral-600 mt-4">p95 Latency · {systemHealth?.apiHealth?.p95LatencyMs ?? 15}ms</p>
             </Card>
 
-            <Card className="p-5 bg-white border border-neutral-200 rounded-xl hover:border-neutral-300 transition-colors">
+            <Card className="p-5 bg-indigo-50/40 border border-indigo-200 rounded-xl hover:border-indigo-300 transition-colors">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm text-neutral-500">Active Role Scoping</p>
+                  <p className="text-sm text-neutral-600">Active Role Scoping</p>
                   <p className="text-lg font-semibold tracking-tight text-neutral-900 uppercase mt-1">{currentRole}</p>
                 </div>
-                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-neutral-50 text-neutral-600">
+                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700">
                   <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
                 </div>
               </div>
-              <p className="text-xs text-neutral-500 mt-4">Strict server-side permission gating active</p>
+              <p className="text-xs text-neutral-600 mt-4">Strict server-side permission gating active</p>
             </Card>
           </div>
 
@@ -487,20 +486,41 @@ Summary CGPA: 3.47`);
            </Card>
 
           {/* Pending Human Confirmations List */}
-          {pendingConfirmations.length > 0 && (
+          {pendingConfirmations.filter((log) => {
+            const rec = (log.recommendation || '').toLowerCase();
+            if (rec.includes('evaluated 1 student records') && rec.includes('0 high priority')) return false;
+            if (log.module === 'faculty_copilot') return false;
+            if (rec.includes('faculty copilot processed action')) return false;
+            return true;
+          }).length > 0 && (
             <Card className="p-5 bg-white border border-amber-200 rounded-xl">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <FontAwesomeIcon icon={faCircleExclamation} className="text-amber-500" />
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Pending Consequential Action Approvals ({pendingConfirmations.length})
-                  </h3>
-                </div>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500" strokeWidth={1.5} />
+                <h3 className="text-sm font-bold text-slate-900">
+                  Pending Consequential Action Approvals ({pendingConfirmations.filter((log) => {
+                    const rec = (log.recommendation || '').toLowerCase();
+                    if (rec.includes('evaluated 1 student records') && rec.includes('0 high priority')) return false;
+                    if (log.module === 'faculty_copilot') return false;
+                    if (rec.includes('faculty copilot processed action')) return false;
+                    return true;
+                  }).length})
+                </h3>
+              </div>
                 <Badge variant="warning" size="sm">Human Confirmation Gate</Badge>
               </div>
 
               <div className="divide-y divide-slate-100">
-                {pendingConfirmations.map((log) => (
+                {pendingConfirmations
+                  .filter((log) => {
+                    const rec = (log.recommendation || '').toLowerCase();
+                    const label = (log.proposedAction?.label || '').toLowerCase();
+                    if (rec.includes('evaluated 1 student records') && rec.includes('0 high priority')) return false;
+                    if (log.module === 'faculty_copilot') return false;
+                    if (rec.includes('faculty copilot processed action')) return false;
+                    return true;
+                  })
+                  .map((log) => (
                   <div key={log._id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold text-slate-800">
@@ -533,24 +553,24 @@ Summary CGPA: 3.47`);
           )}
 
           {/* Recent Anomalies Highlight */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <FontAwesomeIcon icon={faTriangleExclamation} className="text-rose-500" />
-                <span>Recent Integrity Anomaly Detections</span>
-              </h3>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  setLoading(true);
-                  await aiApi.triggerAnomalyScan();
-                  await loadOverviewData();
-                }}
-              >
-                Scan Now
-              </Button>
-            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-500" strokeWidth={1.5} />
+                  <span>Recent Integrity Anomaly Detections</span>
+                </h3>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    setLoading(true);
+                    await aiApi.triggerAnomalyScan();
+                    await loadOverviewData();
+                  }}
+                >
+                  Scan Now
+                </Button>
+              </div>
 
             {anomalies.length === 0 ? (
               <EmptyState
@@ -1234,12 +1254,13 @@ Summary CGPA: 3.47`);
           </p>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-700">Sample Transcript Text</label>
+            <label className="text-xs font-medium text-slate-700">Transcript Text</label>
             <textarea
               rows={6}
               value={rawTranscriptText}
               onChange={(e) => setRawTranscriptText(e.target.value)}
               className="w-full border border-slate-300 rounded-lg p-2.5 font-mono text-xs"
+              placeholder="Paste transcript text here..."
             />
           </div>
 
@@ -1317,9 +1338,9 @@ Summary CGPA: 3.47`);
       {/* Tab 14: WHAT-IF SCENARIO SIMULATOR */}
       {activeTab === "simulator" && (
         <Card className="p-5 bg-white border border-slate-200 rounded-xl space-y-4">
-          <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 flex items-center gap-2">
-            <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600" />
-            <span className="text-xs font-bold text-amber-900">
+            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600" strokeWidth={1.5} />
+              <span className="text-xs font-bold text-amber-900">
               SIMULATION ONLY — DOES NOT MODIFY ACADEMIC POLICIES OR OFFICIAL STUDENT RECORDS
             </span>
           </div>
@@ -1366,10 +1387,10 @@ Summary CGPA: 3.47`);
           </Button>
 
           {simulationResult && (
-            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
               <p className="text-xs font-bold text-slate-900">Projected Simulation Impact:</p>
-              <p className="text-xs text-slate-700">{simulationResult.projectedImpact?.impactSummary}</p>
-              <p className="text-xs text-rose-600 font-semibold">
+              <p className="text-xs text-slate-700 leading-relaxed">{simulationResult.projectedImpact?.impactSummary}</p>
+              <p className="text-xs text-rose-600 font-semibold leading-relaxed">
                 Flagged Students Under Proposed Threshold: {simulationResult.projectedImpact?.flaggedStudentsCount}
               </p>
             </div>

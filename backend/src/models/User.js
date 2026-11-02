@@ -60,6 +60,14 @@ const UserSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    emailSignature: {
+      type: String,
+      default: null,
+    },
+    signatureImageUrl: {
+      type: String,
+      default: null,
+    },
     roles: {
       type: [String],
       default: ["student"],

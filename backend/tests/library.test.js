@@ -1,0 +1,1 @@
+import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { LibraryBook, LibraryLoan } from '../src/models/index.js';\n\ntest('library models exist', () => {\n  assert.ok(LibraryBook);\n  assert.ok(LibraryLoan);\n});\n

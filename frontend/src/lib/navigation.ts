@@ -24,6 +24,25 @@ import {
   faFileImage,
   faCode,
   faBrain,
+  faUserTie,
+  faBriefcase,
+  faHandshake,
+  faGraduationCap,
+  faHotel,
+  faCar,
+  faSitemap,
+  faUserGroup,
+  faFileContract,
+  faIdCard,
+  faBell,
+  faKey,
+  faFileAlt,
+  faRoute,
+  faWrench,
+  faBoxes,
+  faClipboardCheck,
+  faCalendarCheck,
+  faSchool,
 } from "@fortawesome/free-solid-svg-icons";
 import { UserRoleType } from "../types";
 
@@ -48,7 +67,9 @@ export type NavSectionId =
   | "core-academic"
   | "people-enrolment"
   | "administration-governance"
+  | "people-workforce"
   | "communication-engagement"
+  | "campus-learning-services"
   | "account-personal";
 
 export interface NavSection {
@@ -77,6 +98,14 @@ export const STANDARD_NAV_SECTIONS: Record<
   "administration-governance": {
     titleEn: "Administration & Governance",
     titleNe: "प्रशासन तथा शासन",
+  },
+  "people-workforce": {
+    titleEn: "People & Workforce",
+    titleNe: "जनशक्ति",
+  },
+  "campus-learning-services": {
+    titleEn: "Campus & Learning Services",
+    titleNe: "क्याम्पस तथा सिकाइ सेवाहरू",
   },
   "communication-engagement": {
     titleEn: "Communication & Engagement",
@@ -119,8 +148,30 @@ const intelligenceItem: NavItem = {
   permission: "ai.view",
 };
 
-const accountSection = (): NavSection =>
-  defineSection("account-personal", [profileItem]);
+const accountSection = (): NavSection => {
+  return defineSection("account-personal", [
+    profileItem,
+    { id: "my_documents", labelEn: "My Documents", labelNe: "मेरो कागजातहरू", icon: faFolder, permission: "documents.view" },
+    { id: "notification_preferences", labelEn: "Notification Preferences", labelNe: "सूचना प्राथमिकताहरू", icon: faBell },
+    { id: "security_sessions", labelEn: "Security & Sessions", labelNe: "सुरक्षा र सत्रहरू", icon: faKey },
+  ]);
+};
+
+const workforceDashboardItem: NavItem = {
+  id: "hr_dashboard",
+  labelEn: "HR Dashboard",
+  labelNe: "मानव संसाधन ड्यासबोर्ड",
+  icon: faUserTie,
+  permission: "hr.view",
+};
+
+const staffPortalDashboardItem: NavItem = {
+  id: "staff_portal",
+  labelEn: "Staff Portal",
+  labelNe: "कर्मचारी पोर्टल",
+  icon: faIdCard,
+  permission: "staff.self.view",
+};
 
 const STUDENT_NAV: NavSection[] = [
   defineSection("core-academic", [
@@ -431,7 +482,8 @@ const SUPER_ADMIN_NAV: NavSection[] = [
   defineSection("people-enrolment", [
     { id: "students", labelEn: "Student Directory", labelNe: "विद्यार्थी निर्देशिका", icon: faUsers, permission: "students.directory.view" },
     { id: "admissions", labelEn: "Admissions Workflow", labelNe: "भर्ना प्रक्रिया", icon: faUserPlus, permission: "admissions.application.view" },
-    { id: "attendance_sheet", labelEn: "Attendance Records", labelNe: "दैनिक उपस्थिति", icon: faUserCheck, permission: "attendance.view" },
+    { id: "attendance_sheet", labelEn: "Attendance Records", labelNe: "दैनिक उपस्थिती", icon: faUserCheck, permission: "attendance.view" },
+    { id: "student_lifecycle", labelEn: "Student Lifecycle Management", labelNe: "विद्यार्थी जीवनचक्र व्यवस्थापन", icon: faGraduationCap, permission: "students.directory.view" },
   ]),
   defineSection("administration-governance", [
     { id: "user_management", labelEn: "User & Role Management", labelNe: "प्रयोगकर्ता तथा भूमिका", icon: faShieldHalved, permission: "accounts.manage" },
@@ -444,10 +496,17 @@ const SUPER_ADMIN_NAV: NavSection[] = [
       badge: "overdueInvoices",
       badgeTone: "danger",
     },
-    { id: "facilities_library", labelEn: "Campus & Facilities", labelNe: "क्याम्पस तथा पुस्तकालय", icon: faBuilding, permission: "library.view" },
-    { id: "documents", labelEn: "Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
+    { id: "facilities_library", labelEn: "Campus & Facilities", labelNe: "क्याम्पस तथा सुविधा", icon: faBuilding, permission: "library.view" },
+    { id: "campus_buildings", labelEn: "Buildings & Classrooms", labelNe: "भवन तथा कक्षाहरू", icon: faSchool, permission: "library.view" },
+    { id: "campus_labs", labelEn: "Laboratories & Equipment", labelNe: "प्रयोगशाला तथा उपकरण", icon: faBoxes, permission: "library.view" },
+    { id: "campus_reservations", labelEn: "Room Reservations", labelNe: "कोठा आरक्षण", icon: faCalendarCheck, permission: "library.view" },
+    { id: "campus_maintenance", labelEn: "Maintenance Management", labelNe: "मर्मत व्यवस्थापन", icon: faWrench, permission: "library.view" },
+    { id: "campus_assets", labelEn: "Assets & Inventory", labelNe: "सम्पत्ति तथा सूची", icon: faBoxes, permission: "library.view" },
+    { id: "campus_transport", labelEn: "Transport Management", labelNe: "यातायात व्यवस्थापन", icon: faCar, permission: "library.view" },
     { id: "analytics", labelEn: "Analytics & Audit Logs", labelNe: "विश्लेषण तथा अडिट", icon: faChartPie, permission: "analytics.view" },
-    intelligenceItem,
+    { id: "intelligence", labelEn: "AI Intelligence", labelNe: "कृत्रिम बुद्धिमत्ता", icon: faBrain, permission: "ai.view" },
+    { id: "workflow_automation", labelEn: "Workflow Automation", labelNe: "कार्यप्रवाह स्वचालन", icon: faSitemap, permission: "workflow.manage" },
+    { id: "smart_documents", labelEn: "Smart Document Centre", labelNe: "स्मार्ट कागजात केन्द्र", icon: faFileAlt, permission: "documents.view" },
   ]),
   defineSection("communication-engagement", [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
@@ -463,7 +522,12 @@ const SUPER_ADMIN_NAV: NavSection[] = [
       badgeTone: "warning",
     },
   ]),
-  accountSection(),
+  defineSection("account-personal", [
+    { id: "profile", labelEn: "My Profile", labelNe: "मेरो प्रोफाइल", icon: faUser },
+    { id: "my_documents", labelEn: "My Documents", labelNe: "मेरो कागजातहरू", icon: faFolder, permission: "documents.view" },
+    { id: "notification_preferences", labelEn: "Notification Preferences", labelNe: "सूचना प्राथमिकताहरू", icon: faBell },
+    { id: "security_sessions", labelEn: "Security & Sessions", labelNe: "सुरक्षा र सत्रहरू", icon: faKey },
+  ]),
 ];
 
 /** Role-aware navigation with permission filtering applied by the sidebar. */

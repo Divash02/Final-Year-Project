@@ -93,7 +93,6 @@ type FacultyTab =
 const TABS: { id: FacultyTab; label: string; icon: typeof faBookOpen }[] = [
   { id: "planner", label: "Planner", icon: faBookOpen },
   { id: "materials", label: "Materials", icon: faFolderOpen },
-  { id: "assignments", label: "Assignments", icon: faFilePen },
   { id: "announcements", label: "Announcements", icon: faBullhorn },
   { id: "analytics", label: "Analytics", icon: faChartLine },
 ];

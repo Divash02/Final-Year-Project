@@ -243,7 +243,7 @@ const isStudent = currentRole === "student";
                   }
                 />
               </div>
-              <p className="mt-3 font-mono text-2xl font-semibold">
+               <p className="mt-2 font-mono text-xl font-semibold">
                 {value === undefined ? "—" : value}
               </p>
               <p className="mt-1 text-xs text-slate-500">
@@ -288,7 +288,7 @@ const isStudent = currentRole === "student";
           </div>
 
           {upcomingExams.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-6 text-center shadow-xs">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-xs">
               <FontAwesomeIcon icon={faCalendarDays} className="text-3xl text-slate-300" />
               <h3 className="mt-2 text-sm font-semibold text-slate-800">No Upcoming Examinations</h3>
               <p className="mt-1 text-xs text-slate-500">

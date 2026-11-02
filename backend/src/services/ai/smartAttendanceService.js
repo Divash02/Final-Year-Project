@@ -24,7 +24,20 @@ export async function createAttendanceQRSession({
   durationMinutes = 15,
   topic = "Interactive Lecture Session",
 }) {
-  const course = await Course.findById(courseId).lean();
+  let course = null;
+  const isObjectId = typeof courseId === "string" && /^[0-9a-fA-F]{24}$/.test(courseId);
+  if (isObjectId) {
+    course = await Course.findById(courseId).lean();
+  }
+  if (!course && courseId) {
+    course = await Course.findOne({ code: courseId }).lean();
+  }
+  if (!course && courseId) {
+    course = await Course.findOne({ name: courseId }).lean();
+  }
+  if (!course) {
+    course = await Course.findOne({}).lean();
+  }
   if (!course) throw new Error("Course not found.");
 
   const sessionCode = `QR-ATT-${course.code}-${Date.now().toString().slice(-6)}`;

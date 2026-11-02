@@ -6,6 +6,7 @@ import { getUserRoles, logAudit } from "../db.js";
 import { User, Student, Staff } from "../models/index.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { normalizeRoles } from "../permissions/catalog.js";
+import { sanitizeSignatureHtml } from "../utils/sanitizeHtml.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(__dirname, "../../uploads/avatars");
@@ -224,6 +225,7 @@ async function buildProfilePayload(user) {
     address: user.address,
     emergency_contact: user.emergencyContact,
     avatar_url: user.avatarUrl || student?.avatarUrl || null,
+    signature_image_url: user.signatureImageUrl || null,
     account_status: user.accountStatus,
     roles: user.roles || ["student"],
     student_id: student?.studentId || null,
@@ -248,6 +250,88 @@ export function registerProfileRoutes(app) {
       res.json({ profile: await buildProfilePayload(user) });
     } catch (err) {
       res.status(500).json({ error: "Failed to load profile." });
+    }
+  });
+
+  // Email signature: read
+  app.get("/api/users/me/signature", requireAuth, async (req, res) => {
+    try {
+      const user = await User.findById(req.user._id || req.user.id).select("emailSignature");
+      if (!user) return res.status(404).json({ error: "User not found." });
+      res.json({ signature: user.emailSignature || null });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to load signature." });
+    }
+  });
+
+  // Handwritten signature image upload
+  const sigUploadDir = path.resolve(__dirname, "../../uploads/signatures");
+  fs.mkdirSync(sigUploadDir, { recursive: true });
+  const sigStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, sigUploadDir),
+    filename: (req, file, cb) => cb(null, `sig-${req.user._id || req.user.id}-${Date.now()}${path.extname(file.originalname).toLowerCase() || ".png"}`),
+  });
+  const sigUpload = multer({
+    storage: sigStorage,
+    limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+    fileFilter: (req, file, cb) => {
+      if (["image/png", "image/jpeg", "image/jpg"].includes(String(file.mimetype).toLowerCase())) cb(null, true);
+      else cb(new Error("Only PNG/JPG allowed"));
+    },
+  });
+
+  app.post("/api/users/me/signature/image", requireAuth, (req, res, next) => {
+    sigUpload.single("file")(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || "Upload failed" });
+      next();
+    });
+  }, async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+      const user = await User.findById(req.user._id || req.user.id);
+      if (!user) return res.status(404).json({ error: "User not found." });
+      const url = `/uploads/signatures/${req.file.filename}`;
+      user.signatureImageUrl = url;
+      await user.save();
+      res.json({ imageUrl: url });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to save image." });
+    }
+  });
+    app.delete("/api/users/me/signature/image", requireAuth, async (req, res) => {
+    try {
+      const user = await User.findById(req.user._id || req.user.id);
+      if (!user) return res.status(404).json({ error: "User not found." });
+      const url = user.signatureImageUrl;
+      if (url) {
+        const filename = path.basename(url);
+        const filePath = path.join(sigUploadDir, filename);
+        if (filePath.startsWith(sigUploadDir)) {
+          try { fs.unlinkSync(filePath); } catch {}
+        }
+      }
+      user.signatureImageUrl = null;
+      await user.save();
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to delete image." });
+    }
+  });
+
+app.put("/api/users/me/signature", requireAuth, async (req, res) => {
+    try {
+      const user = await User.findById(req.user._id || req.user.id);
+      if (!user) return res.status(404).json({ error: "User not found." });
+      const { signature: value } = req.body || {};
+      if (value === undefined) {
+        return res.status(400).json({ error: "signature is required." });
+      }
+      const sanitized = value === null || String(value).trim() === "" ? null : sanitizeSignatureHtml(String(value));
+      user.emailSignature = sanitized;
+      await user.save();
+      res.json({ signature: user.emailSignature });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to save signature." });
     }
   });
 

@@ -620,7 +620,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                   setQuestionEditorOpen(true);
                 }}
               >
-                + Add Question
+                Add Question
               </Button>
               <Button
                 size="sm"

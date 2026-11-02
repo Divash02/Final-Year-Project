@@ -83,3 +83,20 @@ export function htmlToPlainText(html) {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/**
+ * Sanitises a rich-text email signature. Unlike notice bodies, signatures
+ * may embed an uploaded handwritten-signature image, so `img`/`src`/`alt`
+ * are permitted while scripts, event-handler attributes and dangerous CSS
+ * are still stripped before persistence.
+ */
+export function sanitizeSignatureHtml(html) {
+  if (typeof html !== "string" || !html.trim()) return "";
+  return sanitize(html, {
+    ALLOWED_TAGS: [...ALLOWED_TAGS, "img"],
+    ALLOWED_ATTR: [...ALLOWED_ATTR, "src", "alt"],
+    ALLOWED_URI_REGEXP: SAFE_URI,
+    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input", "button", "svg", "math"],
+    FORBID_ATTR: ["onerror", "onload", "onclick", "class", "id"],
+  }).trim();
+}

@@ -28,11 +28,13 @@ import { registerExamSeatingRoutes } from "./routes/examSeating.js";
 import { registerCodingRoutes } from "./routes/coding.js";
 import { registerAssessmentRoutes } from "./routes/assessments.js";
 import { registerAIRoutes } from "./routes/ai.js";
+import { registerHRRoutes } from "./routes/hr.js";
+import { registerLibraryRoutes } from "./routes/library.js";
 import { toErrorResponse } from "./utils/apiError.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.resolve(__dirname, "../uploads");
-const avatarDir = path.join(uploadsDir, "avatars");
+  const signatureDir = path.join(uploadsDir, "signatures");
 
 export function createApp() {
   const app = express();
@@ -46,8 +48,8 @@ export function createApp() {
   // documents — is served through the authenticated, entitlement-checked
   // `/api/files/:id` route instead.
   app.use(
-    "/uploads/avatars",
-    express.static(avatarDir, {
+    "/uploads/signatures",
+    express.static(signatureDir, {
       index: false,
       dotfiles: "deny",
       maxAge: "1h",
@@ -91,6 +93,8 @@ export function createApp() {
   registerAttendanceRoutes(app);
   registerCodingRoutes(app);
   registerAIRoutes(app);
+  registerHRRoutes(app);
+  registerLibraryRoutes(app);
 
   // Unknown API routes answer in the same structured shape as every other
   // error, so the frontend never has to special-case a bare HTML 404.

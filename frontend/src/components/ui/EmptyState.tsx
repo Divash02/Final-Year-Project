@@ -31,17 +31,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   className = "",
 }) => (
   <div
-    className={`flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white px-8 py-12 text-center ${className}`}
+    className={`flex flex-col items-center justify-center rounded-md border border-dashed border-neutral-300 bg-white px-8 py-10 text-center ${className}`}
   >
-    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-      <FontAwesomeIcon icon={icon} className="text-2xl" aria-hidden="true" />
+    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-md bg-neutral-100 text-neutral-700">
+      <FontAwesomeIcon icon={icon} className="text-xl" aria-hidden="true" />
     </div>
 
-    <h3 className="text-base font-semibold text-slate-900">
+    <h3 className="text-sm font-semibold text-black">
       {loading ? "Loading records" : title}
     </h3>
 
-    <p className="mt-1.5 max-w-md text-sm leading-relaxed text-slate-500">
+    <p className="mt-1.5 max-w-md text-xs leading-relaxed text-neutral-700">
       {loading ? "Retrieving data from the CollegeOS database." : description}
     </p>
 

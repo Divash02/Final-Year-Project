@@ -474,6 +474,8 @@ const roleGrants = {
     "super_admin",
   ],
 
+  "library.manage": ["super_admin", "campus_admin"],
+
   // Documents & Library
   "documents.view": [
     "super_admin",
@@ -872,6 +874,22 @@ const roleGrants = {
     "registrar",
     "exam_officer",
   ],
+
+  // HR & Workforce Management
+  "hr.view": ["super_admin", "hod", "dean"],
+  "hr.manage": ["super_admin", "hod"],
+  "hr.employee.manage": ["super_admin", "hod"],
+  "hr.recruitment.view": ["super_admin", "hod"],
+  "hr.recruitment.manage": ["super_admin", "hod"],
+  "hr.leave.manage": ["super_admin", "hod", "faculty"],
+  "hr.attendance.manage": ["super_admin", "hod"],
+  "hr.contracts.manage": ["super_admin"],
+  "hr.payroll.view": ["super_admin", "finance_officer"],
+  "hr.payroll.manage": ["super_admin"],
+  "staff.self.view": ["super_admin", "hod", "dean", "program_coordinator", "registrar", "exam_officer", "finance_officer", "campus_admin", "faculty", "student"],
+  "staff.leave.apply": ["faculty", "hod", "program_coordinator", "dean", "registrar", "exam_officer", "finance_officer", "campus_admin", "super_admin"],
+  "hr.planning.view": ["super_admin", "dean", "hod"],
+  "workflow.manage": ["super_admin", "registrar", "dean"],
 };
 
 export function getPermissionsForRoles(roles = []) {

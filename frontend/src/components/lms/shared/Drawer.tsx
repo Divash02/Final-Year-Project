@@ -122,7 +122,7 @@ export const Drawer: React.FC<DrawerProps> = ({
         aria-modal="true"
         aria-labelledby={titleId}
         className={[
-          "absolute inset-y-0 flex w-full flex-col border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950",
+          "absolute top-16 bottom-0 flex w-full flex-col border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950",
           WIDTH_CLASSES[width],
           side === "right" ? "right-0 border-l" : "left-0 border-r",
           slideIn,

@@ -495,9 +495,9 @@ const course = await Course.findById(courseId)
       );
       const sectionCodes = requestedSections.length ? requestedSections : access.sectionCodes;
 
-      const openAt = requireInstant(body.openAt, "Open time", "openAt");
-      const closeAt = requireInstant(body.closeAt, "Close time", "closeAt");
-      assertWindowIsSane(openAt, closeAt);
+const openAt = body.openAt ? requireInstant(body.openAt, "Open time", "openAt") : null;
+const closeAt = requireInstant(body.closeAt, "Close time", "closeAt");
+if (openAt) assertWindowIsSane(openAt, closeAt);
 
       const durationMinutes = toInt(body.durationMinutes, "Duration", {
         min: 1,
@@ -770,12 +770,12 @@ const course = await Course.findById(courseId)
           );
         }
         const openAt = body.openAt !== undefined
-          ? requireInstant(body.openAt, "Open time", "openAt")
-          : new Date(quiz.openAt);
+          ? (body.openAt ? requireInstant(body.openAt, "Open time", "openAt") : null)
+          : (quiz.openAt ? new Date(quiz.openAt) : null);
         const closeAt = body.closeAt !== undefined
           ? requireInstant(body.closeAt, "Close time", "closeAt")
           : new Date(quiz.closeAt);
-        assertWindowIsSane(openAt, closeAt);
+        if (openAt) assertWindowIsSane(openAt, closeAt);
         quiz.openAt = openAt;
         quiz.closeAt = closeAt;
       }

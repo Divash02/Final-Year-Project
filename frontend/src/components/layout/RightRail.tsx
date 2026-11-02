@@ -38,7 +38,11 @@ export const RightRail: React.FC<RightRailProps> = ({
         disabled={action.disabled}
         title={action.label}
         aria-label={action.label}
-        className="relative flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+        className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition ${
+          action.disabled
+            ? "cursor-not-allowed opacity-40"
+            : "hover:bg-slate-100 hover:text-slate-800"
+        }`}
       >
         <FontAwesomeIcon icon={action.icon} className="text-base" aria-hidden="true" />
         {action.active && (

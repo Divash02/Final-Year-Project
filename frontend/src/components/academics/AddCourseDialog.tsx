@@ -1,12 +1,13 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBookOpen } from "@fortawesome/free-solid-svg-icons";
+import { faBookOpen, faSpinner, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { FormField, SelectField } from "../ui/Input";
 import { FormSection } from "../ui/FormSection";
 import { apiRequest } from "../../services/apiClient";
 import { useToast } from "../ui/ToastContainer";
+import { ConfirmDialog } from "../lms/shared/ConfirmDialog";
 
 interface Department {
   code: string;
@@ -25,7 +26,31 @@ interface AddCourseDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  course?: {
+    id: string | number;
+    code: string;
+    name: string;
+    department: string | null;
+    program?: string | null;
+    credits: number | null;
+    semester?: number | null;
+    academicYear?: string | null;
+    courseType?: string | null;
+    description?: string | null;
+  };
 }
+
+const DEFAULT_FORM_DATA: CourseFormData = {
+  code: "",
+  name: "",
+  department: "",
+  program: "",
+  credits: "3",
+  semester: "1",
+  academicYear: "",
+  courseType: "CORE",
+  description: "",
+};
 
 export interface CourseFormData {
   code: string;
@@ -46,32 +71,59 @@ export const AddCourseDialog: React.FC<AddCourseDialogProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  course,
 }) => {
   const { toast } = useToast();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [programs, setPrograms] = useState<string[]>([]);
   const [academicYears, setAcademicYears] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formData, setFormData] = useState<CourseFormData>({
-    code: "",
-    name: "",
-    department: "",
-    program: "",
-    credits: "3",
-    semester: "1",
-    academicYear: "",
-    courseType: "CORE",
-    description: "",
-  });
+  const [formData, setFormData] = useState<CourseFormData>(DEFAULT_FORM_DATA);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [mode, setMode] = useState<"add" | "edit">("add");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      void loadFilters();
-      setErrors({});
+    if (!isOpen) return;
+    setErrors({});
+    setMode(course ? "edit" : "add");
+    void loadFilters();
+    if (course) {
+      setFormData(DEFAULT_FORM_DATA);
+      void loadCourse(course.id);
     }
-  }, [isOpen]);
+  }, [isOpen, course]);
+
+  const loadCourse = async (id: string | number) => {
+    try {
+      setFetching(true);
+      const response = await apiRequest<{ course: AddCourseDialogProps["course"] }>(
+        `/courses/${id}`,
+      );
+      const c = response.course;
+      if (!c) return;
+      setFormData({
+        code: c.code || "",
+        name: c.name || "",
+        department: c.department || "",
+        program: c.program || "",
+        credits: String(c.credits ?? 3),
+        semester: String(c.semester ?? 1),
+        academicYear: c.academicYear || "",
+        courseType: c.courseType || "CORE",
+        description: c.description || "",
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unable to load course.";
+      toast({ variant: "error", message: "Unable to load course", detail: msg });
+      setErrors((prev) => ({ ...prev, submit: msg }));
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const loadFilters = async () => {
     try {
@@ -82,7 +134,7 @@ export const AddCourseDialog: React.FC<AddCourseDialogProps> = ({
       setDepartments(deptList);
       setPrograms(progList);
       setAcademicYears(years);
-      if (years.length > 0) {
+      if (years.length > 0 && !course) {
         setFormData((prev) => ({ ...prev, academicYear: prev.academicYear || years[0] }));
       }
     } catch (e) {
@@ -131,22 +183,34 @@ export const AddCourseDialog: React.FC<AddCourseDialogProps> = ({
       if (formData.program) payload.program = formData.program;
       if (formData.courseType) payload.courseType = formData.courseType;
       if (formData.description.trim()) payload.description = formData.description.trim();
-      await apiRequest("/courses", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      toast({
-        variant: "success",
-        message: "Course created successfully",
-        detail: `${payload.code} · ${payload.name}`
-      });
+      if (mode === "edit" && course) {
+        await apiRequest(`/courses/${course.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        toast({
+          variant: "success",
+          message: "Course updated successfully",
+          detail: `${payload.code} · ${payload.name}`
+        });
+      } else {
+        await apiRequest("/courses", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        toast({
+          variant: "success",
+          message: "Course created successfully",
+          detail: `${payload.code} · ${payload.name}`
+        });
+      }
       onSuccess();
       onClose();
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : "Course could not be saved.";
       toast({
         variant: "error",
-        message: "Unable to create course",
+        message: mode === "edit" ? "Unable to update course" : "Unable to create course",
         detail: msg,
       });
       setErrors((prev) => ({ ...prev, submit: msg }));
@@ -156,31 +220,107 @@ export const AddCourseDialog: React.FC<AddCourseDialogProps> = ({
   };
 
   const handleClose = () => {
-    if (!submitting) {
+    if (!submitting && !fetching && !deleting) {
       onClose();
     }
   };
 
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!course) return;
+    setDeleting(true);
+    try {
+      await apiRequest(`/courses/${course.id}?mode=purge`, {
+        method: "DELETE",
+      });
+      toast({
+        variant: "success",
+        message: "Course deleted",
+        detail: `${course.code} · ${course.name}`,
+      });
+      setShowDeleteConfirm(false);
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      if (err?.status === 409) {
+        // Purge refused due to dependent records: archive instead so references stay valid.
+        try {
+          await apiRequest(`/courses/${course.id}`, { method: "DELETE" });
+          toast({
+            variant: "success",
+            message: "Course archived",
+            detail: `${course.code} · ${course.name} — kept for existing records.`,
+          });
+          setShowDeleteConfirm(false);
+          onSuccess();
+          onClose();
+          return;
+        } catch (archiveErr: any) {
+          const archiveMsg = archiveErr instanceof Error ? archiveErr.message : "Course could not be archived.";
+          toast({
+            variant: "error",
+            message: "Unable to archive course",
+            detail: archiveMsg,
+          });
+          setShowDeleteConfirm(false);
+          return;
+        }
+      }
+      const msg = err instanceof Error ? err.message : "Course could not be deleted.";
+      toast({
+        variant: "error",
+        message: "Unable to delete course",
+        detail: msg,
+      });
+      setShowDeleteConfirm(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <Modal
+    <>
+      <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Create Course"
-      subtitle="Add a new course to the academic catalogue."
+      title={mode === "edit" ? "Edit Course" : "Add Course"}
+      subtitle={
+        mode === "edit"
+          ? "Update the course details below."
+          : "Add a new course to the academic catalogue."
+      }
       icon={faBookOpen}
       maxWidth="lg"
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:justify-end">
-          <Button variant="secondary" onClick={handleClose} disabled={submitting}>
+          {mode === "edit" && (
+            <Button
+              variant="danger"
+              onClick={handleDelete}
+              disabled={submitting || fetching || deleting}
+            >
+              Delete Course
+            </Button>
+          )}
+          <Button variant="secondary" onClick={handleClose} disabled={submitting || fetching || deleting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} isLoading={submitting} loadingLabel="Creating..." type="submit">
-            Create Course
+          <Button onClick={handleSubmit} isLoading={submitting} loadingLabel={mode === "edit" ? "Updating..." : "Adding..."} type="submit">
+            {mode === "edit" ? "Edit Course" : "Add Course"}
           </Button>
         </div>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+    {mode === "edit" && fetching ? (
+        <div className="flex h-full flex-col items-center justify-center gap-2 p-12">
+          <FontAwesomeIcon icon={faSpinner} spin className="text-slate-500" />
+          <p className="text-sm text-slate-600">Loading course...</p>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
         <FormSection title="Course Information" description="Use the official academic details.">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField label="Course Code" error={errors.code} required helperText="Use the official academic course code.">
@@ -321,8 +461,21 @@ export const AddCourseDialog: React.FC<AddCourseDialogProps> = ({
             )}
           </FormField>
         </FormSection>
-      </form>
+        </form>
+      )}
     </Modal>
+    <ConfirmDialog
+      isOpen={showDeleteConfirm}
+      onClose={() => setShowDeleteConfirm(false)}
+      title="Delete Course"
+      confirmLabel="Delete"
+      message="This will permanently remove the course from the database. This action cannot be undone."
+      subject={mode === "edit" && course ? `${course.code} · ${course.name}` : undefined}
+      busy={deleting}
+      severity="danger"
+      onConfirm={handleDeleteConfirm}
+    />
+    </>
   );
 };
 

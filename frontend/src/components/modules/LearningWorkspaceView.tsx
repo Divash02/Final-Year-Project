@@ -26,6 +26,7 @@ interface CourseRecord {
   academicYear?: string | null;
   program?: string | null;
   courseType?: string;
+  description?: string | null;
 }
 
 const SEMESTERS = Array.from({ length: 6 }, (_, i) => ({
@@ -40,12 +41,14 @@ export const LearningWorkspaceView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCourseForm, setShowCourseForm] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<CourseRecord | null>(null);
   const [query, setQuery] = useState("");
   const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
 
   const permissions = new Set(currentUser?.permissions || []);
   const canCreateCourse = permissions.has("courses.create");
+  const canManageCourse = permissions.has("courses.manage");
 
   const loadData = async () => {
     try {
@@ -111,7 +114,7 @@ export const LearningWorkspaceView: React.FC = () => {
         </div>
         <div className="flex flex-wrap gap-2">
           {canCreateCourse && (
-            <Button icon={faPlus} onClick={() => setShowCourseForm(true)}>
+            <Button icon={faPlus} onClick={() => { setEditingCourse(null); setShowCourseForm(true); }}>
               Add Course
             </Button>
           )}
@@ -237,6 +240,11 @@ export const LearningWorkspaceView: React.FC = () => {
                       key={course.id}
                       course={course}
                       onView={(c) => openCourse(String(c.id))}
+                      onEdit={
+                        canManageCourse
+                          ? (c) => { setEditingCourse(c as CourseRecord); setShowCourseForm(true); }
+                          : undefined
+                      }
                     />
                   ))}
                 </div>
@@ -247,9 +255,11 @@ export const LearningWorkspaceView: React.FC = () => {
 
       <AddCourseDialog
         isOpen={showCourseForm}
-        onClose={() => setShowCourseForm(false)}
+        course={editingCourse ?? undefined}
+        onClose={() => { setShowCourseForm(false); setEditingCourse(null); }}
         onSuccess={async () => {
           setShowCourseForm(false);
+          setEditingCourse(null);
           await loadData();
         }}
       />

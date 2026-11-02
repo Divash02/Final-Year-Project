@@ -5,6 +5,7 @@ import {
   faBuilding,
   faCalendarDays,
   faGraduationCap,
+  faPencil,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Badge } from "../ui/Badge";
@@ -25,6 +26,7 @@ export interface CourseCardData {
 interface CourseCardProps {
   course: CourseCardData;
   onView?: (course: CourseCardData) => void;
+  onEdit?: (course: CourseCardData) => void;
 }
 const COURSE_COLOR_PALETTE = [
   { gradient: "from-indigo-500 to-indigo-600", accent: "bg-indigo-500", iconBg: "bg-white/20" },
@@ -89,7 +91,7 @@ function getCourseArtwork(course: any) {
     pattern: "radial-gradient(circle at 50% 20%, rgba(255,255,255,0.2) 0%, transparent 70%)",
   };
 }
-export const CourseCard: React.FC<CourseCardProps> = ({ course, onView }) => {
+export const CourseCard: React.FC<CourseCardProps> = ({ course, onView, onEdit }) => {
   const artwork = getCourseArtwork(course);
   const level = course.semester ? Math.ceil(course.semester / 2) : null;
 
@@ -162,16 +164,29 @@ export const CourseCard: React.FC<CourseCardProps> = ({ course, onView }) => {
             Academic Course
           </span>
         </div>
-        <Button
-          size="sm"
-          variant="secondary"
-          icon={faArrowRight}
-          iconPosition="right"
-          onClick={() => onView && onView(course)}
-          className="shadow-sm transition-transform duration-150 group-hover:translate-x-0.5"
-        >
-          View Course
-        </Button>
+        <div className="flex items-center gap-2">
+          {onEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              icon={faPencil}
+              iconPosition="left"
+              onClick={() => onEdit(course)}
+            >
+              Edit
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={faArrowRight}
+            iconPosition="right"
+            onClick={() => onView && onView(course)}
+            className="shadow-sm transition-transform duration-150 group-hover:translate-x-0.5"
+          >
+            View Course
+          </Button>
+        </div>
       </div>
     </article>
   );

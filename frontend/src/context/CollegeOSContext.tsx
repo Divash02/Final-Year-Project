@@ -130,6 +130,17 @@ const routeToView: Record<string, string> = {
   "/account/activate": "profile", // password change screen
   "/student/coding-lab": "student_coding_lab",
   "/teacher/coding-lab": "teacher_coding_lab",
+  "/hr": "hr_dashboard",
+  "/staff": "staff_portal",
+  "/recruitment": "recruitment",
+  "/workforce": "workforce_planning",
+  "/leave-approval": "leave_approval",
+  "/career": "career_placement",
+  "/hostel": "hostel_accommodation",
+  "/clubs": "student_clubs",
+  "/workflows": "workflow_automation",
+  "/student-lifecycle": "student_lifecycle",
+  "/campus-extended": "campus_facilities_ext",
 };
 
 /**
@@ -167,6 +178,17 @@ function resolveRoute(pathname: string): {
 const viewToRoute = Object.fromEntries(
   Object.entries(routeToView).map(([route, view]) => [view, route]),
 );
+viewToRoute["hr_dashboard"] = "/hr";
+viewToRoute["staff_portal"] = "/staff";
+viewToRoute["recruitment"] = "/recruitment";
+viewToRoute["workforce_planning"] = "/workforce";
+viewToRoute["leave_approval"] = "/leave-approval";
+viewToRoute["career_placement"] = "/career";
+viewToRoute["hostel_accommodation"] = "/hostel";
+viewToRoute["student_clubs"] = "/clubs";
+viewToRoute["workflow_automation"] = "/workflows";
+viewToRoute["student_lifecycle"] = "/student-lifecycle";
+viewToRoute["campus_facilities_ext"] = "/campus-extended";
 const communicationViewByPath = Object.fromEntries(
   Object.entries(communicationPathByView).map(([view, route]) => [route, view]),
 );

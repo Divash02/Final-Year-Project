@@ -110,7 +110,7 @@ const QuizSchema = new mongoose.Schema(
     resultsReleasedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 
     // --- Schedule ----------------------------------------------------------
-    openAt: { type: Date, required: true, index: true },
+    openAt: { type: Date, default: null, index: true },
     closeAt: { type: Date, required: true, index: true },
     openedAt: { type: Date, default: null },
     closedAt: { type: Date, default: null },

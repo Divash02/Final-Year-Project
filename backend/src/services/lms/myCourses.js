@@ -47,7 +47,7 @@ function academicYearStart(value) {
  * @returns {Promise<{ academicYear: string, semester: number|null,
  *   basis: "INSTITUTION" | "RECORDS", configured: boolean, note: string|null }>}
  */
-export async function resolveAcademicPeriod({ studentSemester = null } = {}) {
+export async function resolveAcademicPeriod({ studentSemester = null, records = [] } = {}) {
   const [yearSetting, semesterSetting] = await Promise.all([
     InstitutionSetting.findOne({ settingKey: ACADEMIC_YEAR_KEY }).lean(),
     InstitutionSetting.findOne({ settingKey: CURRENT_SEMESTER_KEY }).lean(),
@@ -68,9 +68,10 @@ export async function resolveAcademicPeriod({ studentSemester = null } = {}) {
 
   // Not published: fall back to the most recent period the caller's own records
   // actually contain, so the tabs still reflect real enrolments and assignments.
-  const derivedYear =
-    (await mostRecentAcademicYear()) || configuredYear || DEFAULT_ACADEMIC_YEAR;
-  const derivedSemester = studentSemester ?? (await mostRecentSemester());
+  // Other students' and cohorts' records in the same database must not shift the
+  // caller's period.
+  const derivedYear = mostRecentAcademicYear(records) || configuredYear || DEFAULT_ACADEMIC_YEAR;
+  const derivedSemester = studentSemester ?? mostRecentSemester(records);
 
   return {
     academicYear: derivedYear,
@@ -82,24 +83,22 @@ export async function resolveAcademicPeriod({ studentSemester = null } = {}) {
   };
 }
 
-async function mostRecentAcademicYear() {
-  const [fromEnrolment, fromTeaching] = await Promise.all([
-    Enrollment.distinct("academicYear"),
-    CourseTeachingAssignment.distinct("academicYear"),
-  ]);
-  const years = [...fromEnrolment, ...fromTeaching]
+/** Most recent academic year found in the caller's own records. */
+function mostRecentAcademicYear(records) {
+  const years = records
+    .map((row) => row.academicYear)
     .filter(Boolean)
-    .sort((a, b) => (academicYearStart(b) || 0) - (academicYearStart(a) || 0));
-  return years[0] || null;
+    .map((year) => ({ year, start: academicYearStart(year) }))
+    .filter((entry) => entry.start !== null);
+  if (!years.length) return null;
+  years.sort((a, b) => b.start - a.start);
+  return years[0].year;
 }
 
-async function mostRecentSemester() {
-  const [fromEnrolment, fromTeaching] = await Promise.all([
-    Enrollment.distinct("semester"),
-    CourseTeachingAssignment.distinct("semester"),
-  ]);
-  const semesters = [...fromEnrolment, ...fromTeaching]
-    .map(Number)
+/** Most recent semester found in the caller's own records. */
+function mostRecentSemester(records) {
+  const semesters = records
+    .map((row) => Number(row.semester))
     .filter((value) => Number.isFinite(value) && value > 0);
   return semesters.length ? Math.max(...semesters) : null;
 }
@@ -161,10 +160,6 @@ export async function buildMyCourses(user) {
     .select("_id studentId semester section program batch academicYear")
     .lean();
 
-  const period = await resolveAcademicPeriod({
-    studentSemester: student?.semester ?? null,
-  });
-
   const overseesCatalogue = hasPermission(roles, "courses.manage");
   const teaches = isStudentRole && overseesCatalogue ? false : true;
 
@@ -174,6 +169,13 @@ export async function buildMyCourses(user) {
   const teaching = teaches
     ? await CourseTeachingAssignment.find({ facultyUser: userId }).lean()
     : [];
+
+  const period = await resolveAcademicPeriod({
+    studentSemester: student?.semester ?? null,
+    // Group the period by the caller's own records: a student's enrolments, a
+    // teacher's teaching assignments, nothing for a pure catalogue viewer.
+    records: isStudentRole ? enrolments : teaching,
+  });
 
   const catalogue =
     overseesCatalogue && !student && !teaching.length

@@ -23,6 +23,7 @@ import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { Modal } from "../../ui/Modal";
+import { RichTextDisplay } from "../../ui/RichTextDisplay";
 import { useCollegeOS } from "../../../context/CollegeOSContext";
 import {
   fetchAttemptAvailability,
@@ -601,7 +602,7 @@ export const QuizAttemptRunner: React.FC<QuizAttemptRunnerProps> = ({
             <div className="mb-6 space-y-3">
               <div className="text-base font-normal leading-relaxed text-slate-900 dark:text-slate-100">
                 {activeQuestion.richText ? (
-                  <div dangerouslySetInnerHTML={{ __html: activeQuestion.richText }} />
+                  <RichTextDisplay content={activeQuestion.richText} />
                 ) : (
                   <p className="whitespace-pre-wrap">{activeQuestion.text}</p>
                 )}

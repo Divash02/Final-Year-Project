@@ -92,7 +92,11 @@ export const MyCoursesView: React.FC = () => {
     void load();
   }, [load]);
 
-  const cards = data ? data.courses[tab] : [];
+  const cards = data
+    ? data.courses[tab].filter(
+        (c: any) => c.courseCode !== "CT-31-AIML" && c.title !== "AI and ML",
+      )
+    : [];
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     let list = cards;

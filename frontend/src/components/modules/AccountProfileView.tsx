@@ -291,10 +291,11 @@ export const AccountProfileView: React.FC = () => {
       setPhotoPreview(null);
       setPhotoHint("");
       setSuccess(result.message);
-    } catch (requestError) {
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (uploadError) {
       setError(
-        requestError instanceof Error
-          ? requestError.message
+        uploadError instanceof Error
+          ? uploadError.message
           : "Profile photo upload failed.",
       );
     } finally {
@@ -417,11 +418,12 @@ export const AccountProfileView: React.FC = () => {
         </Alert>
       )}
       {success && (
-        <Alert variant="success">
-          <span className="flex items-center gap-2">
-            <FontAwesomeIcon icon={faCircleCheck} aria-hidden="true" />
-            {success}
-          </span>
+        <Alert
+          variant="success"
+          autoDismissMs={4000}
+          onDismiss={() => setSuccess("")}
+        >
+          {success}
         </Alert>
       )}
 

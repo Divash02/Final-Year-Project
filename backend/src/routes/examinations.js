@@ -510,22 +510,58 @@ export function registerExaminationRoutes(app) {
     requirePermission(["exam.view", "exams.view", "exam.manageRooms"]),
     async (req, res) => {
       try {
-        let rooms = await Room.find({ isActive: true }).sort({ building: 1, roomNumber: 1 });
-        if (rooms.length === 0) {
-          // Seed standard institutional rooms if empty
-          await Room.create([
-            { building: "Block A", roomNumber: "204", name: "Block A · Room 204", capacity: 60, facilities: ["CCTV", "AC"] },
-            { building: "Block A", roomNumber: "205", name: "Block A · Room 205", capacity: 60, facilities: ["CCTV", "AC"] },
-            { building: "Block A", roomNumber: "206", name: "Block A · Room 206", capacity: 50, facilities: ["CCTV"] },
-            { building: "Block B", roomNumber: "102", name: "Block B · Room 102", capacity: 40, facilities: ["Projector"] },
-            { building: "Main Hall", roomNumber: "Exam Hall 1", name: "Main Campus · Exam Hall 1", capacity: 120, facilities: ["CCTV", "Sound System"] },
-          ]);
-          rooms = await Room.find({ isActive: true }).sort({ building: 1, roomNumber: 1 });
-        }
-
-        res.json({ rooms });
+         let rooms = await Room.find({ isActive: true }).sort({ building: 1, roomNumber: 1 });
+         res.json({ rooms });
       } catch (err) {
         res.status(500).json({ error: "Failed to load exam rooms." });
+      }
+    }
+  );
+
+  /**
+   * 7b. Delete Exam Room
+   */
+  app.delete(
+    "/api/exams/rooms/:id",
+    requireAuth,
+    async (req, res) => {
+      try {
+        await Room.findByIdAndDelete(req.params.id);
+        res.json({ ok: true });
+      } catch (err) {
+        res.status(500).json({ error: "Failed to delete room." });
+      }
+    }
+  );
+
+  /**
+   * 7d. Create Exam Room
+   */
+  app.post(
+    "/api/exams/rooms",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const room = await Room.create(req.body);
+        res.json({ room });
+      } catch (err) {
+        res.status(500).json({ error: "Failed to create room." });
+      }
+    }
+  );
+
+  /**
+   * 7c. Update Exam Room
+   */
+  app.put(
+    "/api/exams/rooms/:id",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const updated = await Room.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json({ room: updated });
+      } catch (err) {
+        res.status(500).json({ error: "Failed to update room." });
       }
     }
   );
@@ -725,9 +761,9 @@ export function registerExaminationRoutes(app) {
         // Determine rooms and primary room label
         let roomList = Array.isArray(rooms) && rooms.length > 0 ? rooms : [];
         if (roomList.length === 0 && room) {
-          roomList = [{ name: room, capacity: 60, roomNumber: room, building: "Block A" }];
+          roomList = [{ name: room, capacity: 60, roomNumber: room, building: "" }];
         } else if (roomList.length === 0) {
-          roomList = [{ name: "Block A · Room 204", capacity: 60, roomNumber: "204", building: "Block A" }];
+          roomList = [];
         }
         const primaryRoom = roomList.map((r) => r.name || `${r.building} · Room ${r.roomNumber}`).join(", ");
 

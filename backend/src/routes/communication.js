@@ -267,6 +267,19 @@ export function registerCommunicationRoutes(app) {
         .map((e) => String(e).trim().toLowerCase())
         .filter(Boolean);
 
+      // Attachments arrive as JSON-serializable metadata objects. Raw File
+      // objects cannot survive JSON.stringify (they become {}) and lack the
+      // required fileName/fileUrl fields, which would otherwise abort the
+      // entire send with a 500. Keep only valid attachment metadata.
+      const validAttachments = Array.isArray(attachments)
+        ? attachments.filter(
+            (a) =>
+              a &&
+              typeof a.fileName === "string" &&
+              typeof a.fileUrl === "string",
+          )
+        : [];
+
       if (!isDraft && normalizedRecipients.length === 0) {
         return res.status(400).json({ error: "Recipient email is required." });
       }
@@ -321,7 +334,7 @@ export function registerCommunicationRoutes(app) {
         recipients: recipientUsers.map((u) => u._id),
         subject: String(subject).trim() || "(no subject)",
         body: String(body).trim(),
-        attachments: Array.isArray(attachments) ? attachments : [],
+        attachments: validAttachments,
         isDraft: Boolean(isDraft),
         userStates,
       });
