@@ -465,16 +465,39 @@ const roleGrants = {
     "super_admin",
     "campus_admin",
     "dean",
+    "registrar",
+  ],
+
+  "facilities.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "registrar",
+    "faculty",
+    "student",
+  ],
+  "facilities.manage": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "registrar",
+    "faculty",
+  ],
+  "facilities.request": [
+    "super_admin",
+    "campus_admin",
+    "dean",
     "hod",
     "program_coordinator",
     "registrar",
-    "exam_officer",
-    "finance_officer",
     "faculty",
-    "super_admin",
+    "student",
   ],
-
   "library.manage": ["super_admin", "campus_admin"],
+  "library.fines.manage": ["super_admin", "campus_admin", "finance_officer"],
+  "library.payments.record": ["super_admin", "campus_admin", "finance_officer"],
 
   // Documents & Library
   "documents.view": [
@@ -485,8 +508,11 @@ const roleGrants = {
     "parent",
     "super_admin",
   ],
+  "documents.manage": ["super_admin", "registrar", "dean"],
+  "documents.publish": ["super_admin", "registrar", "dean", "finance_officer", "exam_officer"],
   "library.view": [
     "super_admin",
+    "campus_admin",
     "faculty",
     "student",
     "parent",
@@ -889,7 +915,6 @@ const roleGrants = {
   "staff.self.view": ["super_admin", "hod", "dean", "program_coordinator", "registrar", "exam_officer", "finance_officer", "campus_admin", "faculty", "student"],
   "staff.leave.apply": ["faculty", "hod", "program_coordinator", "dean", "registrar", "exam_officer", "finance_officer", "campus_admin", "super_admin"],
   "hr.planning.view": ["super_admin", "dean", "hod"],
-  "workflow.manage": ["super_admin", "registrar", "dean"],
 };
 
 export function getPermissionsForRoles(roles = []) {
@@ -914,4 +939,3 @@ export function can(user, resource, action) {
   if (!user) return false;
   return hasPermission(normalizeRoles(user), `${resource}.${action}`);
 }
-

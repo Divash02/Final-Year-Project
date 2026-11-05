@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   Tenant,
   Campus,
@@ -10,7 +10,18 @@ import {
   CalendarType,
   AuthUser,
 } from "../types";
-import { apiFetch, apiRequest } from "../services/apiClient";
+import { apiFetch, apiRequest, clearSessionExpiredHandler, setSessionExpiredHandler } from "../services/apiClient";
+import {
+  resolveRoute,
+  routeToView,
+  viewToRoute,
+  CodingLabRoute,
+} from "../lib/appRoutes";
+import { sessionBus } from "../lib/sessionBus";
+import {
+  sessionEndMessage,
+  SessionEndReason,
+} from "../lib/sessionMessages";
 
 interface CollegeOSContextType {
   // Authentication & Session
@@ -21,7 +32,7 @@ interface CollegeOSContextType {
   loginTransition: boolean;
   completeLoginTransition: () => void;
   login: (email: string, password: string, redirectTo?: string) => Promise<boolean>;
-  logout: () => void;
+  logout: (reason?: SessionEndReason) => void;
   changePassword: (
     currentPassword: string,
     newPassword: string,
@@ -29,6 +40,12 @@ interface CollegeOSContextType {
   intendedDestination: string | null;
   setIntendedDestination: (path: string | null) => void;
   viewToRoute: Record<string, string>;
+
+  // Session expiry
+  sessionExpiredMessage: string | null;
+  remainingLoginAttempts: number | null;
+  setSessionExpiredMessage: (message: string | null) => void;
+  clearSessionExpiredMessage: () => void;
 
   // Localization & Tenancy
   language: Language;
@@ -92,106 +109,7 @@ interface CollegeOSContextType {
   loadMasterData: () => Promise<void>;
 }
 
-const communicationPathByView: Record<string, string> = {
-  communication: "/mail",
-  messages: "/messages",
-  notices: "/notices",
-};
-
-// Comprehensive route-to-view mapping for all navigable views
-const routeToView: Record<string, string> = {
-  "/": "dashboard",
-  "/mail": "communication",
-  "/messages": "messages",
-  "/notices": "notices",
-  "/timetable": "timetable_attendance",
-  "/my-timetable": "my_timetable",
-  "/attendance": "attendance_sheet",
-  "/attendance-records": "attendance_records",
-  "/learning": "learning",
-  "/my-courses": "learning",
-  "/lms": "lms",
-  "/assignments": "assignments",
-  "/materials": "materials",
-  "/examination": "examination",
-  "/finance": "finance",
-  "/requests": "requests",
-  "/documents": "documents",
-  "/calendar": "examinations_calendar",
-  "/calendar-documents": "calendar_documents",
-  "/library": "library",
-  "/analytics": "analytics",
-  "/intelligence": "intelligence",
-  "/students": "students",
-  "/user-management": "user_management",
-  "/admissions": "admissions",
-  "/profile": "profile",
-  "/facilities": "facilities_library",
-  "/account/activate": "profile", // password change screen
-  "/student/coding-lab": "student_coding_lab",
-  "/teacher/coding-lab": "teacher_coding_lab",
-  "/hr": "hr_dashboard",
-  "/staff": "staff_portal",
-  "/recruitment": "recruitment",
-  "/workforce": "workforce_planning",
-  "/leave-approval": "leave_approval",
-  "/career": "career_placement",
-  "/hostel": "hostel_accommodation",
-  "/clubs": "student_clubs",
-  "/workflows": "workflow_automation",
-  "/student-lifecycle": "student_lifecycle",
-  "/campus-extended": "campus_facilities_ext",
-};
-
-/**
- * Coding Lab deep links carry the opened project or
- * assignment: `/student/coding-lab/projects/:id` and
- * `/teacher/coding-lab/assignments/:id` resolve to the
- * role's lab view with the target attached.
- */
-const CODING_LAB_PATH =
-  /^\/(student|teacher)\/coding-lab(?:\/projects\/([A-Za-z0-9]+))?(?:\/assignments\/([A-Za-z0-9]+))?$/;
-
-export interface CodingLabRoute {
-  projectId: string | null;
-  assignmentId: string | null;
-}
-
-function resolveRoute(pathname: string): {
-  view: string;
-  codingLab: CodingLabRoute;
-} {
-  const match = CODING_LAB_PATH.exec(pathname);
-  if (match) {
-    const isTeacher = match[1] === "teacher";
-    return {
-      view: isTeacher ? "teacher_coding_lab" : "student_coding_lab",
-      codingLab: {
-        projectId: match[2] || null,
-        assignmentId: match[3] || null,
-      },
-    };
-  }
-  return { view: routeToView[pathname] || "dashboard", codingLab: { projectId: null, assignmentId: null } };
-}
-
-const viewToRoute = Object.fromEntries(
-  Object.entries(routeToView).map(([route, view]) => [view, route]),
-);
-viewToRoute["hr_dashboard"] = "/hr";
-viewToRoute["staff_portal"] = "/staff";
-viewToRoute["recruitment"] = "/recruitment";
-viewToRoute["workforce_planning"] = "/workforce";
-viewToRoute["leave_approval"] = "/leave-approval";
-viewToRoute["career_placement"] = "/career";
-viewToRoute["hostel_accommodation"] = "/hostel";
-viewToRoute["student_clubs"] = "/clubs";
-viewToRoute["workflow_automation"] = "/workflows";
-viewToRoute["student_lifecycle"] = "/student-lifecycle";
-viewToRoute["campus_facilities_ext"] = "/campus-extended";
-const communicationViewByPath = Object.fromEntries(
-  Object.entries(communicationPathByView).map(([view, route]) => [route, view]),
-);
+export type { CodingLabRoute } from "../lib/appRoutes";
 
 const CollegeOSContext = createContext<CollegeOSContextType | null>(null);
 
@@ -236,6 +154,14 @@ const INITIAL_TENANTS: Tenant[] = [
 const LEGACY_ROLE_ALIASES: Record<string, UserRoleType> = {
   institution_admin: "super_admin",
 };
+
+function createTabId(): string {
+  try {
+    return `${crypto.randomUUID()}:${Date.now()}`;
+  } catch {
+    return `${Math.random().toString(36).slice(2)}:${Date.now()}`;
+  }
+}
 
 function normalizeRole(role?: string | null): UserRoleType {
   const candidate = String(role || "student") as UserRoleType;
@@ -287,11 +213,15 @@ interface PaymentTarget {
 export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const tabIdRef = useRef(createTabId());
+
   // Authentication & Session State (Login-First: starts unauthenticated)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [remainingLoginAttempts, setRemainingLoginAttempts] = useState<number | null>(null);
   const [isHydrating, setIsHydrating] = useState<boolean>(true);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null);
   const [loginTransition, setLoginTransition] = useState<boolean>(false);
   const [intendedDestination, setIntendedDestination] = useState<string | null>(null);
 
@@ -426,6 +356,7 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
         setCurrentRoleState(role);
         setMustChangePassword(Boolean(user.mustChangePassword));
         setIsAuthenticated(true);
+       setRemainingLoginAttempts(null);
         void loadMasterData();
       })
       .catch(() => {
@@ -450,6 +381,10 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedPass = pass;
 
+    // Ensure no stale token from a previous session is attached to the login
+    // request (or lingers in storage) after a logout/re-login cycle.
+    localStorage.removeItem("collegeos_token");
+
     let response: Response;
     try {
       response = await apiFetch("/auth/login", {
@@ -458,18 +393,27 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
           email: normalizedEmail,
           password: normalizedPass,
         }),
+        // The login endpoint returns 401 for wrong credentials (not session
+        // expiry), so we must receive the response body — not an ApiError.
+        skipSessionCheck: true,
       });
-    } catch {
-      throw new Error(
-        "Cannot reach the CollegeOS authentication server. Start the app with npm run dev and try again.",
-      );
-    }
+     } catch (error) {
+       throw error instanceof Error ? error : new Error("Authentication error. Please try again.");
+     }
 
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      if (response.status === 401) return false;
-      throw new Error(data.error || "Authentication service is unavailable.");
-    }
+     const data = await response.json().catch(() => ({}));
+     if (!response.ok) {
+       if (response.status === 401) {
+         if (typeof data.remainingAttempts === "number") setRemainingLoginAttempts(data.remainingAttempts);
+         return false;
+       }
+       if (response.status === 429) {
+         // Locked out — 0 attempts remaining; surface the lockout message.
+         setRemainingLoginAttempts(0);
+         throw new Error(data.error || "Too many login attempts. Try again later.");
+       }
+       throw new Error(data.error || "Authentication service is unavailable.");
+     }
 
     try {
       const userRole = normalizeRole(
@@ -493,6 +437,7 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
       setCurrentRoleState(userRole);
       setIsAuthenticated(true);
       setLoginTransition(true);
+      setRemainingLoginAttempts(null);
       setMustChangePassword(Boolean(data.mustChangePassword));
       if (data.mustChangePassword) {
         window.history.replaceState({}, "", "/account/activate");
@@ -510,9 +455,16 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const logout = () => {
+  const logout = async (reason?: SessionEndReason) => {
+    if (!isAuthenticated) return;
     const token = localStorage.getItem("collegeos_token");
-    if (token) void apiFetch("/auth/logout", { method: "POST" });
+    if (token) {
+      try {
+        await apiFetch("/auth/logout", { method: "POST" });
+      } catch {
+        // Best-effort server revocation; local state is cleared regardless.
+      }
+    }
     localStorage.removeItem("collegeos_token");
     setIsAuthenticated(false);
     setCurrentUser(null);
@@ -520,11 +472,37 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
     if (window.location.pathname === "/account/activate") {
       window.history.replaceState({}, "", "/");
     }
+    sessionBus.publish({
+      type: "SESSION_ENDED",
+      reason: reason ?? "manual",
+      timestamp: Date.now(),
+      tabId: tabIdRef.current,
+    });
+    setSessionExpiredMessage(sessionEndMessage(reason ?? "manual"));
+    window.location.replace("/login");
   };
 
   const completeLoginTransition = () => {
     setLoginTransition(false);
+    setSessionExpiredMessage(null);
   };
+
+  const clearSessionExpiredMessage = () => {
+    setSessionExpiredMessage(null);
+  };
+
+  const signOutRef = useRef(logout);
+  signOutRef.current = logout;
+
+  // Any API response that proves the session is invalid ends the session in
+  // every tab: clear credentials, broadcast to other tabs, and redirect to
+  // login with a message the user can understand.
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      void signOutRef.current("token-expired");
+    });
+    return () => clearSessionExpiredHandler();
+  }, []);
 
   const loadMasterData = async (): Promise<void> => {
     // Master data loaded from institution API
@@ -678,6 +656,10 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
         intendedDestination,
         setIntendedDestination,
         viewToRoute,
+         sessionExpiredMessage,
+         setSessionExpiredMessage,
+         clearSessionExpiredMessage,
+         remainingLoginAttempts,
       }}
     >
       {children}

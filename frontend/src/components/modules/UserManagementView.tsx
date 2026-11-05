@@ -16,6 +16,7 @@ import {
   formatTimestampForCalendar,
 } from "../../lib/nepaliCalendar";
 import { useCollegeOS } from "../../context/CollegeOSContext";
+import { useToast } from "../ui/ToastContainer";
 import { MultiSelect } from "../ui/MultiSelect";
 
 interface ProvisioningRole {
@@ -130,6 +131,9 @@ const STAFF_ACCOUNT_ROLES = new Set([
 
 export const UserManagementView: React.FC = () => {
   const { calendarType, language } = useCollegeOS();
+  const toast = useToast();
+  const success = (message: string) => toast.showToast(message, "success");
+  const showError = (message: string) => toast.showToast(message, "error");
   const [roles, setRoles] = useState<ProvisioningRole[]>([]);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [accountCounts, setAccountCounts] = useState<AccountCounts>({
@@ -144,9 +148,8 @@ export const UserManagementView: React.FC = () => {
   });
   const [domain, setDomain] = useState("");
   const [domainDraft, setDomainDraft] = useState("");
-  const [minimumPasswordLength, setMinimumPasswordLength] = useState(12);
-  const [minimumPasswordLengthDraft, setMinimumPasswordLengthDraft] =
-    useState(12);
+  const [minimumPasswordLength, setMinimumPasswordLength] = useState(8);
+  const [minimumPasswordLengthDraft, setMinimumPasswordLengthDraft] = useState("8");
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -165,7 +168,7 @@ export const UserManagementView: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+
   const [busy, setBusy] = useState(false);
 
   // Delete account confirmation state
@@ -251,7 +254,7 @@ export const UserManagementView: React.FC = () => {
         setDomain(settingResult.emailDomain);
         setDomainDraft(settingResult.emailDomain);
         setMinimumPasswordLength(settingResult.minimumPasswordLength);
-        setMinimumPasswordLengthDraft(settingResult.minimumPasswordLength);
+        setMinimumPasswordLengthDraft(String(settingResult.minimumPasswordLength));
         setUsers(userResult.users);
         setAccountCounts(userResult.counts);
       })
@@ -410,7 +413,7 @@ export const UserManagementView: React.FC = () => {
     event.preventDefault();
     setBusy(true);
     setError("");
-    setSuccess("");
+
     try {
       const result = await apiRequest<ProvisioningResult>("/admin/users", {
         method: "POST",
@@ -453,7 +456,7 @@ export const UserManagementView: React.FC = () => {
   const saveDomain = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
-    setSuccess("");
+
     try {
       const result = await apiRequest<{
         emailDomain: string;
@@ -462,16 +465,16 @@ export const UserManagementView: React.FC = () => {
         method: "PATCH",
         body: JSON.stringify({
           emailDomain: domainDraft,
-          minimumPasswordLength: minimumPasswordLengthDraft,
+          minimumPasswordLength: Number(minimumPasswordLengthDraft),
         }),
       });
-      setDomain(result.emailDomain);
-      setDomainDraft(result.emailDomain);
-      setMinimumPasswordLength(result.minimumPasswordLength);
-      setMinimumPasswordLengthDraft(result.minimumPasswordLength);
-      setSuccess("Identity and password policy settings updated.");
+        setDomain(result.emailDomain);
+        setDomainDraft(result.emailDomain);
+        setMinimumPasswordLength(result.minimumPasswordLength);
+        setMinimumPasswordLengthDraft(String(result.minimumPasswordLength));
+      success("Identity and password policy settings updated.");
     } catch (requestError) {
-      setError(
+      showError(
         requestError instanceof Error
           ? requestError.message
           : "Domain update failed.",
@@ -485,7 +488,7 @@ export const UserManagementView: React.FC = () => {
       await navigator.clipboard.writeText(provisioned.temporaryPassword);
       setCopied(true);
     } catch {
-      setError(
+      showError(
         "Clipboard access is unavailable. Reveal and copy the credential manually now.",
       );
     }
@@ -497,7 +500,7 @@ export const UserManagementView: React.FC = () => {
     );
     if (!reason) return;
     setError("");
-    setSuccess("");
+
     try {
       const result = await apiRequest<ProvisioningResult>(
         `/admin/users/${userId}/reset-password`,
@@ -533,13 +536,13 @@ export const UserManagementView: React.FC = () => {
     const reason = window.prompt(`Reason for ${action.toLowerCase()}:`);
     if (!reason) return;
     setError("");
-    setSuccess("");
+
     try {
       await apiRequest(`/admin/users/${userId}/status`, {
         method: "PATCH",
         body: JSON.stringify({ action, reason }),
       });
-      setSuccess(
+      success(
         action === "REACTIVATE"
           ? "Account reactivated."
           : action === "SUSPEND"
@@ -555,7 +558,7 @@ export const UserManagementView: React.FC = () => {
         setDetails(result);
       }
     } catch (requestError) {
-      setError(
+      showError(
         requestError instanceof Error
           ? requestError.message
           : "Account status could not be changed.",
@@ -582,19 +585,19 @@ export const UserManagementView: React.FC = () => {
 
     setDeleteConfirmLoading(true);
     setError("");
-    setSuccess("");
+
 
     try {
       await apiRequest(`/admin/users/${selected}`, {
         method: "DELETE",
       });
 
-      setSuccess(`Account ${details.user.name} (${details.user.email}) permanently deleted.`);
+      success(`Account ${details.user.name} (${details.user.email}) permanently deleted.`);
       setDeleteConfirmOpen(false);
       setSelected(null);
       await loadUsers();
     } catch (requestError) {
-      setError(
+      showError(
         requestError instanceof Error
           ? requestError.message
           : "Account deletion failed.",
@@ -608,7 +611,7 @@ export const UserManagementView: React.FC = () => {
     event.preventDefault();
     if (selected === null) return;
     setError("");
-    setSuccess("");
+
     try {
       await apiRequest(`/admin/users/${selected}/change-role`, {
         method: "POST",
@@ -620,7 +623,7 @@ export const UserManagementView: React.FC = () => {
           designation: roleChangeDesignation,
         }),
       });
-      setSuccess("Account role updated; existing user sessions were revoked.");
+      success("Account role updated; existing user sessions were revoked.");
       setRoleChangeReason("");
       setRoleChangeEmployeeId("");
       setRoleChangeDesignation("");
@@ -632,7 +635,7 @@ export const UserManagementView: React.FC = () => {
       setDetails(updated);
       setRoleChangeTarget(updated.user.roles[0] || "");
     } catch (requestError) {
-      setError(
+      showError(
         requestError instanceof Error
           ? requestError.message
           : "Role change failed.",
@@ -688,14 +691,6 @@ export const UserManagementView: React.FC = () => {
           {error}
         </div>
       )}
-      {success && (
-        <div
-          role="status"
-          className="border-b border-emerald-200 bg-emerald-50 px-5 py-2 text-xs text-emerald-800"
-        >
-          {success}
-        </div>
-      )}
 
       <div className="space-y-5 p-5">
         <form
@@ -713,20 +708,35 @@ export const UserManagementView: React.FC = () => {
               placeholder="college.edu.np"
             />
           </div>
-          <label className="w-44 text-sm text-slate-600">
-            Minimum password length
-            <input
-              type="number"
-              min={12}
-              max={72}
-              required
-              value={minimumPasswordLengthDraft}
-              onChange={(event) =>
-                setMinimumPasswordLengthDraft(Number(event.target.value))
-              }
-              className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-xs"
-            />
-          </label>
+            <label className="w-44 text-sm text-slate-600">
+              Minimum password length
+              <input
+                type="number"
+                min={8}
+                max={72}
+                required
+                value={minimumPasswordLengthDraft}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  if (val === "") {
+                    setMinimumPasswordLengthDraft("");
+                    return;
+                  }
+                  // Prevent leading zeros except for just "0"
+                  if (/^0[0-9]+$/.test(val)) {
+                    setMinimumPasswordLengthDraft(val.replace(/^0+/, "") || "0");
+                    return;
+                  }
+                  setMinimumPasswordLengthDraft(val);
+                }}
+                onBlur={() => {
+                  if (minimumPasswordLengthDraft === "" || Number(minimumPasswordLengthDraft) < 8) {
+                    setMinimumPasswordLengthDraft("8");
+                  }
+                }}
+                className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-xs"
+              />
+            </label>
           <p className="w-full text-sm text-slate-500">
             {domain ? (
               <>
@@ -927,40 +937,40 @@ export const UserManagementView: React.FC = () => {
               </button>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <label className="text-sm text-slate-600">
-                First name *
-                <input
-                  required
-                  value={firstName}
-                  onChange={(event) => setFirstName(event.target.value)}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-2 text-xs"
+                <label className="text-sm text-slate-600">
+                  First name <span className="text-red-500">*</span>
+                  <input
+                    required
+                    value={firstName}
+                    onChange={(event) => setFirstName(event.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-2 text-xs"
                 />
               </label>
-              <label className="text-sm text-slate-600">
-                Middle name
-                <input
-                  value={middleName}
-                  onChange={(event) => setMiddleName(event.target.value)}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-2 text-xs"
-                />
-              </label>
-              <label className="text-sm text-slate-600">
-                Last name *
-                <input
-                  required
-                  value={lastName}
-                  onChange={(event) => setLastName(event.target.value)}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-2 text-xs"
-                />
-              </label>
-              <label className="text-sm text-slate-600">
-                Role *
-                <select
-                  required
-                  value={selectedRole}
-                  onChange={(event) => setRole(event.target.value)}
-                  className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-2 text-xs"
-                >
+                <label className="text-sm text-slate-600">
+                  Middle name
+                  <input
+                    value={middleName}
+                    onChange={(event) => setMiddleName(event.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-2 text-xs"
+                  />
+                </label>
+                <label className="text-sm text-slate-600">
+                  Last name <span className="text-red-500">*</span>
+                  <input
+                    required
+                    value={lastName}
+                    onChange={(event) => setLastName(event.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-2 text-xs"
+                  />
+                </label>
+                <label className="text-sm text-slate-600">
+                  Role <span className="text-red-500">*</span>
+                  <select
+                    required
+                    value={role}
+                    onChange={(event) => setRole(event.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-2 text-xs"
+                  >
                   <option value="" disabled>
                     Select role
                   </option>
@@ -1045,7 +1055,7 @@ export const UserManagementView: React.FC = () => {
               ) : selectedRole && STAFF_ACCOUNT_ROLES.has(selectedRole) ? (
                 <>
                   <label className="text-sm text-slate-600">
-                    Employee ID *
+                    Employee ID <span className="text-red-500">*</span>
                     <input
                       required
                       value={employeeId}
@@ -1054,7 +1064,7 @@ export const UserManagementView: React.FC = () => {
                     />
                   </label>
                   <label className="text-sm text-slate-600">
-                    Department *
+                    Department <span className="text-red-500">*</span>
                     <input
                       required
                       value={department}

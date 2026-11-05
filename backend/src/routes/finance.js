@@ -1,6 +1,7 @@
 import { getUserRoles, logAudit } from "../db.js";
 import { Invoice, Payment, Student, User } from "../models/index.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
+import { notifyOnce } from "../services/lms/notifier.js";
 
 function isFinanceStaff(user) {
   const roles = getUserRoles(user);
@@ -67,9 +68,10 @@ export function registerFinanceRoutes(app) {
           category: i.category,
           total_amount: i.totalAmount,
           paid_amount: i.paidAmount,
-          balance_due: Math.max(0, i.totalAmount - i.paidAmount),
+          balance_due: i.status === "VOID" ? 0 : Math.max(0, i.totalAmount - i.paidAmount),
           due_date: i.dueDate,
           status: i.status,
+          description: i.description,
           first_name: i.student?.firstName || i.studentUser?.firstName || "",
           last_name: i.student?.lastName || i.studentUser?.lastName || "",
           student_id: i.student?.studentId || "",
@@ -116,6 +118,9 @@ export function registerFinanceRoutes(app) {
           paidAmount: 0,
           dueDate: String(dueDate || "").trim(),
           status: "PENDING",
+          description: String(req.body.description || "").trim(),
+          issuedAt: new Date(),
+          issuedBy: req.user._id || req.user.id,
         });
 
         student.feeBalanceDue = (student.feeBalanceDue || 0) + invoiceAmount;
@@ -129,12 +134,176 @@ export function registerFinanceRoutes(app) {
           resourceId: invoice._id.toString(),
           details: `Invoice ${invoiceNumber} created for ${student.studentId} amount: ${invoiceAmount}.`,
         });
+        await notifyOnce({
+          userId: student.user,
+          title: "New fee invoice issued",
+          message: `Invoice ${invoiceNumber} for ${invoiceAmount} is available in Finance/Billing and My Documents.`,
+          category: "finance",
+          actionUrl: "/finance",
+          idempotencyKey: `invoice-issued:${invoice._id}`,
+          metadata: { invoiceId: String(invoice._id), invoiceNumber },
+        });
 
         res.status(201).json({ success: true, invoice });
       } catch (err) {
         res.status(500).json({ error: "Failed to create invoice." });
       }
     }
+  );
+
+  app.post(
+    "/api/invoices/:id/amend",
+    requireAuth,
+    requirePermission("finance.invoice.update"),
+    async (req, res) => {
+      try {
+        const invoice = await Invoice.findById(req.params.id);
+        if (!invoice) return res.status(404).json({ error: "Invoice not found." });
+        if (invoice.status === "VOID") {
+          return res.status(409).json({ error: "A void invoice cannot be amended." });
+        }
+        if ((invoice.paidAmount || 0) > 0) {
+          return res.status(409).json({
+            error: "An invoice with recorded payments cannot be amended. Use the finance adjustment workflow.",
+          });
+        }
+
+        const changeNote = String(req.body?.changeNote || "").trim();
+        if (!changeNote) {
+          return res.status(400).json({ error: "An amendment reason is required." });
+        }
+        const changes = {};
+        if (req.body.title !== undefined) {
+          const title = String(req.body.title).trim();
+          if (!title) return res.status(400).json({ error: "Invoice title is required." });
+          changes.title = title;
+        }
+        if (req.body.description !== undefined) {
+          changes.description = String(req.body.description).trim();
+        }
+        if (req.body.category !== undefined) {
+          const category = String(req.body.category).trim();
+          if (!category) return res.status(400).json({ error: "Invoice category is required." });
+          changes.category = category;
+        }
+        if (req.body.dueDate !== undefined) {
+          const dueDate = String(req.body.dueDate).trim();
+          if (!dueDate) return res.status(400).json({ error: "Invoice due date is required." });
+          changes.dueDate = dueDate;
+        }
+        if (req.body.amount !== undefined) {
+          const amount = Number(req.body.amount);
+          if (!Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({ error: "Invoice amount must be a positive number." });
+          }
+          changes.totalAmount = amount;
+        }
+        if (!Object.keys(changes).length) {
+          return res.status(400).json({ error: "At least one invoice field must be amended." });
+        }
+
+        const previous = {
+          version: invoice.version || 1,
+          title: invoice.title,
+          description: invoice.description || "",
+          category: invoice.category,
+          totalAmount: invoice.totalAmount,
+          dueDate: invoice.dueDate,
+        };
+        invoice.revisions.push({
+          ...previous,
+          changeNote,
+          changedBy: req.user._id || req.user.id,
+          changedAt: new Date(),
+        });
+        Object.assign(invoice, changes);
+        invoice.version = previous.version + 1;
+        await invoice.save();
+
+        const balanceDelta = invoice.totalAmount - previous.totalAmount;
+        if (balanceDelta) {
+          await Student.findByIdAndUpdate(invoice.student, {
+            $inc: { feeBalanceDue: balanceDelta },
+          });
+        }
+        await logAudit({
+          userId: req.user._id || req.user.id,
+          action: "INVOICE_AMENDED",
+          module: "finance",
+          resource: "invoice",
+          resourceId: invoice._id.toString(),
+          oldValue: previous,
+          newValue: { ...previous, ...changes, version: invoice.version },
+          details: `Invoice ${invoice.invoiceNumber} amended: ${changeNote}`,
+        });
+        await notifyOnce({
+          userId: invoice.studentUser,
+          title: "Fee invoice amended",
+          message: `Invoice ${invoice.invoiceNumber} has an approved amendment. Review the latest version in Finance/Billing.`,
+          category: "finance",
+          actionUrl: "/finance",
+          idempotencyKey: `invoice-amended:${invoice._id}:${invoice.version}`,
+          metadata: { invoiceId: String(invoice._id), version: invoice.version },
+        });
+        res.json({ success: true, invoice });
+      } catch (err) {
+        res.status(500).json({ error: "Failed to amend invoice." });
+      }
+    },
+  );
+
+  app.post(
+    "/api/invoices/:id/void",
+    requireAuth,
+    requirePermission("finance.invoice.update"),
+    async (req, res) => {
+      try {
+        const invoice = await Invoice.findById(req.params.id);
+        if (!invoice) return res.status(404).json({ error: "Invoice not found." });
+        if (invoice.status === "VOID") {
+          return res.status(409).json({ error: "Invoice is already void." });
+        }
+        if ((invoice.paidAmount || 0) > 0) {
+          return res.status(409).json({
+            error: "An invoice with recorded payments cannot be voided until those payments are reconciled.",
+          });
+        }
+        const reason = String(req.body?.reason || "").trim();
+        if (!reason) return res.status(400).json({ error: "A void reason is required." });
+
+        const previousStatus = invoice.status;
+        invoice.status = "VOID";
+        invoice.voidedAt = new Date();
+        invoice.voidedBy = req.user._id || req.user.id;
+        invoice.voidReason = reason;
+        await invoice.save();
+        await Student.findByIdAndUpdate(invoice.student, {
+          $inc: { feeBalanceDue: -invoice.totalAmount },
+        });
+        await logAudit({
+          userId: req.user._id || req.user.id,
+          action: "INVOICE_VOIDED",
+          module: "finance",
+          resource: "invoice",
+          resourceId: invoice._id.toString(),
+          oldValue: { status: previousStatus },
+          newValue: { status: "VOID", reason },
+          details: `Invoice ${invoice.invoiceNumber} voided: ${reason}`,
+        });
+        await notifyOnce({
+          userId: invoice.studentUser,
+          title: "Fee invoice cancelled",
+          message: `Invoice ${invoice.invoiceNumber} has been voided and is no longer payable.`,
+          category: "finance",
+          actionUrl: "/finance",
+          idempotencyKey: `invoice-voided:${invoice._id}`,
+          metadata: { invoiceId: String(invoice._id), status: "VOID" },
+        });
+        res.json({ success: true, invoice });
+      } catch (err) {
+        res.status(500).json({ error: "Failed to void invoice." });
+      }
+    },
   );
 
   app.get(
@@ -185,6 +354,9 @@ export function registerFinanceRoutes(app) {
         const { invoiceId, amount, method = "esewa", transactionId } = req.body || {};
         const invoice = await Invoice.findById(invoiceId).populate("student");
         if (!invoice) return res.status(404).json({ error: "Invoice not found." });
+        if (invoice.status === "VOID") {
+          return res.status(409).json({ error: "A void invoice cannot accept payments." });
+        }
 
         const paymentAmount = Number(amount);
         const balanceDue = Math.max(
@@ -250,6 +422,19 @@ export function registerFinanceRoutes(app) {
           resource: "payment",
           resourceId: payment._id.toString(),
           details: `Payment recorded: ${receiptNumber} amount: ${paymentAmount} for invoice: ${invoice.invoiceNumber}.`,
+        });
+        await notifyOnce({
+          userId: invoice.studentUser,
+          title: "Fee payment received",
+          message: `Payment of ${paymentAmount} for invoice ${invoice.invoiceNumber} was received. Receipt ${receiptNumber} is available in My Documents.`,
+          category: "finance",
+          actionUrl: "/finance",
+          idempotencyKey: `payment-received:${payment._id}`,
+          metadata: {
+            invoiceId: String(invoice._id),
+            paymentId: String(payment._id),
+            receiptNumber,
+          },
         });
 
         res.status(201).json({

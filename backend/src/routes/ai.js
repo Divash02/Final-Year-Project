@@ -91,6 +91,7 @@ export function registerAIRoutes(app) {
         user: req.user,
         role: activeRole,
         queryPrompt: req.body.queryPrompt,
+        idempotencyKey: req.body.idempotencyKey,
       });
       res.json(result);
     } catch (err) {
@@ -111,6 +112,7 @@ export function registerAIRoutes(app) {
         module: req.query.module,
         limit: req.query.limit,
         page: req.query.page,
+        pendingOnly: req.query.pendingOnly === "true",
       });
       res.json(logs);
     } catch (err) {
@@ -211,6 +213,7 @@ export function registerAIRoutes(app) {
       const result = await studentCopilotAssist({
         user: req.user,
         prompt: req.body.prompt,
+        idempotencyKey: req.body.idempotencyKey,
       });
       res.json(result);
     } catch (err) {

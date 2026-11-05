@@ -94,7 +94,13 @@ export const MyCoursesView: React.FC = () => {
 
   const cards = data
     ? data.courses[tab].filter(
-        (c: any) => c.courseCode !== "CT-31-AIML" && c.title !== "AI and ML",
+        (c: any) =>
+          c.courseCode !== "CT-31-AIML" &&
+          c.title !== "AI and ML" &&
+          c.courseStatus !== "ARCHIVED" &&
+          String(c.courseStatus || "").toUpperCase() !== "ARCHIVED" &&
+          c.status !== "ARCHIVED" &&
+          String(c.status || "").toUpperCase() !== "ARCHIVED",
       )
     : [];
   const visible = useMemo(() => {
@@ -319,16 +325,31 @@ const CourseCard: React.FC<{
     card.sectionCodes.length ? `Section ${card.sectionCodes.join(", ")}` : null,
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join(" Â· ");
 
   return (
-    <article className="cos-card flex flex-col">
+    <article className="cos-card flex flex-col overflow-hidden">
+      <div className="relative flex h-[130px] items-start justify-between overflow-hidden p-5 text-white">
+        <img
+          src="/images/course_image.jpg"
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => {
+            const target = e.currentTarget;
+            target.style.display = "none";
+          }}
+        />
+        <div className="absolute inset-0 bg-black/30" />
+        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/10 to-transparent" />
+        <div className="relative z-10 flex flex-col gap-2">
+          <span className="inline-flex items-center rounded-lg bg-white/25 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide shadow-sm backdrop-blur-sm">
+            {card.code}
+          </span>
+        </div>
+      </div>
       <div className="cos-card-body flex flex-1 flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              {card.code}
-            </p>
             <h2 className="mt-0.5 truncate text-base font-semibold text-slate-900">
               {card.name}
             </h2>

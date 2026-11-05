@@ -54,12 +54,40 @@ export async function resolveAcademicPeriod({ studentSemester = null, records = 
   ]);
 
   const configuredYear = String(yearSetting?.settingValue || "").trim();
-  const configuredSemester = Number(semesterSetting?.settingValue || "");
+  const configuredSemesterRaw = semesterSetting?.settingValue;
+  const configuredSemester = Number(configuredSemesterRaw || "");
+  const hasConfiguredSemester = Number.isFinite(configuredSemester) && configuredSemester > 0;
 
-  if (configuredYear && Number.isFinite(configuredSemester) && configuredSemester > 0) {
+  if (configuredYear && hasConfiguredSemester) {
     return {
       academicYear: configuredYear,
       semester: configuredSemester,
+      basis: "INSTITUTION",
+      configured: true,
+      note: null,
+    };
+  }
+
+  if (configuredYear && !hasConfiguredSemester) {
+    const derivedSemester =
+      Number.isFinite(studentSemester) && studentSemester > 0
+        ? studentSemester
+        : mostRecentSemester(records);
+    const derivedFromRecords = records && records.length > 0;
+    if (Number.isFinite(derivedSemester) && derivedSemester > 0) {
+      return {
+        academicYear: configuredYear,
+        semester: derivedSemester,
+        basis: derivedFromRecords ? "RECORDS" : "INSTITUTION",
+        configured: derivedFromRecords ? false : true,
+        note: derivedFromRecords
+          ? "Current semester not published by the academic office; showing your enrolled/recorded semester."
+          : null,
+      };
+    }
+    return {
+      academicYear: configuredYear,
+      semester: null,
       basis: "INSTITUTION",
       configured: true,
       note: null,
@@ -70,16 +98,43 @@ export async function resolveAcademicPeriod({ studentSemester = null, records = 
   // actually contain, so the tabs still reflect real enrolments and assignments.
   // Other students' and cohorts' records in the same database must not shift the
   // caller's period.
-  const derivedYear = mostRecentAcademicYear(records) || configuredYear || DEFAULT_ACADEMIC_YEAR;
-  const derivedSemester = studentSemester ?? mostRecentSemester(records);
+  const derivedYearFromRecords = mostRecentAcademicYear(records);
+  const derivedYear = derivedYearFromRecords || configuredYear || DEFAULT_ACADEMIC_YEAR;
+  const derivedSemesterFromRecords = mostRecentSemester(records);
+  const derivedSemester = Number.isFinite(studentSemester) && studentSemester > 0 ? studentSemester : derivedSemesterFromRecords;
 
+  const derivedFromRecords = (records && records.length > 0) || (Number.isFinite(studentSemester) && studentSemester > 0);
+  
+  // If student has a clear authoritative semester assignment and records confirm consistent period,
+  // don't show alarming warning about unpublished semester
+  let note = null;
+  if (derivedFromRecords) {
+    const allRecordsConsistent = records && records.length > 0 && 
+      records.every(r => {
+        const rSem = Number(r.semester);
+        const rYear = r.academicYear;
+        return (!Number.isFinite(rSem) || rSem === derivedSemester) && 
+               (!rYear || !derivedYearFromRecords || rYear === derivedYearFromRecords || rYear === derivedYear);
+      });
+    const studentSemesterMatches = Number.isFinite(studentSemester) && studentSemester > 0 && 
+      (!Number.isFinite(derivedSemesterFromRecords) || derivedSemesterFromRecords === studentSemester);
+    
+    if (studentSemesterMatches && records && records.length > 0 && allRecordsConsistent) {
+      // Valid enrollment context established from authoritative records - no alarming warning
+      note = null;
+    } else {
+      note = "The academic office has not published the current semester, so this list is grouped by the periods found in your own records.";
+    }
+  } else {
+    note = "The academic office has not published the current semester.";
+  }
+  
   return {
     academicYear: derivedYear,
     semester: Number.isFinite(derivedSemester) && derivedSemester > 0 ? derivedSemester : null,
     basis: "RECORDS",
     configured: false,
-    note:
-      "The academic office has not published the current semester, so this list is grouped by the periods found in your own records.",
+    note,
   };
 }
 
@@ -264,6 +319,10 @@ export async function buildMyCourses(user) {
   for (const card of cards.values()) {
     const course = courseById.get(card.courseId);
     if (!course) continue;
+    // Exclude archived or inactive courses from student course lists.
+    if (String(course.status || "").toUpperCase() !== "ACTIVE") {
+      continue;
+    }
 
     const classified =
       card.relation === "OVERSIGHT"

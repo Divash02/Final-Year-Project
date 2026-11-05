@@ -238,15 +238,23 @@ export const CollegeMailView: React.FC = () => {
 
   const sendMail = async (payload: {
     recipientEmail: string;
+    recipientEmails: string[];
+    ccEmails: string[];
+    bccEmails: string[];
     subject: string;
     body: string;
+    attachments: File[];
   }) => {
     setError("");
     await apiRequest("/mail", {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    setNotice(`Mail sent to ${payload.recipientEmail}.`);
+    const recipientCount =
+      payload.recipientEmails.length +
+      payload.ccEmails.length +
+      payload.bccEmails.length;
+    setNotice(`Mail sent to ${recipientCount} recipient${recipientCount === 1 ? "" : "s"}.`);
     setFolder("sent");
   };
 

@@ -22,6 +22,7 @@ interface InvoiceRecord {
   balance_due: number;
   due_date: string;
   status: string;
+  description?: string;
   first_name: string;
   last_name: string;
   student_id: string;
@@ -63,6 +64,15 @@ export const FinanceWorkspaceView: React.FC = () => {
   );
   const [showCreate, setShowCreate] = useState(false);
   const [showPayment, setShowPayment] = useState<InvoiceRecord | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<InvoiceRecord | null>(null);
+  const [voidingInvoice, setVoidingInvoice] = useState<InvoiceRecord | null>(null);
+  const [amendTitle, setAmendTitle] = useState("");
+  const [amendDescription, setAmendDescription] = useState("");
+  const [amendCategory, setAmendCategory] = useState("");
+  const [amendAmount, setAmendAmount] = useState("");
+  const [amendDueDate, setAmendDueDate] = useState("");
+  const [amendReason, setAmendReason] = useState("");
+  const [voidReason, setVoidReason] = useState("");
   const [studentId, setStudentId] = useState("");
   const [termName, setTermName] = useState("");
   const [subtotal, setSubtotal] = useState("");
@@ -78,6 +88,7 @@ export const FinanceWorkspaceView: React.FC = () => {
 
   const permissions = new Set(currentUser?.permissions || []);
   const canCreateInvoice = permissions.has("finance.invoice.create");
+  const canUpdateInvoice = permissions.has("finance.invoice.update");
   const canRecordPayment = permissions.has("finance.payment.record");
 
   const loadRecords = async () => {
@@ -187,6 +198,73 @@ export const FinanceWorkspaceView: React.FC = () => {
         requestError instanceof Error
           ? requestError.message
           : "Payment could not be recorded.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const beginAmendment = (invoice: InvoiceRecord) => {
+    setError("");
+    setAmendTitle(invoice.title);
+    setAmendDescription(invoice.description || "");
+    setAmendCategory(invoice.category);
+    setAmendAmount(String(invoice.total_amount));
+    setAmendDueDate(invoice.due_date.slice(0, 10));
+    setAmendReason("");
+    setEditingInvoice(invoice);
+  };
+
+  const amendInvoice = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingInvoice) return;
+    setBusy(true);
+    setError("");
+    try {
+      await apiRequest(`/invoices/${editingInvoice.id}/amend`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: amendTitle,
+          description: amendDescription,
+          category: amendCategory,
+          amount: Number(amendAmount),
+          dueDate: amendDueDate,
+          changeNote: amendReason,
+        }),
+      });
+      setEditingInvoice(null);
+      await loadRecords();
+      setNotice("Invoice amendment recorded and version history preserved.");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Invoice amendment failed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const voidInvoice = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!voidingInvoice) return;
+    setBusy(true);
+    setError("");
+    try {
+      await apiRequest(`/invoices/${voidingInvoice.id}/void`, {
+        method: "POST",
+        body: JSON.stringify({ reason: voidReason }),
+      });
+      setVoidingInvoice(null);
+      setVoidReason("");
+      await loadRecords();
+      setNotice("Invoice voided. Its historical record is retained.");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Invoice could not be voided.",
       );
     } finally {
       setBusy(false);
@@ -310,7 +388,7 @@ export const FinanceWorkspaceView: React.FC = () => {
               className="rounded border border-slate-300 px-2 py-1.5 text-sm"
             >
               <option value="">All statuses</option>
-              {["ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE", "VOID"].map(
+              {["PENDING", "PARTIALLY_PAID", "PAID", "OVERDUE", "VOID"].map(
                 (status) => (
                   <option key={status}>{status}</option>
                 ),
@@ -318,6 +396,7 @@ export const FinanceWorkspaceView: React.FC = () => {
             </select>
           </div>
         )}
+
       </div>
 
       {loading ? (
@@ -380,6 +459,30 @@ export const FinanceWorkspaceView: React.FC = () => {
                           >
                             Record payment
                           </button>
+                        )}
+                      {canUpdateInvoice &&
+                        invoice.paid_amount === 0 &&
+                        invoice.status !== "VOID" && (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => beginAmendment(invoice)}
+                              className="text-sm font-medium text-[var(--color-primary)]"
+                            >
+                              Amend
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setError("");
+                                setVoidReason("");
+                                setVoidingInvoice(invoice);
+                              }}
+                              className="text-sm font-medium text-red-700"
+                            >
+                              Void
+                            </button>
+                          </div>
                         )}
                     </td>
                   </tr>
@@ -595,7 +698,80 @@ export const FinanceWorkspaceView: React.FC = () => {
           </form>
         </div>
       )}
+
+      {editingInvoice && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-4">
+          <form
+            onSubmit={(event) => void amendInvoice(event)}
+            className="w-full max-w-lg space-y-4 border border-slate-200 bg-white p-5 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="amend-invoice-title"
+          >
+            <h2 id="amend-invoice-title" className="font-semibold">
+              Amend {editingInvoice.invoice_number}
+            </h2>
+            <p className="text-sm text-slate-600">
+              The issued version remains in invoice history. Invoices with payments must use the finance adjustment workflow.
+            </p>
+            <label className="block text-sm">
+              Description
+              <input required maxLength={180} value={amendTitle} onChange={(event) => setAmendTitle(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 px-3 py-2" />
+            </label>
+            <label className="block text-sm">
+              Details
+              <textarea value={amendDescription} onChange={(event) => setAmendDescription(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 px-3 py-2" rows={3} />
+            </label>
+            <label className="block text-sm">
+              Charge category
+              <input required maxLength={80} value={amendCategory} onChange={(event) => setAmendCategory(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 px-3 py-2" />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-sm">
+                Amount (NPR)
+                <input required type="number" min="1" step="1" value={amendAmount} onChange={(event) => setAmendAmount(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 px-3 py-2" />
+              </label>
+              <label className="text-sm">
+                Due date
+                <input required type="date" value={amendDueDate} onChange={(event) => setAmendDueDate(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 px-3 py-2" />
+              </label>
+            </div>
+            <label className="block text-sm">
+              Amendment reason
+              <textarea required maxLength={500} value={amendReason} onChange={(event) => setAmendReason(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 px-3 py-2" rows={2} />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setEditingInvoice(null)} className="rounded border border-slate-300 px-3 py-2 text-sm">Cancel</button>
+              <button type="submit" disabled={busy} className="rounded bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Record amendment"}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {voidingInvoice && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-4">
+          <form
+            onSubmit={(event) => void voidInvoice(event)}
+            className="w-full max-w-md space-y-4 border border-slate-200 bg-white p-5 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="void-invoice-title"
+          >
+            <h2 id="void-invoice-title" className="font-semibold">
+              Void {voidingInvoice.invoice_number}?
+            </h2>
+            <p className="text-sm text-slate-600">The invoice remains in the student's history but is no longer payable.</p>
+            <label className="block text-sm">
+              Reason
+              <textarea required maxLength={500} value={voidReason} onChange={(event) => setVoidReason(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 px-3 py-2" rows={3} />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setVoidingInvoice(null)} className="rounded border border-slate-300 px-3 py-2 text-sm">Keep invoice</button>
+              <button type="submit" disabled={busy} className="rounded bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Void invoice"}</button>
+            </div>
+          </form>
+        </div>
+      )}
     </section>
   );
 };
-

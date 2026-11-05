@@ -1,3 +1,24 @@
+/* Consistent pointer cursor for interactive elements */
+button:not(:disabled),
+a[href],
+[role="button"]:not([aria-disabled="true"]),
+[role="link"]:not([aria-disabled="true"]),
+[role="menuitem"]:not([aria-disabled="true"]),
+[role="tab"]:not([aria-disabled="true"]),
+[role="checkbox"]:not([aria-disabled="true"]),
+[role="radio"]:not([aria-disabled="true"]),
+[role="switch"]:not([aria-disabled="true"]),
+label[for],
+select:not(:disabled),
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled) {
+  cursor: pointer;
+}
+button:disabled,
+[aria-disabled="true"],
+:disabled {
+  cursor: not-allowed;
+}
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 /* Devanagari only: the Latin UI face comes from the system stack below,
@@ -1069,3 +1090,4 @@
   cursor: not-allowed;
   opacity: 0.45;
 }
+

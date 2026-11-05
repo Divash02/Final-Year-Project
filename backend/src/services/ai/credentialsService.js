@@ -2,8 +2,10 @@ import crypto from "node:crypto";
 import { DigitalCredential, Student } from "../../models/index.js";
 import { logAIActivity } from "./aiActivityService.js";
 
-const SIGNING_SECRET =
-  process.env.JWT_SECRET || "collegeos-digital-credentials-tamper-evident-hmac-key";
+const SIGNING_SECRET = process.env.JWT_SECRET;
+if (!SIGNING_SECRET) {
+  throw new Error("Missing required environment variable: JWT_SECRET");
+}
 
 /**
  * Generate a tamper-evident cryptographic HMAC digest for a credential.

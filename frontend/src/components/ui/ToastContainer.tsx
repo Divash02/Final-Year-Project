@@ -7,6 +7,7 @@ import React, {
 import { Toast, type ToastItem } from "./Toast";
 
 export interface ToastApi {
+  showToast: (message: string, variant?: "success" | "info" | "warning" | "error") => void;
   toast: (options: {
     variant?: "success" | "info" | "warning" | "error";
     message: string;
@@ -89,6 +90,7 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({
   );
 
   const api = useMemo<ToastApi>(() => {
+    const showToast = (message: string, variant: "success" | "info" | "warning" | "error" = "info") => { toast({ message, variant }); };
     const toast: ToastApi["toast"] = (options) => {
       const id = options.id ?? generateId();
       const variant = options.variant ?? "info";
@@ -138,7 +140,7 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({
       });
     };
 
-    return { toast, dismiss, dismissAll, update };
+    return { showToast, toast, dismiss, dismissAll, update };
   }, [clearTimer, scheduleDismiss, maxToasts]);
 
   const handleMouseEnter = () => {

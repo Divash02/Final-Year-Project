@@ -6,6 +6,10 @@ const SessionSchema = new mongoose.Schema(
     tokenHash: { type: String, required: true, unique: true, index: true },
     expiresAt: { type: Date, required: true, index: true },
     revokedAt: { type: Date, default: null },
+    userAgent: { type: String, default: "", maxlength: 512 },
+    ipAddress: { type: String, default: null, maxlength: 128 },
+    location: { type: String, default: null, maxlength: 128 },
+    lastActiveAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );

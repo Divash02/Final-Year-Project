@@ -4,6 +4,9 @@ import { useCollegeOS } from "../../context/CollegeOSContext";
 import { useToast } from "../../components/ui/ToastContainer";
 import { formatNPR } from "../../lib/nepaliCalendar";
 import { EmptyState } from "../ui/EmptyState";
+import { DonutChartCard } from "../analytics/DonutChartCard";
+import { TrendChart } from "../analytics/TrendChart";
+import { BarChartCard } from "../analytics/BarChartCard";
 import { ROLE_LABELS } from "../common/Navbar";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -258,6 +261,59 @@ const isStudent = currentRole === "student";
         </div>
       )}
 
+      {summary && summary.totalInvoiced !== undefined && (
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+          <div className="border-b border-slate-100 pb-3">
+            <h3 className="text-sm font-bold text-slate-900">Financial Overview</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Live invoice aggregates</p>
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="text-xs text-slate-500">Total Invoiced</p>
+              <p className="mt-1 font-mono text-lg font-semibold text-slate-900">{formatNPR(summary.totalInvoiced ?? 0, language)}</p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 p-3">
+              <p className="text-xs text-emerald-700">Total Collected</p>
+              <p className="mt-1 font-mono text-lg font-semibold text-emerald-700">{formatNPR(summary.totalCollected ?? 0, language)}</p>
+            </div>
+            <div className="rounded-lg bg-amber-50 p-3">
+              <p className="text-xs text-amber-700">Outstanding Balance</p>
+              <p className="mt-1 font-mono text-lg font-semibold text-amber-700">{formatNPR(summary.outstandingBalance ?? 0, language)}</p>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <DonutChartCard
+              title="Collection Distribution"
+              subtitle="Collected vs outstanding"
+              segments={[
+                { label: "Collected", value: summary.totalCollected ?? 0, color: "#1F6B45" },
+                { label: "Outstanding", value: summary.outstandingBalance ?? 0, color: "#D4AF37" },
+              ]}
+              centerLabel="Collection"
+              centerValue={
+                (summary.totalInvoiced ?? 0) > 0
+                  ? Math.round(((summary.totalCollected ?? 0) / (summary.totalInvoiced ?? 1)) * 100) + "%"
+                  : "0%"
+              }
+            />
+            <div className="flex flex-col justify-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Collected</span>
+                <span className="font-mono font-semibold text-emerald-700">{formatNPR(summary.totalCollected ?? 0, language)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Outstanding</span>
+                <span className="font-mono font-semibold text-amber-700">{formatNPR(summary.outstandingBalance ?? 0, language)}</span>
+              </div>
+              <div className="border-t border-slate-200 pt-3 flex items-center justify-between text-sm font-semibold">
+                <span className="text-slate-700">Total Invoiced</span>
+                <span className="font-mono text-slate-900">{formatNPR(summary.totalInvoiced ?? 0, language)}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ------------------------------------------------------------- */}
       {/* STUDENT & FACULTY UPCOMING EXAMINATION WIDGET (Sections 18 - 20) */}
       {/* ------------------------------------------------------------- */}
@@ -324,10 +380,10 @@ const isStudent = currentRole === "student";
 
                     <div className="space-y-1 rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-xs text-slate-700">
                       <div className="font-semibold text-slate-900">
-                        {exam.examDate} Â· {exam.nepaliDate}
+                        {exam.examDate} · {exam.nepaliDate}
                       </div>
                       <div>
-                        {exam.startTime} â€“ {exam.endTime}
+                        {exam.startTime} – {exam.endTime}
                       </div>
                       <div className="truncate font-medium text-slate-800">
                         Venue: {exam.room}
@@ -356,6 +412,36 @@ const isStudent = currentRole === "student";
           )}
         </div>
       )}
+
+      {/* Analytics visualization grid */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <TrendChart
+          title="Enrollment Trends"
+          subtitle="Student enrollment over time"
+          data={[]}
+          primaryLabel="Students"
+        />
+        <BarChartCard
+          title="Attendance Analytics"
+          subtitle="Present / Absent / Late"
+          items={[]}
+        />
+        <BarChartCard
+          title="Academic Performance"
+          subtitle="Examination averages by course"
+          items={[]}
+        />
+        <BarChartCard
+          title="Assignment Analytics"
+          subtitle="Submission progress"
+          items={[]}
+        />
+        <BarChartCard
+          title="Examination Analytics"
+          subtitle="Upcoming vs completed"
+          items={[]}
+        />
+      </div>
 
       {/* Quick Navigation Footer */}
       <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-4">

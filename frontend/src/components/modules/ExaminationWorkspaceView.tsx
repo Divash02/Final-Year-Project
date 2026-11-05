@@ -147,6 +147,11 @@ export const ExaminationWorkspaceView: React.FC = () => {
 
   // Exam officers start on dashboard; students/faculty on schedule
   const [activeTab, setActiveTab] = useState<ExamTab>(isStudentOrFaculty ? "schedule" : "dashboard");
+  useEffect(() => {
+    if (activeTab === "rooms" && !isExamOfficer) {
+      setActiveTab("schedule");
+    }
+  }, [activeTab, isExamOfficer]);
 
   // Editing state
   const [editingExamId, setEditingExamId] = useState<string | null>(null);
@@ -770,18 +775,20 @@ export const ExaminationWorkspaceView: React.FC = () => {
       </header>
 
       {/* Tab Navigation */}
-      <nav aria-label="Examination tabs" className="flex flex-wrap gap-1 border-b border-slate-200 pb-1">
+<nav aria-label="Examination tabs" className="flex flex-wrap gap-1 border-b border-slate-200 pb-1">
         {[
           { id: "schedule", label: "Exam Schedule", icon: faClipboardList },
           { id: "dashboard", label: "Operations Dashboard", icon: faGaugeHigh },
           { id: "calendar", label: "Exam Calendar", icon: faCalendarDays },
           { id: "candidates", label: "Candidate Directory", icon: faUsers },
-          { id: "rooms", label: "Venues & Rooms", icon: faBuilding },
+          ...(isExamOfficer
+            ? [{ id: "rooms", label: "Venues & Rooms", icon: faBuilding }]
+            : []),
           { id: "invigilators", label: "Invigilators", icon: faUserTie },
           { id: "results", label: "Attendance & Results", icon: faAward },
           { id: "audit", label: "Audit Trail", icon: faClockRotateLeft },
           { id: "seating", label: "Seating Plan", icon: faChair },
-        ].map((tab) => (
+].map((tab) => (
           <button
             key={tab.id}
             type="button"

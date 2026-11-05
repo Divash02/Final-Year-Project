@@ -253,7 +253,79 @@ export function registerProfileRoutes(app) {
     }
   });
 
-  // Email signature: read
+  app.put("/api/profile/me", requireAuth, async (req, res) => {
+    try {
+      const allowed = ["firstName", "middleName", "lastName", "phone", "personalEmail", "address", "emergencyContact", "avatarUrl"];
+      const update = {};
+      for (const key of allowed) {
+        if (req.body?.[key] !== undefined) update[key] = req.body[key];
+      }
+      if (req.body?.personal_email !== undefined) update.personalEmail = req.body.personal_email;
+      if (req.body?.emergency_contact !== undefined) update.emergencyContact = req.body.emergency_contact;
+      if (req.body?.avatar_url !== undefined) update.avatarUrl = req.body.avatar_url;
+      const user = await User.findByIdAndUpdate(req.user._id || req.user.id, update, { new: true });
+      if (!user) return res.status(404).json({ error: "User not found." });
+      res.json({ profile: await buildProfilePayload(user) });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to update profile." });
+    }
+  });
+
+  app.get("/api/profile/notifications", requireAuth, async (req, res) => {
+    try {
+      const user = await User.findById(req.user._id || req.user.id).select(
+        "notificationEmail notificationSms notificationPush",
+      );
+      if (!user) return res.status(404).json({ error: "User not found." });
+      res.json({
+        email: user.notificationEmail !== false,
+        sms: user.notificationSms === true,
+        push: user.notificationPush !== false,
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Error retrieving notification preferences." });
+    }
+  });
+
+  app.put("/api/profile/notifications", requireAuth, async (req, res) => {
+    try {
+      const body = req.body || {};
+      const fields = {
+        email: "notificationEmail",
+        sms: "notificationSms",
+        push: "notificationPush",
+      };
+      const supplied = Object.keys(body);
+      if (
+        supplied.length === 0 ||
+        supplied.some(
+          (key) => !Object.hasOwn(fields, key) || typeof body[key] !== "boolean",
+        )
+      ) {
+        return res.status(400).json({
+          error: "Provide one or more boolean notification preferences.",
+        });
+      }
+
+      const update = Object.fromEntries(
+        supplied.map((key) => [fields[key], body[key]]),
+      );
+      const user = await User.findByIdAndUpdate(
+        req.user._id || req.user.id,
+        update,
+        { returnDocument: "after", runValidators: true },
+      ).select("notificationEmail notificationSms notificationPush");
+      if (!user) return res.status(404).json({ error: "User not found." });
+      res.json({
+        email: user.notificationEmail !== false,
+        sms: user.notificationSms === true,
+        push: user.notificationPush !== false,
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Error updating notification preferences." });
+    }
+  });
+
   app.get("/api/users/me/signature", requireAuth, async (req, res) => {
     try {
       const user = await User.findById(req.user._id || req.user.id).select("emailSignature");

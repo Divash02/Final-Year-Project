@@ -7,7 +7,12 @@ import {
   STANDARD_NAV_SECTION_IDS,
   NavSectionId,
 } from "./navigation";
+import { resolveRoute, routeToView, viewToRoute } from "./appRoutes";
 import { UserRoleType } from "../types";
+import {
+  getPermissionsForRoles,
+  normalizeRoles,
+} from "../../../backend/src/permissions/catalog.js";
 
 const ROLES: UserRoleType[] = [
   "super_admin",
@@ -23,11 +28,13 @@ const ROLES: UserRoleType[] = [
   "parent",
 ];
 
-test("defines exactly the five standard navigation sections", () => {
+test("defines exactly the seven standard navigation sections", () => {
   assert.deepEqual(STANDARD_NAV_SECTION_IDS, [
     "core-academic",
     "people-enrolment",
     "administration-governance",
+    "people-workforce",
+    "campus-learning-services",
     "communication-engagement",
     "account-personal",
   ]);
@@ -67,6 +74,13 @@ test("no role menu contains duplicate navigation ids", () => {
   }
 });
 
+test("Smart Document Centre route survives navigation and refresh", () => {
+  const route = "/smart-documents";
+  assert.equal(routeToView[route], "smart_documents");
+  assert.equal(viewToRoute.smart_documents, route);
+  assert.equal(resolveRoute(route).view, "smart_documents");
+});
+
 test("every item declares a valid permission when guarded", () => {
   for (const role of ROLES) {
     for (const item of getNavSectionsForRole(role).flatMap((s) => s.items)) {
@@ -89,7 +103,23 @@ test("every role keeps Profile in Account & Personal", () => {
   }
 });
 
-test("super admin sees all five sections in canonical order", () => {
+test("student My Documents opens the document centre under Administration & Governance", () => {
+  const sections = getNavSectionsForRole("student");
+  const administration = sections.find((section) => section.id === "administration-governance");
+  const account = sections.find((section) => section.id === "account-personal");
+  assert.ok(administration?.items.some((item) =>
+    item.id === "smart_documents" && item.labelEn === "My Documents",
+  ));
+  assert.deepEqual(account?.items.map((item) => item.id), ["profile"]);
+  const allItems = sections.flatMap((section) => section.items);
+  assert.equal(allItems.filter((item) => item.labelEn === "My Documents").length, 1);
+  assert.equal(allItems.some((item) =>
+    ["notification_preferences", "security_sessions"].includes(item.id),
+  ), false);
+  assert.equal(viewToRoute.smart_documents, "/smart-documents");
+});
+
+test("super admin sees all seven sections and the complete admin navigation", () => {
   const allPermissions = new Set(
     getNavSectionsForRole("super_admin")
       .flatMap((section) => section.items)
@@ -101,6 +131,65 @@ test("super admin sees all five sections in canonical order", () => {
     STANDARD_NAV_SECTION_IDS,
   );
   const itemIds = sections.flatMap((section) => section.items.map((item) => item.id));
+  assert.deepEqual(
+    sections.map((section) => section.titleEn),
+    [
+      "Core Academic Management",
+      "People & Enrolment",
+      "Administration & Governance",
+      "People & Workforce",
+      "Campus & Learning Services",
+      "Communication & Engagement",
+      "Account & Personal",
+    ],
+  );
+  const sectionItems = Object.fromEntries(
+    sections.map((section) => [
+      section.id,
+      section.items.map((item) => item.labelEn),
+    ]),
+  );
+  assert.deepEqual(sectionItems["core-academic"], [
+    "Institution Dashboard",
+    "Courses & Curriculum",
+    "Course Workspaces",
+    "Timetable & Sessions",
+    "Academic Calendar",
+    "Examinations Suite",
+    "Quizzes",
+  ]);
+  assert.deepEqual(sectionItems["people-enrolment"], [
+    "Student Directory",
+    "Admissions Workflow",
+    "Attendance Records",
+    "Student Lifecycle Management",
+  ]);
+  assert.deepEqual(sectionItems["administration-governance"], [
+    "User & Role Management",
+    "Finance & Invoices",
+    "Analytics & Audit Logs",
+    "AI Intelligence",
+    "Workflow Automation",
+    "Smart Document Centre",
+  ]);
+  assert.deepEqual(sectionItems["people-workforce"], ["HR Dashboard"]);
+  assert.deepEqual(sectionItems["campus-learning-services"], [
+    "Library",
+    "Buildings & Classrooms",
+    "Laboratories & Equipment",
+    "Room Reservations",
+    "Maintenance Management",
+    "Assets & Inventory",
+    "Transport Management",
+  ]);
+  assert.deepEqual(sectionItems["communication-engagement"], [
+    "College Mail",
+    "Messages",
+    "Notices",
+    "Requests & Cases",
+  ]);
+  assert.deepEqual(sectionItems["account-personal"], ["My Profile"]);
+
   for (const expected of [
     "dashboard",
     "learning",
@@ -113,8 +202,7 @@ test("super admin sees all five sections in canonical order", () => {
     "attendance_sheet",
     "user_management",
     "finance",
-    "facilities_library",
-    "documents",
+    "smart_documents",
     "analytics",
     "communication",
     "messages",
@@ -123,6 +211,19 @@ test("super admin sees all five sections in canonical order", () => {
     "profile",
   ]) {
     assert.ok(itemIds.includes(expected), `super admin menu is missing ${expected}`);
+  }
+
+  const campusRoutes = {
+    campus_buildings: "/campus/buildings",
+    campus_labs: "/campus/laboratories",
+    campus_reservations: "/campus/room-reservations",
+    campus_maintenance: "/campus/maintenance",
+    campus_assets: "/campus/assets",
+    campus_transport: "/campus/transport",
+  };
+  for (const [view, route] of Object.entries(campusRoutes)) {
+    assert.equal(routeToView[route], view);
+    assert.equal(viewToRoute[view], route);
   }
 });
 
@@ -186,6 +287,89 @@ test("finance and examination permissions stay separate concerns", () => {
     .flatMap((section) => section.items)
     .map((item) => item.permission);
   assert.ok(!examItems.includes("finance.invoice.view"), "exam officer menu must not include finance pages");
+});
+
+test("admin roles receive campus links from their actual permission grants", () => {
+  const campusRoutes = {
+    campus_buildings: "/campus/buildings",
+    campus_labs: "/campus/laboratories",
+    campus_reservations: "/campus/room-reservations",
+    campus_maintenance: "/campus/maintenance",
+    campus_assets: "/campus/assets",
+    campus_transport: "/campus/transport",
+  };
+
+  assert.equal(new Set(Object.values(campusRoutes)).size, 6);
+
+  const adminRoleCases = [
+    { name: "Super Admin", role: "super_admin", grants: ["super_admin"] },
+    {
+      name: "College Admin (legacy institution_admin)",
+      role: "super_admin",
+      grants: normalizeRoles(["institution_admin"]),
+    },
+    { name: "Campus Admin", role: "campus_admin", grants: ["campus_admin"] },
+  ] as const;
+
+  for (const admin of adminRoleCases) {
+    const permissions = getPermissionsForRoles([...admin.grants]);
+    const sections = getVisibleNavSectionsForRole(admin.role, permissions);
+    const campusSection = sections.find(
+      (section) => section.id === "campus-learning-services",
+    );
+    const labels = campusSection?.items.map((item) => item.labelEn) || [];
+    for (const label of [
+      "Library",
+      "Buildings & Classrooms",
+      "Laboratories & Equipment",
+      "Room Reservations",
+      "Maintenance Management",
+      "Assets & Inventory",
+      "Transport Management",
+    ]) {
+      assert.ok(labels.includes(label), `${admin.name} sidebar is missing ${label}`);
+    }
+
+    const items = sections.flatMap((section) => section.items);
+    assert.ok(
+      !items.some((item) => item.id === "facilities_library"),
+      `${admin.name} sidebar should not include Campus & Facilities`,
+    );
+    for (const [view, route] of Object.entries(campusRoutes)) {
+      assert.ok(
+        items.some((item) => item.id === view),
+        `${admin.name} sidebar is missing ${view}`,
+      );
+      assert.equal(routeToView[route], view, `${route} must resolve to ${view}`);
+      assert.equal(viewToRoute[view], route, `${view} must navigate to ${route}`);
+      assert.equal(resolveRoute(route).view, view, `refreshing ${route} must keep its page`);
+    }
+    assert.equal(
+      new Set(Object.keys(campusRoutes).map((view) => resolveRoute(viewToRoute[view]).view)).size,
+      6,
+    );
+  }
+});
+
+test("a user without facilities permission does not receive campus management links", () => {
+  const sections = getVisibleNavSectionsForRole(
+    "super_admin",
+    getPermissionsForRoles(["super_admin"]).filter(
+      (permission) => permission !== "facilities.view",
+    ),
+  );
+  const items = sections.flatMap((section) => section.items);
+
+  for (const id of [
+    "campus_buildings",
+    "campus_labs",
+    "campus_reservations",
+    "campus_maintenance",
+    "campus_assets",
+    "campus_transport",
+  ]) {
+    assert.ok(!items.some((item) => item.id === id), `${id} must be permission-gated`);
+  }
 });
 
 test("hod and program coordinator share the department portal", () => {

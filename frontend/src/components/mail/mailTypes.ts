@@ -31,11 +31,15 @@ export interface MailRow {
   isDraft?: boolean;
   attachments?: MailAttachment[];
   recipientEmails?: string[];
+  ccEmails?: string[];
+  bccEmails?: string[];
 }
 
 export interface MailDetail {
   thread: MailRow & { sender_email: string };
-  recipients: { email: string; first_name: string; last_name: string }[];
+  recipients: { email: string; first_name?: string; last_name?: string }[];
+  ccEmails?: string[];
+  bccEmails?: string[];
 }
 
 export type MailFolderId =

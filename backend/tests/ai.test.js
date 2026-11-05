@@ -117,6 +117,16 @@ before(async () => {
   });
   ctx.facultyToken = faculty.token;
 
+  const hod = await provision(ctx.adminToken, {
+    firstName: "Department",
+    lastName: "Head",
+    role: "hod",
+    designation: "Head of Department",
+    department: "Computer Science",
+  });
+  ctx.hodToken = hod.token;
+  ctx.hodEmail = hod.email;
+
   // Provision a Student
   const student = await provision(ctx.adminToken, {
     firstName: "Aarav",
@@ -182,40 +192,79 @@ test("AI Operations Agent queries authorized records and records audit trail", a
   assert.equal(logRes.status, 200);
   assert.ok(logRes.data.logs.length >= 1);
   assert.equal(logRes.data.logs[0].module, "academic_ai");
+
+  const pendingRes = await api("/api/ai/activity-logs?pendingOnly=true", {
+    token: ctx.adminToken,
+  });
+  assert.equal(pendingRes.status, 200);
+  assert.equal(pendingRes.data.count, 0);
+
+  const copilotRes = await api("/api/ai/academic/student-copilot", {
+    method: "POST",
+    token: ctx.studentToken,
+    body: { prompt: "What is my attendance and examination schedule?" },
+  });
+  assert.equal(copilotRes.status, 200, copilotRes.text);
+  assert.ok(copilotRes.data.summary);
+  const examQuestion = await api("/api/ai/operations", {
+    method: "POST",
+    token: ctx.studentToken,
+    body: { queryPrompt: "What examinations are scheduled for me?" },
+  });
+  assert.equal(examQuestion.status, 200, examQuestion.text);
+  assert.equal(examQuestion.data.humanConfirmationRequired, false);
+  const pendingAfterCopilot = await api("/api/ai/activity-logs?pendingOnly=true", {
+    token: ctx.adminToken,
+  });
+  assert.equal(pendingAfterCopilot.data.count, 0);
 });
 
 /* ------------------------------------------------------------------ */
 /* Test 2: Human Confirmation Gate for Proposed AI Actions            */
 /* ------------------------------------------------------------------ */
 test("Consequential AI actions require human confirmation before execution", async () => {
-  const { logAIActivity } = await import("../src/services/ai/aiActivityService.js");
-  const { User } = await import("../src/models/User.js");
-  const adminUser = await User.findOne({ email: "admin@collegeos.test" });
+  const { Student } = await import("../src/models/Student.js");
+  const { Notification } = await import("../src/models/Notification.js");
+  await Student.updateOne({ studentId: "BCA25011" }, { $set: { attendancePercentage: 60 } });
 
-  const stagedLog = await logAIActivity({
-    user: adminUser,
-    role: "super_admin",
-    module: "operations_agent",
-    requestCategory: "DISPATCH_WARNINGS",
-    recommendation: "Propose attendance notice dispatch",
-    proposedAction: {
-      actionKey: "DISPATCH_FORMAL_NOTICES",
-      label: "Dispatch Warning Notices to Flagged Cohort",
-      payload: { count: 3 },
-      riskLevel: "HIGH",
-    },
-    humanConfirmation: { required: true, status: "PENDING" },
+  const body = {
+    queryPrompt: "Send attendance warnings",
+    idempotencyKey: "ai-attendance-warning-integration-test",
+  };
+  const stagedResponse = await api("/api/ai/operations", {
+    method: "POST",
+    token: ctx.hodToken,
+    body,
   });
+  assert.equal(stagedResponse.status, 200, stagedResponse.text);
+  assert.equal(stagedResponse.data.humanConfirmationRequired, true);
+  assert.equal(stagedResponse.data.proposedAction.actionKey, "DISPATCH_ATTENDANCE_WARNING_NOTICES");
+  assert.equal(stagedResponse.data.proposedAction.requiredPermission, "attendance.reviewCorrection");
 
-  assert.ok(stagedLog);
-  assert.equal(stagedLog.humanConfirmation.status, "PENDING");
+  const retriedResponse = await api("/api/ai/operations", {
+    method: "POST",
+    token: ctx.hodToken,
+    body,
+  });
+  assert.equal(retriedResponse.status, 200, retriedResponse.text);
+  assert.equal(retriedResponse.data.logId, stagedResponse.data.logId);
 
-  // Confirm action via API
+  const pendingResponse = await api("/api/ai/activity-logs?pendingOnly=true", {
+    token: ctx.adminToken,
+  });
+  assert.equal(pendingResponse.data.count, 1);
+  const unauthorizedApproval = await api("/api/ai/actions/confirm", {
+    method: "POST",
+    token: ctx.studentToken,
+    body: { logId: stagedResponse.data.logId, approved: true },
+  });
+  assert.equal(unauthorizedApproval.status, 403);
+
   const confirmRes = await api("/api/ai/actions/confirm", {
     method: "POST",
     token: ctx.adminToken,
     body: {
-      logId: String(stagedLog._id),
+      logId: stagedResponse.data.logId,
       approved: true,
       notes: "Approved by Super Admin after review.",
     },
@@ -223,6 +272,92 @@ test("Consequential AI actions require human confirmation before execution", asy
 
   assert.equal(confirmRes.status, 200, confirmRes.text);
   assert.equal(confirmRes.data.success, true);
+  assert.equal(await Notification.countDocuments({ category: "academic" }), 1);
+  const duplicateApproval = await api("/api/ai/actions/confirm", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { logId: stagedResponse.data.logId, approved: true, notes: "Retry" },
+  });
+  assert.equal(duplicateApproval.status, 409);
+});
+
+test("Malformed proposals cannot execute; rejection and stale targets are audited", async () => {
+  const { AIActivityLog } = await import("../src/models/AIActivityLog.js");
+  const { Student } = await import("../src/models/Student.js");
+  const { User } = await import("../src/models/User.js");
+  const { logAIActivity } = await import("../src/services/ai/aiActivityService.js");
+  const initiator = await User.findOne({ email: ctx.hodEmail });
+  const student = await Student.findOne({ studentId: "BCA25011" }).lean();
+  const makeAction = (attendancePercentage) => ({
+    actionKey: "DISPATCH_ATTENDANCE_WARNING_NOTICES",
+    label: "Issue an official attendance warning",
+    payload: { studentIds: [student.studentId], threshold: 75 },
+    targetModule: "Academic",
+    targetRecord: student.studentId,
+    operation: "SEND_ATTENDANCE_WARNING_NOTICES",
+    currentValue: { attendancePercentage },
+    proposedValue: "Issue an official attendance warning notification",
+    reason: "Attendance is below the institutional threshold.",
+    requiredPermission: "attendance.reviewCorrection",
+    targetSnapshot: [{
+      studentId: student.studentId,
+      attendancePercentage,
+      userId: String(student.user),
+    }],
+    riskLevel: "HIGH",
+  });
+  const createPending = async (proposedAction) => logAIActivity({
+    user: initiator,
+    role: "hod",
+    module: "academic_ai",
+    requestCategory: "ATTENDANCE_WARNING",
+    recommendation: "Attendance warning requested.",
+    proposedAction,
+    humanConfirmation: { required: true, status: "PENDING" },
+  });
+
+  const malformed = await createPending({
+    label: "Incomplete proposal with no key",
+    payload: {},
+  });
+  assert.equal(malformed.humanConfirmation.required, false);
+  const missingKeyApproval = await api("/api/ai/actions/confirm", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { logId: String(malformed._id), approved: true },
+  });
+  assert.equal(missingKeyApproval.status, 409);
+
+  const rejected = await createPending(makeAction(student.attendancePercentage));
+  const rejectRes = await api("/api/ai/actions/confirm", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { logId: String(rejected._id), approved: false, notes: "Not approved." },
+  });
+  assert.equal(rejectRes.status, 200, rejectRes.text);
+  const rejectedApproval = await api("/api/ai/actions/confirm", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { logId: String(rejected._id), approved: true, notes: "Retry" },
+  });
+  assert.equal(rejectedApproval.status, 409);
+  const rejectedLog = await AIActivityLog.findById(rejected._id).lean();
+  assert.equal(rejectedLog.humanConfirmation.status, "REJECTED");
+  assert.ok(rejectedLog.approvalHistory.some((event) => event.event === "REJECTED"));
+
+  const stale = await createPending(makeAction(student.attendancePercentage));
+  await Student.updateOne({ _id: student._id }, { $set: { attendancePercentage: 55 } });
+  const staleApproval = await api("/api/ai/actions/confirm", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { logId: String(stale._id), approved: true, notes: "Approve after recheck." },
+  });
+  assert.equal(staleApproval.status, 409);
+  const staleLog = await AIActivityLog.findById(stale._id).lean();
+  assert.equal(staleLog.humanConfirmation.status, "FAILED");
+  assert.ok(staleLog.approvalHistory.some((event) => event.event === "EXECUTION_FAILED"));
+  const malformedLog = await AIActivityLog.findById(malformed._id).lean();
+  assert.ok(malformedLog.approvalHistory.some((event) => event.event === "EXECUTION_BLOCKED"));
 });
 
 /* ------------------------------------------------------------------ */

@@ -19,6 +19,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { IconButton } from "../ui/IconButton";
 import { BrandLogo } from "./BrandLogo";
+import { NotificationCenter } from "./NotificationCenter";
 
 export const ROLE_LABELS: Record<UserRoleType, string> = {
   super_admin: "Super Admin",
@@ -353,63 +354,7 @@ export const Navbar: React.FC = () => {
             )}
 
             {showNotifs && (
-              <div className="absolute right-0 z-[160] mt-2 w-[min(22rem,calc(100% - 2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <FontAwesomeIcon
-                      icon={faBell}
-                      className="text-[var(--color-primary)]"
-                      aria-hidden="true"
-                    />
-                    <span>Notifications</span>
-                    {unreadCount > 0 && (
-                      <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
-                        {unreadCount}
-                      </span>
-                    )}
-                  </div>
-                  <IconButton
-                    icon={faXmark}
-                    label="Close notifications"
-                    size="sm"
-                    onClick={() => setShowNotifs(false)}
-                  />
-                </div>
-
-                <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto">
-                  {notifications.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-sm text-slate-400">
-                      No notifications yet
-                    </div>
-                  ) : (
-                    notifications.map((notification) => (
-                      <button
-                        key={notification.id}
-                        type="button"
-                        onClick={() => {
-                          markNotificationRead(notification.id);
-                          if (notification.actionUrl) {
-                            setActiveView(notification.actionUrl.replace("/", ""));
-                            setShowNotifs(false);
-                          }
-                        }}
-                        className={`block w-full cursor-pointer px-4 py-3 text-left transition ${
-                          !notification.read
-                            ? "bg-[var(--color-primary-soft)]/60 hover:bg-[var(--color-primary-soft)]"
-                            : "hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="text-sm font-medium text-slate-900">
-                          {notification.title}
-                        </div>
-                        <p className="cos-page-subtitle">
-                          {notification.message}
-                        </p>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
+              <NotificationCenter open={showNotifs} onClose={() => setShowNotifs(false)} />
             )}
           </div>
 
@@ -417,7 +362,9 @@ export const Navbar: React.FC = () => {
             icon={faRightFromBracket}
             label="Sign out of CollegeOS"
             variant="danger"
-            onClick={logout}
+            onClick={() => {
+              void logout();
+            }}
           />
         </div>
       </div>

@@ -1,4 +1,31 @@
 import { AIActivityLog } from "../../models/AIActivityLog.js";
+import { Notification, Student } from "../../models/index.js";
+import { getUserRoles } from "../../db.js";
+import { hasPermission } from "../../permissions/catalog.js";
+import { badRequest, conflict, forbidden } from "../../utils/apiError.js";
+
+const EXECUTABLE_ACTIONS = {
+  DISPATCH_ATTENDANCE_WARNING_NOTICES: {
+    permission: "attendance.reviewCorrection",
+    module: "Academic",
+    operation: "SEND_ATTENDANCE_WARNING_NOTICES",
+  },
+};
+
+function isCompleteConsequentialAction(action) {
+  const policy = action?.actionKey && EXECUTABLE_ACTIONS[action.actionKey];
+  return Boolean(
+    policy &&
+      action.label?.trim() &&
+      action.targetModule === policy.module &&
+      action.targetRecord?.trim() &&
+      action.operation === policy.operation &&
+      action.reason?.trim() &&
+      action.requiredPermission === policy.permission &&
+      Array.isArray(action.targetSnapshot) &&
+      action.targetSnapshot.length > 0,
+  );
+}
 
 /**
  * AI Activity Logging Service
@@ -20,9 +47,20 @@ export async function logAIActivity({
   humanConfirmation = { required: false },
   finalResult = { executed: false },
   executionLatencyMs = 0,
+  idempotencyKey = null,
+  classification = null,
+  classificationReason = "",
 }) {
-  try {
-    const record = await AIActivityLog.create({
+  const eligibleAction = isCompleteConsequentialAction(proposedAction);
+  const requiresConfirmation = Boolean(humanConfirmation?.required && eligibleAction);
+  const resolvedClassification =
+    classification ||
+    (requiresConfirmation
+      ? "CONSEQUENTIAL_ACTION"
+      : proposedAction
+        ? "DRAFT_ACTION"
+        : "INFORMATIONAL_RESPONSE");
+  const values = {
       user: user._id || user.id,
       userEmail: user.email || "",
       userName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.username || "Authorized User",
@@ -30,6 +68,15 @@ export async function logAIActivity({
       module,
       requestCategory,
       queryPrompt,
+      classification: resolvedClassification,
+      classificationReason:
+        classificationReason ||
+        (requiresConfirmation
+          ? "A supported consequential operation was explicitly proposed."
+          : proposedAction
+            ? "Proposal is retained for review; no executable approval handler is registered."
+            : "No institutional operation was requested."),
+      idempotencyKey: idempotencyKey || null,
       dataScope: {
         department: dataScope.department || null,
         program: dataScope.program || null,
@@ -44,28 +91,33 @@ export async function logAIActivity({
         identifier: r.identifier || "",
       })),
       recommendation,
-      proposedAction: proposedAction || {
-        actionKey: null,
-        label: null,
-        payload: null,
-        targetEndpoint: null,
-        method: "POST",
-        riskLevel: "LOW",
-      },
+      proposedAction: proposedAction || null,
       humanConfirmation: {
-        required: Boolean(humanConfirmation?.required),
-        status: humanConfirmation?.status || (humanConfirmation?.required ? "PENDING" : "NOT_REQUIRED"),
+        required: requiresConfirmation,
+        status: requiresConfirmation ? "PENDING" : "NOT_REQUIRED",
         confirmedBy: humanConfirmation?.confirmedBy || null,
         confirmedAt: humanConfirmation?.confirmedAt || null,
         rejectionReason: humanConfirmation?.rejectionReason || null,
       },
       finalResult: finalResult || { executed: false },
       executionLatencyMs,
-    });
-    return record;
-  } catch (err) {
-    console.error("Failed to log AI activity:", err);
-    return null;
+      approvalHistory: requiresConfirmation
+        ? [{ event: "PROPOSED", actor: user._id || user.id, reason: classificationReason || "" }]
+        : [],
+  };
+
+  try {
+    return await AIActivityLog.create(values);
+  } catch (error) {
+    if (error.code === 11000 && idempotencyKey) {
+      const existing = await AIActivityLog.findOne({
+        user: user._id || user.id,
+        idempotencyKey,
+      });
+      if (existing?.queryPrompt === queryPrompt) return existing;
+      if (existing) throw conflict("The idempotency key was already used for a different request.");
+    }
+    throw error;
   }
 }
 
@@ -80,6 +132,7 @@ export async function getAIActivityLogs({
   page = 1,
   startDate = null,
   endDate = null,
+  pendingOnly = false,
 }) {
   const query = {};
 
@@ -91,6 +144,19 @@ export async function getAIActivityLogs({
 
   if (module && module !== "all") {
     query.module = module;
+  }
+
+  if (pendingOnly) {
+    query["humanConfirmation.required"] = true;
+    query["humanConfirmation.status"] = "PENDING";
+    query["proposedAction.actionKey"] = { $in: Object.keys(EXECUTABLE_ACTIONS) };
+    query["proposedAction.label"] = { $type: "string", $ne: "" };
+    query["proposedAction.targetModule"] = { $type: "string", $ne: "" };
+    query["proposedAction.targetRecord"] = { $type: "string", $ne: "" };
+    query["proposedAction.operation"] = { $type: "string", $ne: "" };
+    query["proposedAction.reason"] = { $type: "string", $ne: "" };
+    query["proposedAction.requiredPermission"] = { $type: "string", $ne: "" };
+    query["proposedAction.targetSnapshot.0"] = { $exists: true };
   }
 
   if (startDate || endDate) {
@@ -112,6 +178,7 @@ export async function getAIActivityLogs({
 
   return {
     logs,
+    count: total,
     total,
     page: Number(page),
     totalPages: Math.ceil(total / Number(limit)) || 1,
@@ -124,36 +191,223 @@ export async function getAIActivityLogs({
 export async function confirmAIAction({ logId, user, approved = true, notes = "" }) {
   const log = await AIActivityLog.findById(logId);
   if (!log) {
-    throw new Error("AI Activity record not found.");
+    throw conflict("AI Activity record not found.");
+  }
+
+  const action = log.proposedAction;
+  const policy = action?.actionKey && EXECUTABLE_ACTIONS[action.actionKey];
+  if (!policy || !isCompleteConsequentialAction(action)) {
+    await AIActivityLog.updateOne(
+      { _id: logId },
+      {
+        $push: {
+          approvalHistory: {
+            event: "EXECUTION_BLOCKED",
+            actor: user._id || user.id,
+            at: new Date(),
+            reason: "The action is incomplete or has no approved execution handler.",
+          },
+        },
+      },
+    );
+    throw conflict("This action is incomplete or has no approved execution handler.");
   }
 
   if (!log.humanConfirmation || log.humanConfirmation.status !== "PENDING") {
-    throw new Error("Action is not in pending confirmation status.");
+    await AIActivityLog.updateOne(
+      { _id: logId },
+      {
+        $push: {
+          approvalHistory: {
+            event: "EXECUTION_BLOCKED",
+            actor: user._id || user.id,
+            at: new Date(),
+            reason: `Action is not pending (status: ${log.humanConfirmation?.status || "missing"}).`,
+          },
+        },
+      },
+    );
+    throw conflict("Action is not in pending confirmation status.");
+  }
+
+  const approverId = String(user._id || user.id);
+  if (String(log.user) === approverId) {
+    await AIActivityLog.updateOne(
+      { _id: logId, "humanConfirmation.status": "PENDING" },
+      {
+        $push: {
+          approvalHistory: {
+            event: "APPROVAL_DENIED",
+            actor: approverId,
+            at: new Date(),
+            reason: "Separation of duties prevents self-approval.",
+          },
+        },
+      },
+    );
+    throw forbidden("The action initiator cannot approve their own consequential action.");
+  }
+  const roles = getUserRoles(user);
+  if (!hasPermission(roles, policy.permission)) {
+    await AIActivityLog.updateOne(
+      { _id: logId, "humanConfirmation.status": "PENDING" },
+      {
+        $push: {
+          approvalHistory: {
+            event: "APPROVAL_DENIED",
+            actor: approverId,
+            at: new Date(),
+            reason: `Missing required permission: ${policy.permission}.`,
+          },
+        },
+      },
+    );
+    throw forbidden(`Approval requires the ${policy.permission} permission.`);
   }
 
   if (!approved) {
-    log.humanConfirmation.status = "REJECTED";
-    log.humanConfirmation.confirmedBy = user._id || user.id;
-    log.humanConfirmation.confirmedAt = new Date();
-    log.humanConfirmation.rejectionReason = notes || "Rejected by authorized reviewer.";
-    await log.save();
+    if (!String(notes || "").trim()) {
+      throw badRequest("A rejection reason is required.");
+    }
+    const rejected = await AIActivityLog.findOneAndUpdate(
+      { _id: logId, "humanConfirmation.status": "PENDING" },
+      {
+        $set: {
+          "humanConfirmation.status": "REJECTED",
+          "humanConfirmation.confirmedBy": approverId,
+          "humanConfirmation.confirmedAt": new Date(),
+          "humanConfirmation.rejectionReason": notes.trim(),
+        },
+        $push: {
+          approvalHistory: {
+            event: "REJECTED",
+            actor: approverId,
+            at: new Date(),
+            reason: notes.trim(),
+          },
+        },
+      },
+      { returnDocument: "after" },
+    );
+    if (!rejected) throw conflict("Action is no longer pending confirmation.");
     return { success: true, message: "Proposed action rejected." };
   }
 
-  log.humanConfirmation.status = "CONFIRMED";
-  log.humanConfirmation.confirmedBy = user._id || user.id;
-  log.humanConfirmation.confirmedAt = new Date();
-  log.finalResult = {
-    executed: true,
-    success: true,
-    message: notes || `Action "${log.proposedAction.label}" confirmed and executed by ${user.firstName || user.email}.`,
-    details: { confirmedAt: new Date(), actor: user.email },
-  };
+  const executing = await AIActivityLog.findOneAndUpdate(
+    { _id: logId, "humanConfirmation.status": "PENDING" },
+    {
+      $set: {
+        "humanConfirmation.status": "EXECUTING",
+        "humanConfirmation.confirmedBy": approverId,
+        "humanConfirmation.confirmedAt": new Date(),
+      },
+      $push: {
+        approvalHistory: {
+          event: "EXECUTION_STARTED",
+          actor: approverId,
+          at: new Date(),
+          reason: notes.trim(),
+        },
+      },
+    },
+    { returnDocument: "after" },
+  );
+  if (!executing) throw conflict("Action is no longer pending confirmation.");
 
-  await log.save();
-  return {
-    success: true,
-    message: log.finalResult.message,
-    action: log.proposedAction,
-  };
+  let sideEffectsStarted = false;
+  try {
+    const targetIds = action.targetSnapshot.map((target) => target.studentId);
+    const students = await Student.find({ studentId: { $in: targetIds } }).lean();
+    const currentSnapshot = students.map((student) => ({
+      studentId: student.studentId,
+      attendancePercentage: student.attendancePercentage,
+      userId: String(student.user),
+    }));
+    const expectedSnapshot = action.targetSnapshot.map((target) => ({
+      studentId: target.studentId,
+      attendancePercentage: target.attendancePercentage,
+      userId: String(target.userId),
+    }));
+    if (
+      JSON.stringify(currentSnapshot.sort((a, b) => a.studentId.localeCompare(b.studentId))) !==
+      JSON.stringify(expectedSnapshot.sort((a, b) => a.studentId.localeCompare(b.studentId)))
+    ) {
+      throw conflict("The target records changed after this action was proposed.");
+    }
+
+    const threshold = Number(action.payload?.threshold);
+    if (!Number.isFinite(threshold) || students.some((student) => student.attendancePercentage >= threshold)) {
+      throw conflict("The attendance-warning policy is no longer satisfied.");
+    }
+
+    sideEffectsStarted = true;
+    await Promise.all(
+      students.map(async (student) => {
+        const idempotencyKey = `${log._id}:${student._id}`;
+        const existing = await Notification.findOne({ user: student.user, idempotencyKey }).lean();
+        if (existing) return;
+        await Notification.create({
+          user: student.user,
+          title: "Official Attendance Warning",
+          message: `Your recorded attendance is below the institutional ${threshold}% threshold. Please contact your academic department.`,
+          category: "academic",
+          priority: "high",
+          actionUrl: "/student/attendance",
+          idempotencyKey,
+          metadata: { aiActivityLogId: String(log._id), studentId: student.studentId },
+        });
+      }),
+    );
+
+    const completedAt = new Date();
+    await AIActivityLog.updateOne(
+      { _id: logId, "humanConfirmation.status": "EXECUTING" },
+      {
+        $set: {
+          "humanConfirmation.status": "EXECUTED",
+          finalResult: {
+            executed: true,
+            success: true,
+            message: `Attendance warnings were issued to ${students.length} student(s).`,
+            details: { targetCount: students.length, completedAt, actor: approverId },
+          },
+        },
+        $push: {
+          approvalHistory: {
+            event: "EXECUTED",
+            actor: approverId,
+            at: completedAt,
+            reason: notes.trim(),
+            details: { targetCount: students.length },
+          },
+        },
+      },
+    );
+    return { success: true, message: `Attendance warnings were issued to ${students.length} student(s).`, action };
+  } catch (error) {
+    const failedAt = new Date();
+    await AIActivityLog.updateOne(
+      { _id: logId, "humanConfirmation.status": "EXECUTING" },
+      {
+        $set: {
+          "humanConfirmation.status": "FAILED",
+          finalResult: {
+            executed: sideEffectsStarted,
+            success: false,
+            message: error.message || "Action execution failed.",
+            details: { failedAt, actor: approverId, sideEffectsStarted },
+          },
+        },
+        $push: {
+          approvalHistory: {
+            event: "EXECUTION_FAILED",
+            actor: approverId,
+            at: failedAt,
+            reason: error.message || "Action execution failed.",
+          },
+        },
+      },
+    );
+    throw error;
+  }
 }

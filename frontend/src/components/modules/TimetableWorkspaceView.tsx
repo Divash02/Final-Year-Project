@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useToast } from "../ui/ToastContainer";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faAdd,
@@ -83,6 +84,8 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 export const TimetableWorkspaceView: React.FC = () => {
+  const toast = useToast();
+  const showError = (m: string) => toast.showToast(m, "error");
   const [view, setView] = useState<"week" | "day" | "sessions">("week");
 
   const [filtersResponse, setFiltersResponse] = useState<{ filters: TimetableFilters } | null>(null);
@@ -112,7 +115,7 @@ export const TimetableWorkspaceView: React.FC = () => {
           }
         }
       } catch {
-        if (active) setError("Could not load timetable filter options.");
+        if (active) showError("Could not load timetable filter options.");
       }
     })();
     return () => {
@@ -140,7 +143,7 @@ export const TimetableWorkspaceView: React.FC = () => {
       });
       setSessions(result.timetable);
     } catch (err) {
-      setError(errorMessage(err, "Could not load timetable sessions."));
+      showError(errorMessage(err, "Could not load timetable sessions."));
     } finally {
       setLoading(false);
     }
@@ -191,7 +194,7 @@ export const TimetableWorkspaceView: React.FC = () => {
       await loadSessions();
       closeDrawer();
     } catch (err) {
-      setError(errorMessage(err, "Could not publish this session."));
+      showError(errorMessage(err, "Could not publish this session."));
     }
   };
 
@@ -202,7 +205,7 @@ export const TimetableWorkspaceView: React.FC = () => {
       await loadSessions();
       closeDrawer();
     } catch (err) {
-      setError(errorMessage(err, "Could not unpublish this session."));
+      showError(errorMessage(err, "Could not unpublish this session."));
     }
   };
 
@@ -213,7 +216,7 @@ export const TimetableWorkspaceView: React.FC = () => {
       await loadSessions();
       closeDrawer();
     } catch (err) {
-      setError(errorMessage(err, "Could not start this session."));
+      showError(errorMessage(err, "Could not start this session."));
     }
   };
 
@@ -224,7 +227,7 @@ export const TimetableWorkspaceView: React.FC = () => {
       await loadSessions();
       closeDrawer();
     } catch (err) {
-      setError(errorMessage(err, "Could not complete this session."));
+      showError(errorMessage(err, "Could not complete this session."));
     }
   };
 
@@ -235,7 +238,7 @@ export const TimetableWorkspaceView: React.FC = () => {
       await loadSessions();
       closeDrawer();
     } catch (err) {
-      setError(errorMessage(err, "Could not cancel this session."));
+      showError(errorMessage(err, "Could not cancel this session."));
     }
   };
 
@@ -246,7 +249,7 @@ export const TimetableWorkspaceView: React.FC = () => {
       await loadSessions();
       closeDrawer();
     } catch (err) {
-      setError(errorMessage(err, "Could not archive this session."));
+      showError(errorMessage(err, "Could not archive this session."));
     }
   };
 

@@ -288,22 +288,36 @@ Faculty without `notices.publish` may publish only to a `SPECIFIC` audience
 ### Communication (`/api`)
 | Method | Path | Permissions | Description |
 |--------|------|-------------|-------------|
+| `GET` | `/mail/recipients/suggest?q=...` | `mail.view` | Search eligible institutional contacts for To/Cc/Bcc autocomplete |
 | `GET` | `/mail` | `mail.view` | List mail (sent/received) |
-| `POST` | `/mail` | `mail.view` | Send mail (BCC enforced) |
+| `POST` | `/mail` | `mail.view` | Send mail with To/Cc/Bcc recipients |
 | `GET` | `/messages` | `messages.view` | List direct messages |
 | `POST` | `/messages` | `messages.view` | Send message |
 | `PATCH` | `/messages/:id/read` | `messages.view` | Mark read |
 | `GET` | `/notifications` | `requireAuth` | User notifications |
 | `PATCH` | `/notifications/:id/read` | `requireAuth` | Mark notification read |
 
-### Workflow (`/api/workflow`)
+### Workflow requests and automation (`/api`)
 | Method | Path | Permissions | Description |
 |--------|------|-------------|-------------|
-| `GET` | `/workflow` | `workflow.view` | List cases (filterable by role) |
-| `POST` | `/workflow` | `workflow.create` | Create case |
-| `GET` | `/workflow/:id` | `workflow.view` | Case detail |
-| `PATCH` | `/workflow/:id` | `workflow.manage` | Update case status |
-| `POST` | `/workflow/:id/comments` | `workflow.view` | Add comment |
+| `GET` | `/cases` | `workflow.view` | List request cases (requesters see their own; staff see the permitted queue) |
+| `POST` | `/cases` | `workflow.create` | Submit a case. Starts the matching published `case.created` workflow, if one is configured; optional `workflowData` supplies request fields for server-side conditions |
+| `PATCH` | `/cases/:id/status` | `workflow.manage` | Update a case not currently controlled by an active workflow instance |
+| `GET` | `/workflows` | `workflow.view` | List persisted definitions; supports `status` and `templates` filters and returns execution counts |
+| `GET` | `/workflows/options` | `workflow.manage` | Load valid approver roles/users, departments, categories and request types |
+| `POST` | `/workflows` | `workflow.manage` | Save a workflow definition as a draft |
+| `PUT` | `/workflows/:id` | `workflow.manage` | Edit a draft or paused definition |
+| `POST` | `/workflows/validate` | `workflow.manage` | Validate required fields, approver assignments and conditions |
+| `POST` | `/workflows/test` | `workflow.manage` | Evaluate conditions against supplied sample request data without creating an instance |
+| `POST` | `/workflows/:id/publish` | `workflow.manage` | Publish only after server-side validation succeeds |
+| `PATCH` | `/workflows/:id/status` | `workflow.manage` | Pause or archive a definition |
+| `PATCH` | `/workflows/:id/template` | `workflow.manage` | Save an unpublished definition as a reusable template |
+| `POST` | `/workflows/:id/clone` | `workflow.manage` | Create a draft from a template or published definition |
+| `GET` | `/workflow-instances?status=in_progress` | `workflow.view` | List running instances visible to the caller, with database-backed status counts |
+| `GET` | `/workflow-instances/:id` | `workflow.view` | Inspect an instance and its execution history; managers, requesters, assigned approvers and prior actors are scoped server-side |
+| `POST` | `/workflow-instances/:id/decision` | Assigned approver | Approve, reject or return an assigned active request; updates the linked case, sends configured notifications and records history |
+
+Definitions and instances are separate MongoDB records. A matching request starts one instance per request; the same published definition is reused for later requests. Sequential role steps select an active eligible approver, while parallel role steps require every active user assigned to that role to approve before advancing. Conditions are evaluated by the backend at workflow start or before the configured step. In-app approval and status notifications use the CollegeOS notification store; pending reminders are sent by the server workflow scheduler.
 
 ### Finance (`/api`)
 Actual paths live under the `/api` root (not `/api/finance`). Finance
@@ -315,11 +329,34 @@ records that belong to their own student account.
 | `GET` | `/finance/students` | `finance.invoice.create` | Search students for billing |
 | `GET` | `/invoices` | `finance.invoice.view` | List invoices (own for students) |
 | `POST` | `/invoices` | `finance.invoice.create` | Create invoice. Body: `{ studentId, title, amount, dueDate, category? }`; amount must be a positive number |
+| `POST` | `/invoices/:id/amend` | `finance.invoice.update` | Amend an unpaid issued invoice. Body may include `title`, `description`, `category`, `amount`, `dueDate`, and a required `changeNote`; the prior version is retained and audited |
+| `POST` | `/invoices/:id/void` | `finance.invoice.update` | Void an unpaid invoice. Body: `{ reason }`; voided records remain visible historically but are no longer payable |
 | `GET` | `/payments` | `finance.invoice.view` | List payments (own for students) |
 | `POST` | `/payments` | `finance.payment.record` | Record payment. Body: `{ invoiceId, amount, method, transactionId? }`; amount must be positive and no greater than the invoice's outstanding balance; `method` must be `esewa`, `khalti`, `connectips`, `cash`, `bank_transfer` or `stripe`. The invoice is reconciled and the student's fee balance reduced in the same operation; the response carries the persisted payment record |
 
 Payments reconcile immediately on record — there is no separate
 verification step, so no `/payments/:id/verify` endpoint exists.
+Issued invoices and receipts are projected from the Finance records in My
+Documents; they are not separately editable copies. Active enrolments,
+published examination results, and audience-authorized published academic
+calendar documents are projected in the same way. Source changes are reflected
+on the next request.
+Students can preview and download linked financial documents as HTML, and
+invoice amendment history is available in the linked document's version list.
+
+### My Documents (`/api/documents`)
+| Method | Path | Permissions | Description |
+|--------|------|-------------|-------------|
+| `GET` | `/documents` | `requireAuth` | Lists documents the caller can access and source-linked student financial, academic, and published examination records |
+| `GET` | `/documents/:id` | `requireAuth` | Returns an uploaded document or an authorized linked source record |
+| `GET` | `/documents/:id/versions` | `requireAuth` | Returns uploaded document history or finance invoice amendment history |
+| `GET` | `/documents/linked/:type/:id` | `requireAuth` | Previews/downloads an authorized invoice, receipt, or published exam result; use `?download=true` for a download |
+| `POST` | `/documents` | `requireAuth`; `documents.publish` for a student target | Uploads a document; authorized departments may set `studentId` and `approvalStatus` so approved records become available to that student |
+
+Linked financial records resolve against the authenticated student's account.
+Unpublished/revoked exam results and unapproved student-targeted uploads are
+not listed or readable by students. Finance/Billing remains the source of
+invoice, payment, and balance data.
 
 ### Admissions (`/api/admissions`)
 | Method | Path | Permissions | Description |

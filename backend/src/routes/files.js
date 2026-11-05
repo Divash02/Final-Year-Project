@@ -7,6 +7,7 @@ import {
   Assignment,
   Document,
   Student,
+  Staff,
   CourseWeek,
   Notice,
 } from "../models/index.js";
@@ -177,12 +178,30 @@ async function canReadSubmission(req, stored) {
 async function canReadDocument(req, stored) {
   const document = await Document.findById(stored.relatedId).lean();
   if (!document) return false;
-  if (String(document.user) === String(req.user._id || req.user.id)) return true;
+  const userId = String(req.user._id || req.user.id);
   const roles = getUserRoles(req.user);
-  if (roles.some((role) => ["super_admin", "registrar", "dean"].includes(role))) return true;
+  if (String(document.user?._id || document.user) === userId) return true;
+  if (roles.some((r) => ["super_admin", "dean", "registrar", "college_admin"].includes(r))) return true;
+  const shared = (document.sharedWith || []).find((s) => String(s.user) === userId);
+  if (shared) {
+    if (String(req.query.download || "") === "true" && shared.permission === "view") {
+      return false;
+    }
+    return true;
+  }
+  if (document.accessLevel === "public" && hasPermission(roles, "documents.view")) return true;
+  if (document.accessLevel === "department") {
+    const staff = await Staff.findOne({ user: req.user._id || req.user.id }).lean();
+    if (staff && staff.department === document.department) return true;
+  }
   if (document.student) {
     const student = await Student.findById(document.student).select("user").lean();
-    if (student && String(student.user) === String(req.user._id || req.user.id)) return true;
+    if (
+      student &&
+      String(student.user) === userId &&
+      document.approvalStatus === "approved" &&
+      !document.archived
+    ) return true;
   }
   return false;
 }

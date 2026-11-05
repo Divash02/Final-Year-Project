@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useToast } from "../ui/ToastContainer";
 import { apiRequest } from "../../services/apiClient";
 import { EmptyState } from "../ui/EmptyState";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -26,11 +27,11 @@ interface DirectoryStudent {
 }
 
 export const StudentDirectoryWorkspaceView: React.FC = () => {
+  const toast = useToast();
   const [students, setStudents] = useState<DirectoryStudent[]>([]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -44,11 +45,13 @@ export const StudentDirectoryWorkspaceView: React.FC = () => {
         })
         .catch((requestError: unknown) => {
           if (active)
-            setError(
-              requestError instanceof Error
-                ? requestError.message
-                : "Could not load the student directory.",
-            );
+            toast.toast({
+              message:
+                requestError instanceof Error
+                  ? requestError.message
+                  : "Could not load the student directory.",
+              variant: "error",
+            });
         })
         .finally(() => {
           if (active) setLoading(false);
@@ -118,14 +121,7 @@ export const StudentDirectoryWorkspaceView: React.FC = () => {
           <FontAwesomeIcon icon={faDownload} /> Export
         </button>
       </header>
-      {error && (
-        <p
-          role="alert"
-          className="border border-red-200 bg-red-50 p-3 text-sm text-red-800"
-        >
-          {error}
-        </p>
-      )}
+
       <div className="flex flex-wrap gap-2">
         <label className="flex items-center gap-2 rounded border border-slate-300 px-2 py-1.5 text-slate-500">
           <FontAwesomeIcon icon={faMagnifyingGlass} />

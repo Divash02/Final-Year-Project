@@ -70,12 +70,33 @@ const AIActivityLogSchema = new mongoose.Schema(
       },
     ],
     recommendation: { type: String, required: true },
+    classification: {
+      type: String,
+      enum: [
+        "INFORMATIONAL_RESPONSE",
+        "RECOMMENDATION",
+        "DRAFT_ACTION",
+        "CONSEQUENTIAL_ACTION",
+      ],
+      default: "INFORMATIONAL_RESPONSE",
+      index: true,
+    },
+    classificationReason: { type: String, default: "" },
+    idempotencyKey: { type: String, default: null },
     proposedAction: {
       actionKey: { type: String, default: null },
       label: { type: String, default: null },
       payload: { type: mongoose.Schema.Types.Mixed, default: null },
       targetEndpoint: { type: String, default: null },
       method: { type: String, default: "POST" },
+      targetModule: { type: String, default: null },
+      targetRecord: { type: String, default: null },
+      operation: { type: String, default: null },
+      currentValue: { type: mongoose.Schema.Types.Mixed, default: null },
+      proposedValue: { type: mongoose.Schema.Types.Mixed, default: null },
+      reason: { type: String, default: null },
+      requiredPermission: { type: String, default: null },
+      targetSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
       riskLevel: {
         type: String,
         enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
@@ -86,7 +107,7 @@ const AIActivityLogSchema = new mongoose.Schema(
       required: { type: Boolean, default: false },
       status: {
         type: String,
-        enum: ["NOT_REQUIRED", "PENDING", "CONFIRMED", "REJECTED"],
+        enum: ["NOT_REQUIRED", "PENDING", "EXECUTING", "EXECUTED", "FAILED", "CONFIRMED", "REJECTED"],
         default: "NOT_REQUIRED",
       },
       confirmedBy: {
@@ -97,6 +118,16 @@ const AIActivityLogSchema = new mongoose.Schema(
       confirmedAt: { type: Date, default: null },
       rejectionReason: { type: String, default: null },
     },
+    approvalHistory: [
+      {
+        _id: false,
+        event: { type: String, required: true },
+        actor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        at: { type: Date, default: Date.now },
+        reason: { type: String, default: "" },
+        details: { type: mongoose.Schema.Types.Mixed, default: null },
+      },
+    ],
     finalResult: {
       executed: { type: Boolean, default: false },
       success: { type: Boolean, default: null },
@@ -112,5 +143,9 @@ const AIActivityLogSchema = new mongoose.Schema(
 
 AIActivityLogSchema.index({ createdAt: -1 });
 AIActivityLogSchema.index({ module: 1, createdAt: -1 });
+AIActivityLogSchema.index(
+  { user: 1, idempotencyKey: 1 },
+  { unique: true, partialFilterExpression: { idempotencyKey: { $type: "string" } } },
+);
 
 export const AIActivityLog = mongoose.model("AIActivityLog", AIActivityLogSchema);

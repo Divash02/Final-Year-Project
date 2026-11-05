@@ -28,6 +28,8 @@ export const MailReader: React.FC<MailReaderProps> = ({
 }) => {
   const { thread, recipients } = detail;
   const attachments = thread.attachments ?? [];
+  const ccEmails = detail.ccEmails ?? thread.ccEmails ?? [];
+  const bccEmails = detail.bccEmails ?? thread.bccEmails ?? [];
 
   return (
     <article className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 py-7 lg:px-8">
@@ -47,6 +49,24 @@ export const MailReader: React.FC<MailReaderProps> = ({
           <dd className="min-w-0 break-words text-slate-800">
             {recipients.map((recipient) => recipient.email).join(", ") || "you"}
           </dd>
+
+          {ccEmails.length > 0 && (
+            <>
+              <dt className="font-medium text-slate-500">Cc</dt>
+              <dd className="min-w-0 break-words text-slate-800">
+                {ccEmails.join(", ")}
+              </dd>
+            </>
+          )}
+
+          {bccEmails.length > 0 && (
+            <>
+              <dt className="font-medium text-slate-500">Bcc</dt>
+              <dd className="min-w-0 break-words text-slate-800">
+                {bccEmails.join(", ")}
+              </dd>
+            </>
+          )}
 
           <dt className="font-medium text-slate-500">Sent</dt>
           <dd className="text-slate-800">

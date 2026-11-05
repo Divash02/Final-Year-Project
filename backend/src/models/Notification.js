@@ -60,6 +60,9 @@ const NotificationSchema = new mongoose.Schema(
 );
 
 NotificationSchema.index({ user: 1, read: 1, createdAt: -1 });
-NotificationSchema.index({ idempotencyKey: 1 }, { sparse: true });
+NotificationSchema.index(
+  { user: 1, idempotencyKey: 1 },
+  { unique: true, partialFilterExpression: { idempotencyKey: { $type: "string" } } },
+);
 
 export const Notification = mongoose.model("Notification", NotificationSchema);

@@ -70,6 +70,20 @@ const MailSchema = new mongoose.Schema(
         trim: true,
       },
     ],
+    ccEmails: [
+      {
+        type: String,
+        lowercase: true,
+        trim: true,
+      },
+    ],
+    bccEmails: [
+      {
+        type: String,
+        lowercase: true,
+        trim: true,
+      },
+    ],
     recipients: [
       {
         type: mongoose.Schema.Types.ObjectId,

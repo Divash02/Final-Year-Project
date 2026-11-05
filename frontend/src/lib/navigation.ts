@@ -18,7 +18,6 @@ import {
   faFileInvoiceDollar,
   faChartPie,
   faShieldHalved,
-  faBuilding,
   faBook,
   faClipboardList,
   faFileImage,
@@ -34,8 +33,6 @@ import {
   faUserGroup,
   faFileContract,
   faIdCard,
-  faBell,
-  faKey,
   faFileAlt,
   faRoute,
   faWrench,
@@ -149,12 +146,7 @@ const intelligenceItem: NavItem = {
 };
 
 const accountSection = (): NavSection => {
-  return defineSection("account-personal", [
-    profileItem,
-    { id: "my_documents", labelEn: "My Documents", labelNe: "मेरो कागजातहरू", icon: faFolder, permission: "documents.view" },
-    { id: "notification_preferences", labelEn: "Notification Preferences", labelNe: "सूचना प्राथमिकताहरू", icon: faBell },
-    { id: "security_sessions", labelEn: "Security & Sessions", labelNe: "सुरक्षा र सत्रहरू", icon: faKey },
-  ]);
+  return defineSection("account-personal", [profileItem]);
 };
 
 const workforceDashboardItem: NavItem = {
@@ -205,7 +197,7 @@ const STUDENT_NAV: NavSection[] = [
       badge: "pendingRequests",
       badgeTone: "warning",
     },
-    { id: "documents", labelEn: "My Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
+    { id: "smart_documents", labelEn: "My Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
     { id: "library", labelEn: "Library", labelNe: "पुस्तकालय", icon: faBook, permission: "library.view" },
     intelligenceItem,
   ]),
@@ -235,9 +227,8 @@ const FACULTY_NAV: NavSection[] = [
     { id: "teacher_coding_lab", labelEn: "Online Coding Lab", labelNe: "अनलाइन कोडिङ ल्याब", icon: faCode, permission: "coding.lab.view" },
   ]),
   defineSection("people-enrolment", [
-    { id: "attendance_sheet", labelEn: "Mark Attendance", labelNe: "दैनिक उपस्थिति", icon: faUserCheck, permission: "attendance.view" },
-    { id: "timetable_attendance", labelEn: "All Classes & Registers", labelNe: "कक्षा दर्ता", icon: faClipboardList, permission: "attendance.view" },
-    { id: "students", labelEn: "My Students", labelNe: "विद्यार्थी सूची", icon: faUsers, permission: "students.directory.view" },
+    { id: "attendance_sheet", labelEn: "Mark Attendance", labelNe: "à¤¦à¥ˆà¤¨à¤¿à¤• à¤‰à¤ªà¤¸à¥à¤¥à¤¿à¤¤à¤¿", icon: faUserCheck, permission: "attendance.view" },
+    { id: "students", labelEn: "My Students", labelNe: "à¤µà¤¿à¤¦à¥à¤¯à¤¾à¤°à¥à¤¥à¥€ à¤¸à¥‚à¤šà¥€", icon: faUsers, permission: "students.directory.view" },
   ]),
   defineSection("administration-governance", [
     { id: "documents", labelEn: "Teaching Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
@@ -390,9 +381,17 @@ const CAMPUS_ADMIN_NAV: NavSection[] = [
     { id: "students", labelEn: "Campus Directory", labelNe: "निर्देशिका", icon: faUsers, permission: "students.directory.view" },
   ]),
   defineSection("administration-governance", [
-    { id: "facilities_library", labelEn: "Buildings & Rooms", labelNe: "भवन तथा कोठाहरू", icon: faBuilding, permission: "library.view" },
     { id: "analytics", labelEn: "Campus Reports", labelNe: "क्याम्पस प्रतिवेदन", icon: faChartPie, permission: "analytics.view" },
     intelligenceItem,
+  ]),
+  defineSection("campus-learning-services", [
+    { id: "library", labelEn: "Library", labelNe: "पुस्तकालय", icon: faBook, permission: "library.view" },
+    { id: "campus_buildings", labelEn: "Buildings & Classrooms", labelNe: "भवन तथा कक्षाहरू", icon: faSchool, permission: "facilities.view" },
+    { id: "campus_labs", labelEn: "Laboratories & Equipment", labelNe: "प्रयोगशाला तथा उपकरण", icon: faBoxes, permission: "facilities.view" },
+    { id: "campus_reservations", labelEn: "Room Reservations", labelNe: "कोठा आरक्षण", icon: faCalendarCheck, permission: "facilities.view" },
+    { id: "campus_maintenance", labelEn: "Maintenance Management", labelNe: "मर्मत व्यवस्थापन", icon: faWrench, permission: "facilities.view" },
+    { id: "campus_assets", labelEn: "Assets & Inventory", labelNe: "सम्पत्ति तथा सूची", icon: faBoxes, permission: "facilities.view" },
+    { id: "campus_transport", labelEn: "Transport Management", labelNe: "यातायात व्यवस्थापन", icon: faCar, permission: "facilities.view" },
   ]),
   defineSection("communication-engagement", [
     {
@@ -496,17 +495,22 @@ const SUPER_ADMIN_NAV: NavSection[] = [
       badge: "overdueInvoices",
       badgeTone: "danger",
     },
-    { id: "facilities_library", labelEn: "Campus & Facilities", labelNe: "क्याम्पस तथा सुविधा", icon: faBuilding, permission: "library.view" },
-    { id: "campus_buildings", labelEn: "Buildings & Classrooms", labelNe: "भवन तथा कक्षाहरू", icon: faSchool, permission: "library.view" },
-    { id: "campus_labs", labelEn: "Laboratories & Equipment", labelNe: "प्रयोगशाला तथा उपकरण", icon: faBoxes, permission: "library.view" },
-    { id: "campus_reservations", labelEn: "Room Reservations", labelNe: "कोठा आरक्षण", icon: faCalendarCheck, permission: "library.view" },
-    { id: "campus_maintenance", labelEn: "Maintenance Management", labelNe: "मर्मत व्यवस्थापन", icon: faWrench, permission: "library.view" },
-    { id: "campus_assets", labelEn: "Assets & Inventory", labelNe: "सम्पत्ति तथा सूची", icon: faBoxes, permission: "library.view" },
-    { id: "campus_transport", labelEn: "Transport Management", labelNe: "यातायात व्यवस्थापन", icon: faCar, permission: "library.view" },
     { id: "analytics", labelEn: "Analytics & Audit Logs", labelNe: "विश्लेषण तथा अडिट", icon: faChartPie, permission: "analytics.view" },
     { id: "intelligence", labelEn: "AI Intelligence", labelNe: "कृत्रिम बुद्धिमत्ता", icon: faBrain, permission: "ai.view" },
     { id: "workflow_automation", labelEn: "Workflow Automation", labelNe: "कार्यप्रवाह स्वचालन", icon: faSitemap, permission: "workflow.manage" },
     { id: "smart_documents", labelEn: "Smart Document Centre", labelNe: "स्मार्ट कागजात केन्द्र", icon: faFileAlt, permission: "documents.view" },
+  ]),
+  defineSection("people-workforce", [
+    workforceDashboardItem,
+  ]  ),
+  defineSection("campus-learning-services", [
+    { id: "library", labelEn: "Library", labelNe: "पुस्तकालय", icon: faBook, permission: "library.view" },
+    { id: "campus_buildings", labelEn: "Buildings & Classrooms", labelNe: "भवन तथा कक्षाहरू", icon: faSchool, permission: "facilities.view" },
+    { id: "campus_labs", labelEn: "Laboratories & Equipment", labelNe: "प्रयोगशाला तथा उपकरण", icon: faBoxes, permission: "facilities.view" },
+    { id: "campus_reservations", labelEn: "Room Reservations", labelNe: "कोठा आरक्षण", icon: faCalendarCheck, permission: "facilities.view" },
+    { id: "campus_maintenance", labelEn: "Maintenance Management", labelNe: "मर्मत व्यवस्थापन", icon: faWrench, permission: "facilities.view" },
+    { id: "campus_assets", labelEn: "Assets & Inventory", labelNe: "सम्पत्ति तथा सूची", icon: faBoxes, permission: "facilities.view" },
+    { id: "campus_transport", labelEn: "Transport Management", labelNe: "यातायात व्यवस्थापन", icon: faCar, permission: "facilities.view" },
   ]),
   defineSection("communication-engagement", [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
@@ -524,9 +528,6 @@ const SUPER_ADMIN_NAV: NavSection[] = [
   ]),
   defineSection("account-personal", [
     { id: "profile", labelEn: "My Profile", labelNe: "मेरो प्रोफाइल", icon: faUser },
-    { id: "my_documents", labelEn: "My Documents", labelNe: "मेरो कागजातहरू", icon: faFolder, permission: "documents.view" },
-    { id: "notification_preferences", labelEn: "Notification Preferences", labelNe: "सूचना प्राथमिकताहरू", icon: faBell },
-    { id: "security_sessions", labelEn: "Security & Sessions", labelNe: "सुरक्षा र सत्रहरू", icon: faKey },
   ]),
 ];
 

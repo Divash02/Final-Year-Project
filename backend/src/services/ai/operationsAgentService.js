@@ -21,7 +21,7 @@ import { hasPermission } from "../../permissions/catalog.js";
  * strictly bounded by the user's active role and authorized data scope.
  */
 
-export async function processOperationsAgentQuery({ user, role, queryPrompt }) {
+export async function processOperationsAgentQuery({ user, role, queryPrompt, idempotencyKey = null }) {
   const prompt = String(queryPrompt || "").trim();
   if (!prompt) {
     throw new Error("Query prompt is required.");
@@ -94,14 +94,35 @@ export async function processOperationsAgentQuery({ user, role, queryPrompt }) {
 
     answer = aiRes.text;
 
-    if (flagged.length > 0 && (role === "dean" || role === "hod" || role === "registrar" || role === "super_admin")) {
+    const explicitlyRequestsWarnings =
+      /^(?:please\s+)?(?:send|issue|dispatch)\s+(?:the\s+)?(?:official\s+)?attendance\s+(?:warning|notice)s?\b/i.test(prompt) ||
+      /^go ahead and\s+(?:send|issue|dispatch)\s+(?:the\s+)?(?:official\s+)?attendance\s+(?:warning|notice)s?\b/i.test(prompt);
+    if (
+      flagged.length > 0 &&
+      explicitlyRequestsWarnings &&
+      hasPermission([role], "attendance.reviewCorrection")
+    ) {
       proposedAction = {
         actionKey: "DISPATCH_ATTENDANCE_WARNING_NOTICES",
         label: `Issue formal attendance warnings to ${flagged.length} student(s) below ${threshold}%`,
         payload: { studentIds: flagged.map((s) => s.studentId), threshold },
-        targetEndpoint: "/api/ai/actions/attendance-warnings",
         method: "POST",
-        riskLevel: "MEDIUM",
+        targetModule: "Academic",
+        targetRecord: flagged.map((s) => s.studentId).join(", "),
+        operation: "SEND_ATTENDANCE_WARNING_NOTICES",
+        currentValue: flagged.map((s) => ({
+          studentId: s.studentId,
+          attendancePercentage: s.attendancePercentage,
+        })),
+        proposedValue: "Issue an official attendance warning notification",
+        reason: `Attendance below the ${threshold}% institutional threshold.`,
+        requiredPermission: "attendance.reviewCorrection",
+        targetSnapshot: flagged.map((s) => ({
+          studentId: s.studentId,
+          attendancePercentage: s.attendancePercentage,
+          userId: String(s.user),
+        })),
+        riskLevel: "HIGH",
       };
       humanConfirmation = { required: true, status: "PENDING" };
     }
@@ -338,10 +359,11 @@ export async function processOperationsAgentQuery({ user, role, queryPrompt }) {
   const executionLatencyMs = Date.now() - startTime;
 
   // Record into immutable AI Activity Log
-  await logAIActivity({
+  const activityLog = await logAIActivity({
     user,
     role,
     module,
+    moduleRecognized: module,
     requestCategory,
     queryPrompt: prompt,
     dataScope,
@@ -349,16 +371,25 @@ export async function processOperationsAgentQuery({ user, role, queryPrompt }) {
     recommendation: answer,
     proposedAction,
     humanConfirmation,
+    idempotencyKey,
+    classification: proposedAction ? "CONSEQUENTIAL_ACTION" : "INFORMATIONAL_RESPONSE",
+    classificationReason: proposedAction
+      ? "The user explicitly requested sending attendance warnings."
+      : "The request was answered from verified data without requesting an institutional operation.",
     executionLatencyMs,
   });
 
   return {
     module,
     requestCategory,
+    query: prompt,
     answer,
     sourceRecords,
+    evidence: sourceRecords,
     proposedAction,
     humanConfirmation,
+    humanConfirmationRequired: Boolean(activityLog?.humanConfirmation?.required),
+    logId: activityLog?._id ? String(activityLog._id) : null,
     executionLatencyMs,
   };
 }

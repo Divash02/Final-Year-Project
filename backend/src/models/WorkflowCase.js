@@ -21,6 +21,13 @@ const WorkflowCaseSchema = new mongoose.Schema(
     requesterUser: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     student: { type: mongoose.Schema.Types.ObjectId, ref: "Student", default: null },
     assignedUser: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    workflowData: { type: mongoose.Schema.Types.Mixed, default: {} },
+    workflowInstance: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "WorkflowInstance",
+      default: null,
+      index: true,
+    },
     status: {
       type: String,
       enum: ["SUBMITTED", "IN_REVIEW", "MORE_INFO", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED"],

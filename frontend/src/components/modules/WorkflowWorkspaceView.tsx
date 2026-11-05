@@ -128,11 +128,13 @@ export const WorkflowWorkspaceView: React.FC = () => {
       await loadCases();
       setNotice("Request submitted and recorded.");
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Request could not be submitted.",
-      );
+      toast({
+        message:
+          requestError instanceof Error
+            ? requestError.message
+            : "Request could not be submitted.",
+        variant: "error",
+      });
     } finally {
       setBusy(false);
     }
@@ -170,11 +172,13 @@ export const WorkflowWorkspaceView: React.FC = () => {
       await loadCases();
       setNotice("Case status updated and audited.");
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Case status could not be updated.",
-      );
+      toast({
+        message:
+          requestError instanceof Error
+            ? requestError.message
+            : "Case status could not be updated.",
+        variant: "error",
+      });
     } finally {
       setBusy(false);
     }

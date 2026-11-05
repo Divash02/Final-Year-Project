@@ -241,7 +241,7 @@ export async function facultyCopilotAssist({
 /**
  * Student AI Copilot: Restricted strictly to the student's own verified records.
  */
-export async function studentCopilotAssist({ user, prompt }) {
+export async function studentCopilotAssist({ user, prompt, idempotencyKey = null }) {
   const student = await Student.findOne({ user: user._id || user.id }).lean();
   if (!student) throw new Error("Authenticated student record not found.");
 
@@ -282,6 +282,9 @@ export async function studentCopilotAssist({ user, prompt }) {
     ],
     recommendation: aiRes.text,
     executionLatencyMs: 20,
+    idempotencyKey,
+    classification: "INFORMATIONAL_RESPONSE",
+    classificationReason: "Student self-service academic question answered from the student's own verified records.",
   });
 
   return {

@@ -60,6 +60,18 @@ const UserSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    notificationEmail: {
+      type: Boolean,
+      default: true,
+    },
+    notificationSms: {
+      type: Boolean,
+      default: false,
+    },
+    notificationPush: {
+      type: Boolean,
+      default: true,
+    },
     emailSignature: {
       type: String,
       default: null,

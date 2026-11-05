@@ -33,7 +33,21 @@ const STRENGTH_COLORS: Record<PasswordStrengthScore["strength"], string> = {
   strong: "bg-emerald-500",
 };
 
-export const ForcePasswordChangeModal: React.FC = () => {
+interface ForcePasswordChangeModalProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  title?: string;
+  subtitle?: string;
+  mandatory?: boolean;
+}
+
+export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> = ({
+  isOpen = true,
+  onClose,
+  title = "Mandatory Password Update",
+  subtitle = "Update your temporary credential to continue",
+  mandatory = true,
+}) => {
   const { changePassword, currentUser, logout } = useCollegeOS();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -42,8 +56,11 @@ export const ForcePasswordChangeModal: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleClose = useCallback(() => {
-    void logout();
-  }, [logout]);
+    if (onClose) onClose();
+    else void logout();
+  }, [onClose, logout]);
+
+  if (!isOpen) return null;
 
   const policy = validatePassword(newPassword);
   const strength: PasswordStrengthScore = scorePasswordStrength(newPassword);
@@ -104,27 +121,29 @@ export const ForcePasswordChangeModal: React.FC = () => {
     <Modal
       isOpen={true}
       onClose={handleClose}
-      title="Mandatory Password Update"
-      subtitle="Update your temporary credential to continue"
+      title={title}
+      subtitle={subtitle}
       maxWidth="md"
     >
       <form
         onSubmit={handleSubmit}
         className="space-y-4 bg-white text-sm text-slate-800"
       >
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          <div className="flex items-center gap-2 font-semibold">
-            <FontAwesomeIcon icon={faShieldHalved} className="text-amber-600" />
-            <span>First-Login Security Verification</span>
+        {mandatory && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="flex items-center gap-2 font-semibold">
+              <FontAwesomeIcon icon={faShieldHalved} className="text-amber-600" />
+              <span>First-Login Security Verification</span>
+            </div>
+            <p className="mt-2">
+              You are signed in as{" "}
+              <span className="font-bold text-slate-900">
+                {currentUser?.email}
+              </span>
+              . Set a personal password before continuing.
+            </p>
           </div>
-          <p className="mt-2">
-            You are signed in as{" "}
-            <span className="font-bold text-slate-900">
-              {currentUser?.email}
-            </span>
-            . Set a personal password before continuing.
-          </p>
-        </div>
+        )}
 
         {error ? (
           <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -259,7 +278,7 @@ export const ForcePasswordChangeModal: React.FC = () => {
             isLoading={isSubmitting}
             disabled={isSubmitting || !policy.valid}
           >
-            Establish Password & Continue
+            {mandatory ? "Establish Password & Continue" : "Change Password"}
           </Button>
         </div>
       </form>

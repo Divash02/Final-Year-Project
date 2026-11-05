@@ -22,6 +22,7 @@ import { Alert } from "../ui/Alert";
 import { CardSkeleton } from "../ui/Skeleton";
 import { WorkspaceLayout } from "../layout/WorkspaceLayout";
 import { useCollegeOS } from "../../context/CollegeOSContext";
+import { useToast } from "../ui/ToastContainer";
 import {
   fetchMyTimetable,
   fetchTimetableNotices,
@@ -56,6 +57,8 @@ const VIEWS: { id: MyTimetableView; label: string }[] = [
 ];
 
 export const StudentTimetableView: React.FC = () => {
+  const toast = useToast();
+  const showError = (m: string) => toast.showToast(m, "error");
   const [view, setView] = useState<MyTimetableView>("week");
   const [anchor, setAnchor] = useState<string | null>(null);
   const [data, setData] = useState<MyTimetableResponse | null>(null);
@@ -73,7 +76,7 @@ export const StudentTimetableView: React.FC = () => {
       setLoadFailed(false);
     } catch (requestError) {
       setLoadFailed(true);
-      setError(
+      showError(
         requestError instanceof Error
           ? requestError.message
           : "Your timetable could not be loaded.",

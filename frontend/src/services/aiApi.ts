@@ -22,30 +22,43 @@ export interface AIAnomalyAlert {
 
 export interface AIActivityLogItem {
   _id: string;
-  actor: {
+  actor?: {
     userId: string;
     fullName: string;
     role: string;
     email: string;
   };
+  userName?: string;
+  userEmail?: string;
+  role?: string;
   module: string;
   requestCategory: string;
+  classification?: "INFORMATIONAL_RESPONSE" | "RECOMMENDATION" | "DRAFT_ACTION" | "CONSEQUENTIAL_ACTION";
   queryPrompt?: string;
   recommendation: string;
   humanConfirmation?: {
     required: boolean;
-    status: "NOT_REQUIRED" | "PENDING" | "APPROVED" | "REJECTED";
+    status: "NOT_REQUIRED" | "PENDING" | "EXECUTING" | "EXECUTED" | "FAILED" | "CONFIRMED" | "REJECTED";
     actionKey?: string;
     confirmedBy?: string;
     confirmedAt?: string;
     resolutionNotes?: string;
   };
   proposedAction?: {
-    actionKey: string;
-    label: string;
+    actionKey?: string;
+    label?: string;
     payload?: any;
     riskLevel?: "LOW" | "MEDIUM" | "HIGH";
+    targetModule?: string;
+    targetRecord?: string;
+    operation?: string;
+    currentValue?: unknown;
+    proposedValue?: unknown;
+    reason?: string;
+    requiredPermission?: string;
   };
+  createdAt?: string;
+  approvalHistory?: Array<{ event: string; actor?: string; at: string; reason?: string }>;
   executionLatencyMs: number;
   timestamp: string;
 }
@@ -181,7 +194,7 @@ export const aiApi = {
   },
 
   // 2. Natural Language Operations Agent
-  async queryOperationsAgent(query: string) {
+  async queryOperationsAgent(query: string, idempotencyKey: string) {
     return apiRequest<{
       query: string;
       moduleRecognized: string;
@@ -190,9 +203,9 @@ export const aiApi = {
       proposedAction?: any;
       humanConfirmationRequired: boolean;
       logId?: string;
-    }>("/ai/operations/query", {
+    }>("/ai/operations", {
       method: "POST",
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ queryPrompt: query, idempotencyKey }),
     });
   },
 
@@ -214,10 +227,10 @@ export const aiApi = {
     );
   },
 
-  async studentCopilotAssist(prompt?: string) {
+  async studentCopilotAssist(prompt?: string, idempotencyKey?: string) {
     return apiRequest<{ summary: string; studentContext: any }>("/ai/academic/student-copilot", {
       method: "POST",
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, idempotencyKey }),
     });
   },
 

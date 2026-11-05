@@ -1,9 +1,13 @@
-import React, { Suspense, lazy, useEffect } from "react";
+import React, { Suspense, lazy, useEffect, useState, useCallback } from "react";
 import { AuthUser } from "./types";
 import { CollegeOSProvider, useCollegeOS } from "./context/CollegeOSContext";
 import { ToastProvider, useToast } from "./components/ui/ToastContainer";
 import { LoginView } from "./components/auth/LoginView";
 import { ForcePasswordChangeModal } from "./components/auth/ForcePasswordChangeModal";
+import { routeToView } from "./lib/appRoutes";
+import { SplashScreen } from "./components/pages/SplashScreen";
+import { WelcomePage } from "./components/pages/WelcomePage";
+import { SessionGuard } from "./components/session/SessionGuard";
 
 // Helper for code-splitting named exports cleanly
 const lazyModule = <T,>(
@@ -92,6 +96,11 @@ const AcademicCalendarView = lazyModule(
 const AcademicCalendarDocumentsView = lazyModule(
   () => import("./components/modules/AcademicCalendarDocumentsView"),
   (m) => m.AcademicCalendarDocumentsView,
+);
+
+const SmartDocumentCentreView = lazyModule(
+  () => import("./components/modules/SmartDocumentCentreView"),
+  (m) => m.SmartDocumentCentreView,
 );
 const MessagesView = lazyModule(
   () => import("./components/modules/MessagesView"),
@@ -194,6 +203,12 @@ function isStudentAccount(user: AuthUser | null): boolean {
   return roles.length === 1 && roles[0] === "student";
 }
 
+/**
+ * Session key used to track whether the splash screen has been shown this
+ * browser session. We show it once per session so returning visitors skip it.
+ */
+const SPLASH_SESSION_KEY = "collegeos_splash_shown";
+
 const AppContent: React.FC = () => {
   const {
     isAuthenticated,
@@ -212,18 +227,46 @@ const AppContent: React.FC = () => {
     login,
     intendedDestination,
     setIntendedDestination,
-    viewToRoute,
   } = useCollegeOS();
+  // Welcome-experience state:
+  //  "splash"   — cinematic intro playing
+  //  "welcome"  — public landing page visible
+  //  "login"    — visitor clicked "Enter CollegeOS", show LoginView
+  const isRootPath = window.location.pathname === "/";
+  const splashAlreadyShown =
+    typeof sessionStorage !== "undefined" &&
+    sessionStorage.getItem(SPLASH_SESSION_KEY) === "1";
+
+  const [publicStage, setPublicStage] = useState<"splash" | "welcome" | "login">(
+    () => {
+      if (isRootPath && !splashAlreadyShown) return "splash";
+      if (isRootPath) return "welcome";
+      return "login"; // non-root path → go straight to login
+    },
+  );
+
+  const handleSplashComplete = useCallback(() => {
+    try {
+      sessionStorage.setItem(SPLASH_SESSION_KEY, "1");
+    } catch {
+      // sessionStorage may be blocked in some contexts — harmless
+    }
+    setPublicStage("welcome");
+  }, []);
+
+  const handleEnterPortal = useCallback(() => {
+    setPublicStage("login");
+  }, []);
 
   // Store the intended destination when unauthenticated
   useEffect(() => {
     if (!isAuthenticated && !loginTransition && !isHydrating) {
       const path = window.location.pathname;
-      if (path !== "/" && path !== "/account/activate" && viewToRoute[path]) {
+      if (path !== "/" && path !== "/account/activate" && routeToView[path]) {
         setIntendedDestination(path);
       }
     }
-  }, [isAuthenticated, loginTransition, isHydrating, viewToRoute, setIntendedDestination]);
+  }, [isAuthenticated, loginTransition, isHydrating, setIntendedDestination]);
 
   // Show loading screen while authentication is being restored (hydration)
   if (isHydrating) {
@@ -239,18 +282,30 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Login-First Gate: Unauthenticated users MUST see LoginView first
-  if (!isAuthenticated || loginTransition) {
-    if (loginTransition) {
-      return (
-        <LoginView
-          transitioning={true}
-          onTransitionComplete={completeLoginTransition}
-        />
-      );
+  // ── Public welcome experience (unauthenticated visitors at "/") ──────────
+  if (!isAuthenticated && !loginTransition) {
+    // Splash screen
+    if (publicStage === "splash") {
+      return <SplashScreen onComplete={handleSplashComplete} />;
     }
 
+    // Public landing page
+    if (publicStage === "welcome") {
+      return <WelcomePage onEnterPortal={handleEnterPortal} />;
+    }
+
+    // "login" stage — visitor clicked "Enter CollegeOS"
     return <LoginView onLoginSuccess={intendedDestination} />;
+  }
+
+  // ── Login transition overlay ──────────────────────────────────────────────
+  if (loginTransition) {
+    return (
+      <LoginView
+        transitioning={true}
+        onTransitionComplete={completeLoginTransition}
+      />
+    );
   }
 
    const permissionByView: Record<string, string> = {
@@ -273,11 +328,20 @@ const AppContent: React.FC = () => {
      notices: "notices.view",
      documents: "documents.view",
      library: "library.view",
+     facilities_library: "facilities.view",
+     campus_facilities_ext: "facilities.view",
+     campus_buildings: "facilities.view",
+     campus_labs: "facilities.view",
+     campus_reservations: "facilities.view",
+     campus_maintenance: "facilities.view",
+     campus_assets: "facilities.view",
+     campus_transport: "facilities.view",
      analytics: "analytics.view",
      student_coding_lab: "coding.lab.view",
      teacher_coding_lab: "coding.lab.view",
-     quizzes: "lms.quiz.manage",
-   };
+      quizzes: "lms.quiz.manage",
+      smart_documents: "documents.view",
+    };
   const requiredPermission = permissionByView[activeView];
   if (
     requiredPermission &&
@@ -358,6 +422,9 @@ const AppContent: React.FC = () => {
       case "documents":
         return <WorkflowWorkspaceView />;
 
+      case "workflow_automation":
+        return <WorkflowAutomationView />;
+
       case "communication":
         return <CollegeMailView />;
       case "email_signature":
@@ -410,19 +477,24 @@ const AppContent: React.FC = () => {
         return <HostelAccommodationView />;
 
       case "library_learning":
-      case "library":
         return <LibraryLearningResourcesView />;
 
       case "student_clubs":
         return <StudentClubsEventsView />;
 
-      case "workflow_automation":
-        return <WorkflowAutomationView />;
+       case "smart_documents":
+         return <SmartDocumentCentreView />;
 
       case "student_lifecycle":
         return <StudentLifecycleView />;
 
       case "campus_facilities_ext":
+      case "campus_buildings":
+      case "campus_labs":
+      case "campus_reservations":
+      case "campus_maintenance":
+      case "campus_assets":
+      case "campus_transport":
         return <CampusFacilitiesExtendedView />;
 
       case "student_coding_lab":
@@ -466,6 +538,7 @@ const AppContent: React.FC = () => {
 
         {activeReceipt && <ReceiptModal />}
         {activePaymentModal && <PaymentGatewayModal />}
+        {isAuthenticated && !isHydrating && <SessionGuard />}
       </AppShell>
     </Suspense>
   );

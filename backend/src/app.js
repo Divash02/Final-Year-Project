@@ -30,6 +30,9 @@ import { registerAssessmentRoutes } from "./routes/assessments.js";
 import { registerAIRoutes } from "./routes/ai.js";
 import { registerHRRoutes } from "./routes/hr.js";
 import { registerLibraryRoutes } from "./routes/library.js";
+import { registerFolderRoutes } from "./routes/folders.js";
+import { registerDocumentRoutes } from "./routes/documents.js";
+import { registerFacilitiesRoutes } from "./routes/facilities.js";
 import { toErrorResponse } from "./utils/apiError.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -39,7 +42,25 @@ const uploadsDir = path.resolve(__dirname, "../uploads");
 export function createApp() {
   const app = express();
   app.disable("x-powered-by");
-  app.use(cors());
+
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const corsOptions = {
+    origin: (origin, callback) => {
+      // Allow non-browser requests (curl, Postman, etc.) where origin is undefined
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("Not allowed by CORS policy"), false);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  };
+
+  app.use(cors(corsOptions));
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true, limit: "1mb" }));
   // Only profile photos are delivered as ordinary static assets: they are
@@ -50,6 +71,19 @@ export function createApp() {
   app.use(
     "/uploads/signatures",
     express.static(signatureDir, {
+      index: false,
+      dotfiles: "deny",
+      maxAge: "1h",
+      fallthrough: false,
+      setHeaders: (res) => {
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Content-Disposition", "inline");
+      },
+    }),
+  );
+  app.use(
+    "/uploads/avatars",
+    express.static(path.join(uploadsDir, "avatars"), {
       index: false,
       dotfiles: "deny",
       maxAge: "1h",
@@ -95,6 +129,9 @@ export function createApp() {
   registerAIRoutes(app);
   registerHRRoutes(app);
   registerLibraryRoutes(app);
+registerFolderRoutes(app);
+registerDocumentRoutes(app);
+  registerFacilitiesRoutes(app);
 
   // Unknown API routes answer in the same structured shape as every other
   // error, so the frontend never has to special-case a bare HTML 404.

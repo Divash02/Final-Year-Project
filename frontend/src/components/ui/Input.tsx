@@ -4,7 +4,7 @@ import { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
 
 export interface FormFieldProps {
-  label: string;
+  label?: string;
   /** Receives the ids and aria wiring to spread onto the control. */
   children: (control: {
     id: string;
@@ -70,7 +70,8 @@ export const FormField: React.FC<FormFieldProps> = ({
 };
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label: string;
+  label?: string;
+  leftIcon?: IconDefinition;
   icon?: IconDefinition;
   /** Rendered inside the field on the trailing edge (e.g. password toggle). */
   trailing?: React.ReactNode;
@@ -85,8 +86,9 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
  * radius, optional leading Font Awesome icon, and trailing affordances.
  */
 export const Input: React.FC<InputProps> = ({
-  label,
+  label = "",
   icon,
+  leftIcon,
   trailing,
   helperText,
   error,
@@ -106,9 +108,9 @@ export const Input: React.FC<InputProps> = ({
   >
     {({ id, describedBy, invalid }) => (
       <div className="relative">
-        {icon && (
+        {(icon || leftIcon) && (
           <FontAwesomeIcon
-            icon={icon}
+            icon={(icon || leftIcon)!}
             className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base text-slate-400"
             aria-hidden="true"
           />

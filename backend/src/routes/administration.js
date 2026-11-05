@@ -1090,4 +1090,70 @@ export function registerAdministrationRoutes(app) {
       }
     }
   );
+
+  /**
+   * Administrative session management. Super administrators can inspect and
+   * revoke any account's sessions. Revocation takes effect immediately: the
+   * next authenticated request from any tab using the revoked token is
+   * rejected with a SESSION_REVOKED code.
+   */
+  app.get(
+    "/api/admin/users/:userId/sessions",
+    requireAuth,
+    requireRole(["super_admin"]),
+    async (req, res) => {
+      try {
+        const now = new Date();
+        const sessions = await Session.find({ user: req.params.userId })
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .lean();
+        // Reuse the auth route's public shaping by importing locally to avoid
+        // a circular route dependency.
+        const { sessionToPublic } = await import("./auth.js");
+        res.json({
+          sessions: sessions.map((session) =>
+            sessionToPublic(session, null, now),
+          ),
+        });
+      } catch (err) {
+        res.status(500).json({ error: "Unable to load account sessions." });
+      }
+    }
+  );
+
+  app.delete(
+    "/api/admin/users/:userId/sessions/:sessionId",
+    requireAuth,
+    requireRole(["super_admin"]),
+    async (req, res) => {
+      if (!/^[a-f\d]{24}$/i.test(req.params.sessionId)) {
+        return res.status(400).json({ error: "Invalid session identifier." });
+      }
+      try {
+        const session = await Session.findOneAndUpdate(
+          {
+            _id: req.params.sessionId,
+            user: req.params.userId,
+            revokedAt: null,
+          },
+          { $set: { revokedAt: new Date() } },
+        );
+        if (!session) {
+          return res.status(404).json({ error: "Session not found." });
+        }
+        await logAudit({
+          userId: req.user._id || req.user.id,
+          action: "ADMIN_SESSION_REVOKED",
+          module: "administration",
+          resource: "session",
+          resourceId: session._id.toString(),
+          details: `Super admin revoked a session for user ${req.params.userId}.`,
+        });
+        res.json({ success: true });
+      } catch (err) {
+        res.status(500).json({ error: "Unable to revoke this session." });
+      }
+    }
+  );
 }

@@ -1,20 +1,15 @@
-import React from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
-import * as SolidIcons from '@fortawesome/free-solid-svg-icons';
+import React from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 
 export interface IconProps {
   icon: IconDefinition;
   className?: string;
-  size?: 'xs' | 'sm' | 'lg' | '1x' | '2x' | '3x';
-  spin?: boolean;
+  "aria-hidden"?: boolean;
 }
 
-export const Icon: React.FC<IconProps> = ({ icon, className = '', size, spin = false }) => {
-  return <FontAwesomeIcon icon={icon} className={className} size={size} spin={spin} />;
-};
+export const Icon: React.FC<IconProps> = ({ icon, className = "text-base", "aria-hidden": ariaHidden = true }) => (
+  <FontAwesomeIcon icon={icon} className={className} aria-hidden={ariaHidden} />
+);
 
-// Common icon exports for clean imports across the project
-export {
-  SolidIcons
-};
+export default Icon;

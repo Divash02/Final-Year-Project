@@ -30,7 +30,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   onTransitionComplete,
   onLoginSuccess,
 }) => {
-  const { login } = useCollegeOS();
+  const { login, sessionExpiredMessage, clearSessionExpiredMessage, remainingLoginAttempts } = useCollegeOS();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -70,7 +70,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const handleSubmit = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
+      if (isSubmitting) return;
       setErrorMessage("");
+      setIsSubmitting(true);
       setSubmitting(true);
 
       try {
@@ -91,10 +93,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
         );
         setAuthResult("error");
       } finally {
+        setIsSubmitting(false);
         setSubmitting(false);
       }
     },
-    [email, password, login, onLoginSuccess, setSubmitting, setAuthResult],
+    [email, password, login, onLoginSuccess, isSubmitting, setSubmitting, setAuthResult],
   );
 
   const handleRecoveryRequest = useCallback(
@@ -208,6 +211,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
         }}
         data-testid="login-card"
       >
+        {/* Session-expired notice */}
+        {sessionExpiredMessage && (
+          <Alert variant="error" onDismiss={clearSessionExpiredMessage}>
+            {sessionExpiredMessage}
+          </Alert>
+        )}
+
         {/* Desktop split layout */}
         <div className="hidden lg:flex lg:w-full lg:min-h-[520px]">
           {/* Left: Illustration Panel */}
@@ -236,6 +246,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 showPassword={showPassword}
                 errorMessage={errorMessage}
                 isSubmitting={isSubmitting}
+                remainingLoginAttempts={remainingLoginAttempts}
                 onEmailChange={handleEmailChange}
                 onPasswordChange={handlePasswordChange}
                 onShowPasswordToggle={handleShowPasswordToggle}
@@ -278,6 +289,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 showPassword={showPassword}
                 errorMessage={errorMessage}
                 isSubmitting={isSubmitting}
+                remainingLoginAttempts={remainingLoginAttempts}
                 onEmailChange={handleEmailChange}
                 onPasswordChange={handlePasswordChange}
                 onShowPasswordToggle={handleShowPasswordToggle}
@@ -380,6 +392,7 @@ interface AuthFormProps {
   showPassword: boolean;
   errorMessage: string;
   isSubmitting: boolean;
+  remainingLoginAttempts: number | null;
   onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onShowPasswordToggle: () => void;
@@ -397,6 +410,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
   showPassword,
   errorMessage,
   isSubmitting,
+  remainingLoginAttempts,
   onEmailChange,
   onPasswordChange,
   onShowPasswordToggle,
@@ -487,7 +501,12 @@ const AuthForm: React.FC<AuthFormProps> = ({
         </div>
       </div>
 
-      {/* Submit button */}
+             {/* Remaining attempts */}
+       {remainingLoginAttempts !== null && (
+         <p className={`text-sm ${remainingLoginAttempts <= 2 ? "text-red-600" : remainingLoginAttempts <= 5 ? "text-amber-600" : "text-slate-500"}`}>
+           {remainingLoginAttempts} attempt{remainingLoginAttempts === 1 ? "" : "s"} remaining
+          </p>
+        )}
       <Button
         type="submit"
         fullWidth

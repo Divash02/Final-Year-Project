@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useCollegeOS } from "../../../context/CollegeOSContext";
 import { useToast } from "../../ui/ToastContainer";
 import { Card } from "../../ui/Card";
@@ -125,6 +125,8 @@ export const AICommandCenterWorkspace: React.FC = () => {
   const [quizDifficulty, setQuizDifficulty] = useState("MEDIUM");
   const [generatedQuestions, setGeneratedQuestions] = useState<any[]>([]);
   const [studentCopilotSummary, setStudentCopilotSummary] = useState<any>(null);
+  const studentCopilotRequestKey = useRef(crypto.randomUUID());
+  const studentCopilotRequested = useRef(false);
 
   // Examination Analytics State
   const [examAnalytics, setExamAnalytics] = useState<ExamAnalyticsData | null>(null);
@@ -240,7 +242,7 @@ export const AICommandCenterWorkspace: React.FC = () => {
     if (!agentQuery.trim()) return;
     setAgentLoading(true);
     try {
-      const res = await aiApi.queryOperationsAgent(agentQuery.trim());
+      const res = await aiApi.queryOperationsAgent(agentQuery.trim(), crypto.randomUUID());
       setAgentChatHistory((prev) => [
         ...prev,
         {
@@ -291,8 +293,12 @@ export const AICommandCenterWorkspace: React.FC = () => {
   useEffect(() => {
     if (activeTab === "academic") {
       aiApi.fetchEarlyWarnings().then((res) => setEarlyWarnings(res.warningList || []));
-      if (currentRole === "student") {
-        aiApi.studentCopilotAssist().then((res) => setStudentCopilotSummary(res));
+      if (currentRole === "student" && !studentCopilotRequested.current) {
+        studentCopilotRequested.current = true;
+        aiApi
+          .studentCopilotAssist(undefined, studentCopilotRequestKey.current)
+          .then((res) => setStudentCopilotSummary(res))
+          .catch((err: Error) => notify("Student Copilot Error", err.message, "error"));
       }
     } else if (activeTab === "examination") {
       aiApi.fetchExamAnalytics().then((res) => setExamAnalytics(res));
@@ -486,50 +492,29 @@ export const AICommandCenterWorkspace: React.FC = () => {
            </Card>
 
           {/* Pending Human Confirmations List */}
-          {pendingConfirmations.filter((log) => {
-            const rec = (log.recommendation || '').toLowerCase();
-            if (rec.includes('evaluated 1 student records') && rec.includes('0 high priority')) return false;
-            if (log.module === 'faculty_copilot') return false;
-            if (rec.includes('faculty copilot processed action')) return false;
-            return true;
-          }).length > 0 && (
+          {pendingConfirmations.length > 0 ? (
             <Card className="p-5 bg-white border border-amber-200 rounded-xl">
               <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-500" strokeWidth={1.5} />
                 <h3 className="text-sm font-bold text-slate-900">
-                  Pending Consequential Action Approvals ({pendingConfirmations.filter((log) => {
-                    const rec = (log.recommendation || '').toLowerCase();
-                    if (rec.includes('evaluated 1 student records') && rec.includes('0 high priority')) return false;
-                    if (log.module === 'faculty_copilot') return false;
-                    if (rec.includes('faculty copilot processed action')) return false;
-                    return true;
-                  }).length})
+                  Pending Consequential Action Approvals ({pendingConfirmations.length})
                 </h3>
               </div>
                 <Badge variant="warning" size="sm">Human Confirmation Gate</Badge>
               </div>
 
               <div className="divide-y divide-slate-100">
-                {pendingConfirmations
-                  .filter((log) => {
-                    const rec = (log.recommendation || '').toLowerCase();
-                    const label = (log.proposedAction?.label || '').toLowerCase();
-                    if (rec.includes('evaluated 1 student records') && rec.includes('0 high priority')) return false;
-                    if (log.module === 'faculty_copilot') return false;
-                    if (rec.includes('faculty copilot processed action')) return false;
-                    return true;
-                  })
-                  .map((log) => (
+                {pendingConfirmations.map((log) => (
                   <div key={log._id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold text-slate-800">
-                        {log.proposedAction?.label || log.recommendation}
+                        {log.proposedAction?.label}
                       </p>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        Module: <span className="font-medium text-slate-700">{log.module}</span> &bull; Action:{" "}
-                        <span className="font-mono text-slate-700">{log.proposedAction?.actionKey || "STAGED"}</span> &bull;
-                        Risk Level:{" "}
+                        Initiated by: <span className="font-medium text-slate-700">{log.userName || "AI-assisted request"}</span> &bull; Target:{" "}
+                        <span className="font-medium text-slate-700">{log.proposedAction?.targetModule} / {log.proposedAction?.targetRecord}</span> &bull;
+                        Action Key: <span className="font-mono text-slate-700">{log.proposedAction?.actionKey}</span> &bull; Risk:{" "}
                         <span className="font-bold text-rose-600">{log.proposedAction?.riskLevel || "HIGH"}</span>
                       </p>
                     </div>
@@ -549,6 +534,14 @@ export const AICommandCenterWorkspace: React.FC = () => {
                   </div>
                 ))}
               </div>
+            </Card>
+          ) : (
+            <Card className="p-5 bg-white border border-neutral-200 rounded-xl">
+              <EmptyState
+                icon={faCircleCheck}
+                title="No Consequential Actions Awaiting Approval"
+                description="Informational answers and drafts do not enter the human confirmation queue."
+              />
             </Card>
           )}
 
@@ -1147,18 +1140,18 @@ export const AICommandCenterWorkspace: React.FC = () => {
                 {activityLogs.map((log) => (
                   <tr key={log._id} className="hover:bg-slate-50/60">
                     <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
-                      {new Date(log.timestamp).toLocaleTimeString()}
+                      {new Date(log.createdAt || log.timestamp).toLocaleTimeString()}
                     </td>
                     <td className="py-3 px-3 font-medium text-slate-900">
-                      {log.actor?.fullName}
-                      <span className="block text-[10px] text-slate-500 uppercase">{log.actor?.role}</span>
+                      {log.actor?.fullName || log.userName}
+                      <span className="block text-[10px] text-slate-500 uppercase">{log.actor?.role || log.role}</span>
                     </td>
                     <td className="py-3 px-3">{log.module}</td>
                     <td className="py-3 px-3 text-slate-800 max-w-xs truncate">{log.recommendation}</td>
                     <td className="py-3 px-3">
                       <Badge
                         variant={
-                          log.humanConfirmation?.status === "APPROVED"
+                          ["CONFIRMED", "EXECUTED"].includes(log.humanConfirmation?.status || "")
                             ? "success"
                             : log.humanConfirmation?.status === "PENDING"
                             ? "warning"
@@ -1652,12 +1645,20 @@ export const AICommandCenterWorkspace: React.FC = () => {
       >
         <div className="space-y-4 p-4 text-xs">
           <p className="font-semibold text-slate-800">
-            {selectedLogForConfirm?.proposedAction?.label || selectedLogForConfirm?.recommendation}
+            {selectedLogForConfirm?.proposedAction?.label}
           </p>
           <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-            <p className="text-slate-600">Module: <span className="font-medium">{selectedLogForConfirm?.module}</span></p>
-            <p className="text-slate-600">Action Key: <span className="font-mono">{selectedLogForConfirm?.proposedAction?.actionKey}</span></p>
-            <p className="text-slate-600">Risk Level: <span className="font-bold text-rose-600">{selectedLogForConfirm?.proposedAction?.riskLevel}</span></p>
+            <p className="text-slate-600">Action Key: <span className="font-mono">{selectedLogForConfirm?.proposedAction?.actionKey || "Unavailable"}</span></p>
+            <p className="text-slate-600">Initiated by: <span className="font-medium">{selectedLogForConfirm?.userName} ({selectedLogForConfirm?.role})</span></p>
+            <p className="text-slate-600">Target module / record: <span className="font-medium">{selectedLogForConfirm?.proposedAction?.targetModule} / {selectedLogForConfirm?.proposedAction?.targetRecord}</span></p>
+            <p className="text-slate-600">Operation: <span className="font-medium">{selectedLogForConfirm?.proposedAction?.operation}</span></p>
+            <p className="text-slate-600">Current value: <span className="font-medium">{JSON.stringify(selectedLogForConfirm?.proposedAction?.currentValue ?? null)}</span></p>
+            <p className="text-slate-600">Proposed value: <span className="font-medium">{JSON.stringify(selectedLogForConfirm?.proposedAction?.proposedValue ?? null)}</span></p>
+            <p className="text-slate-600">Reason: <span className="font-medium">{selectedLogForConfirm?.proposedAction?.reason}</span></p>
+            <p className="text-slate-600">Risk level: <span className="font-bold text-rose-600">{selectedLogForConfirm?.proposedAction?.riskLevel}</span></p>
+            <p className="text-slate-600">Required permission: <span className="font-medium">{selectedLogForConfirm?.proposedAction?.requiredPermission}</span></p>
+            <p className="text-slate-600">Status: <span className="font-medium">{selectedLogForConfirm?.humanConfirmation?.status}</span></p>
+            <p className="text-slate-600">Created: <span className="font-medium">{selectedLogForConfirm?.createdAt ? new Date(selectedLogForConfirm.createdAt).toLocaleString() : "Unavailable"}</span></p>
           </div>
 
           <div>
@@ -1684,6 +1685,11 @@ export const AICommandCenterWorkspace: React.FC = () => {
               size="sm"
               variant="primary"
               onClick={() => handleConfirmAction(true)}
+              disabled={
+                !selectedLogForConfirm?.proposedAction?.actionKey ||
+                !selectedLogForConfirm?.proposedAction?.operation ||
+                !selectedLogForConfirm?.proposedAction?.requiredPermission
+              }
             >
               <FontAwesomeIcon icon={faCheck} className="mr-1 text-emerald-400" />
               Approve & Execute

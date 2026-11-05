@@ -3,82 +3,144 @@ import {
   getUserById,
   logAudit,
 } from "../db.js";
-import { User, Student, Mail, Message, Notification } from "../models/index.js";
-import { requireAuth } from "../middleware/auth.js";
+import {
+  User,
+  Student,
+  Staff,
+  Employee,
+  Mail,
+  Message,
+  Notification,
+} from "../models/index.js";
+import { requireAuth, requirePermission } from "../middleware/auth.js";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 export function registerCommunicationRoutes(app) {
-  // 1. Recipient Recommendations / Search (Requirement 31)
-  app.get("/api/mail/recipients/suggest", requireAuth, async (req, res) => {
+  // 1. Recipient Recommendations / Search
+  app.get(
+    "/api/mail/recipients/suggest",
+    requireAuth,
+    requirePermission("mail.view"),
+    async (req, res) => {
     try {
-      const query = String(req.query.q || "").trim().toLowerCase();
-      if (!query || query.length < 2) {
+      const query = String(req.query.q || "").trim();
+      if (query.length < 2) {
         return res.json({ suggestions: [] });
       }
-
-      const regex = new RegExp(query, "i");
-      const [users, students] = await Promise.all([
-        User.find({
-          $or: [
-            { email: regex },
-            { collegeEmail: regex },
-            { firstName: regex },
-            { lastName: regex },
-          ],
-          isActive: true,
-        }).limit(20),
-        Student.find({
-          $or: [
-            { studentId: regex },
-            { firstName: regex },
-            { lastName: regex },
-            { collegeEmail: regex },
-          ],
-        }).populate("user").limit(20),
-      ]);
-
-      const seenEmails = new Set();
-      const suggestions = [];
-
-      for (const st of students) {
-        const email = st.collegeEmail || st.email || st.user?.email;
-        if (!email || seenEmails.has(email)) continue;
-        seenEmails.add(email);
-        suggestions.push({
-          id: st.user?._id?.toString() || st._id.toString(),
-          name: `${st.firstName} ${st.lastName}`.trim(),
-          email,
-          role: "Student",
-          section: st.section ? `Section ${st.section}` : "",
-          program: st.program || "BCA",
-          studentId: st.studentId,
-        });
+      if (query.length > 100) {
+        return res.status(400).json({ error: "Contact search is too long." });
       }
+      const regex = new RegExp(escapeRegex(query), "i");
+      const nameTerms = query.split(/\s+/).filter(Boolean).map(escapeRegex);
+      const profileSearch = { $or: [{ department: regex }, { designation: regex }] };
 
-      for (const u of users) {
-        const email = u.collegeEmail || u.email;
+      const [staffMatches, employeeMatches, studentMatches] = await Promise.all([
+        Staff.find({ isActive: true, ...profileSearch }).select("user").lean(),
+        Employee.find({
+          isActive: true,
+          employmentStatus: "active",
+          ...profileSearch,
+        }).select("user").lean(),
+        Student.find({
+          status: "ACTIVE",
+          $or: [{ department: regex }, { program: regex }],
+        }).select("user").lean(),
+      ]);
+      const profileUserIds = [
+        ...staffMatches,
+        ...employeeMatches,
+        ...studentMatches,
+      ].map((profile) => profile.user);
+      const nameMatch = {
+        $and: nameTerms.map((term) => ({
+          $or: [
+            { firstName: new RegExp(term, "i") },
+            { middleName: new RegExp(term, "i") },
+            { lastName: new RegExp(term, "i") },
+          ],
+        })),
+      };
+      const users = await User.find({
+        isActive: true,
+        accountStatus: "ACTIVE",
+        mustChangePassword: { $ne: true },
+        $or: [
+          { email: regex },
+          { collegeEmail: regex },
+          nameMatch,
+          { _id: { $in: profileUserIds } },
+        ],
+      })
+        .select("_id email collegeEmail firstName middleName lastName roles avatarUrl")
+        .limit(20)
+        .lean();
+
+      if (!users.length) return res.json({ suggestions: [] });
+      const userIds = users.map((user) => user._id);
+      const [students, staff, employees] = await Promise.all([
+        Student.find({ user: { $in: userIds }, status: "ACTIVE" })
+          .select("user avatarUrl department")
+          .lean(),
+        Staff.find({ user: { $in: userIds }, isActive: true })
+          .select("user department designation")
+          .lean(),
+        Employee.find({
+          user: { $in: userIds },
+          isActive: true,
+          employmentStatus: "active",
+        })
+          .select("user department designation")
+          .lean(),
+      ]);
+      const studentByUser = new Map(students.map((profile) => [String(profile.user), profile]));
+      const staffByUser = new Map(staff.map((profile) => [String(profile.user), profile]));
+      const employeeByUser = new Map(employees.map((profile) => [String(profile.user), profile]));
+      const suggestions = [];
+      const seenEmails = new Set();
+
+      for (const user of users) {
+        const email = String(user.collegeEmail || user.email || "").trim().toLowerCase();
         if (!email || seenEmails.has(email)) continue;
         seenEmails.add(email);
-        const roleLabel = (u.roles?.[0] || "Staff").replace("_", " ").toUpperCase();
+        const key = String(user._id);
+        const profile =
+          staffByUser.get(key) ||
+          employeeByUser.get(key) ||
+          studentByUser.get(key);
         suggestions.push({
-          id: u._id.toString(),
-          name: [u.firstName, u.middleName, u.lastName].filter(Boolean).join(" "),
+          id: key,
+          name:
+            [user.firstName, user.middleName, user.lastName]
+              .filter(Boolean)
+              .join(" ") || email,
           email,
-          role: roleLabel,
-          section: "",
-          program: "",
+          avatarUrl: user.avatarUrl || studentByUser.get(key)?.avatarUrl || null,
+          role: (user.roles?.[0] || "CollegeOS user")
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+          department: profile?.department || null,
+          designation: "designation" in (profile || {})
+            ? profile.designation || null
+            : null,
+          source: "directory",
         });
       }
 
       res.json({ suggestions: suggestions.slice(0, 10) });
     } catch (err) {
-      console.error("Recipient suggest error:", err);
       res.status(500).json({ error: "Failed to find recipient suggestions." });
     }
-  });
+    },
+  );
 
   // 2. Get Mail for specific folder (inbox, sent, drafts, trash, starred, archive)
   // Requirement 30 & 32
-  app.get("/api/mail", requireAuth, async (req, res) => {
+  app.get("/api/mail", requireAuth, requirePermission("mail.view"), async (req, res) => {
     try {
       const folder = String(req.query.folder || "inbox").toLowerCase();
       const currentUserId = req.user._id || req.user.id;
@@ -179,6 +241,11 @@ export function registerCommunicationRoutes(app) {
           isDraft: Boolean(m.isDraft),
           attachments: m.attachments || [],
           recipientEmails: m.recipientEmails || [],
+          ccEmails: m.ccEmails || [],
+          bccEmails:
+            String(m.sender?._id || m.sender) === String(currentUserId)
+              ? m.bccEmails || []
+              : [],
         };
       });
 
@@ -190,11 +257,18 @@ export function registerCommunicationRoutes(app) {
   });
 
   // 3. Get single mail details
-  app.get("/api/mail/:id", requireAuth, async (req, res) => {
+  app.get("/api/mail/:id", requireAuth, requirePermission("mail.view"), async (req, res) => {
     try {
       const currentUserId = req.user._id || req.user.id;
       const mail = await Mail.findById(req.params.id).populate("sender recipients");
       if (!mail) return res.status(404).json({ error: "Mail not found." });
+      const isSender = String(mail.sender?._id || mail.sender) === String(currentUserId);
+      const userHasMail = mail.userStates.some(
+        (state) => String(state.user) === String(currentUserId),
+      );
+      if (!isSender && !userHasMail) {
+        return res.status(404).json({ error: "Mail not found." });
+      }
 
       // Mark as read in user's state
       await Mail.updateOne(
@@ -210,11 +284,7 @@ export function registerCommunicationRoutes(app) {
         ? `${mail.sender.firstName} ${mail.sender.lastName}`.trim()
         : mail.senderName || mail.senderEmail;
 
-      const recipients = (mail.recipients || []).map((r) => ({
-        email: r.collegeEmail || r.email,
-        first_name: r.firstName,
-        last_name: r.lastName,
-      }));
+      const recipients = (mail.recipientEmails || []).map((email) => ({ email }));
 
       res.json({
         thread: {
@@ -234,7 +304,11 @@ export function registerCommunicationRoutes(app) {
           isRead: true,
           isStarred: Boolean(userState.isStarred),
           attachments: mail.attachments || [],
+          ccEmails: mail.ccEmails || [],
+          bccEmails: isSender ? mail.bccEmails || [] : [],
         },
+        ccEmails: mail.ccEmails || [],
+        bccEmails: isSender ? mail.bccEmails || [] : [],
         recipients,
       });
     } catch (err) {
@@ -243,11 +317,13 @@ export function registerCommunicationRoutes(app) {
   });
 
   // 4. Send or draft mail
-  app.post("/api/mail", requireAuth, async (req, res) => {
+  app.post("/api/mail", requireAuth, requirePermission("mail.view"), async (req, res) => {
     try {
       const {
         recipientEmail,
         recipientEmails: multiEmails,
+        ccEmails = [],
+        bccEmails = [],
         subject = "(no subject)",
         body = "",
         isDraft = false,
@@ -258,14 +334,40 @@ export function registerCommunicationRoutes(app) {
       const senderEmail = req.user.collegeEmail || req.user.email;
       const senderName = [req.user.firstName, req.user.lastName].filter(Boolean).join(" ");
 
-      // Handle recipients
-      const emailList = multiEmails && Array.isArray(multiEmails)
+      if (
+        (multiEmails !== undefined && !Array.isArray(multiEmails)) ||
+        !Array.isArray(ccEmails) ||
+        !Array.isArray(bccEmails)
+      ) {
+        return res.status(400).json({ error: "Recipient addresses must be lists." });
+      }
+      const toInput = Array.isArray(multiEmails)
         ? multiEmails
-        : recipientEmail ? [recipientEmail] : [];
-
-      const normalizedRecipients = emailList
-        .map((e) => String(e).trim().toLowerCase())
-        .filter(Boolean);
+        : recipientEmail
+          ? [recipientEmail]
+          : [];
+      const recipientGroups = [toInput, ccEmails, bccEmails];
+      if (
+        recipientGroups.some((group) =>
+          group.some((email) => typeof email !== "string" || !EMAIL_PATTERN.test(email.trim())),
+        )
+      ) {
+        return res.status(400).json({ error: "Enter a valid email address for each recipient." });
+      }
+      const normalizedGroups = recipientGroups.map((group) => group.map((email) => email.trim().toLowerCase()));
+      const seenRecipients = new Set();
+      const [toEmails, copiedEmails, blindCopiedEmails] = normalizedGroups.map((group) =>
+        group.filter((email) => {
+          if (seenRecipients.has(email)) return false;
+          seenRecipients.add(email);
+          return true;
+        }),
+      );
+      const normalizedRecipients = [
+        ...toEmails,
+        ...copiedEmails,
+        ...blindCopiedEmails,
+      ];
 
       // Attachments arrive as JSON-serializable metadata objects. Raw File
       // objects cannot survive JSON.stringify (they become {}) and lack the
@@ -280,12 +382,15 @@ export function registerCommunicationRoutes(app) {
           )
         : [];
 
-      if (!isDraft && normalizedRecipients.length === 0) {
+      if (!isDraft && toEmails.length === 0) {
         return res.status(400).json({ error: "Recipient email is required." });
       }
 
       // Lookup recipient users in MongoDB
       const recipientUsers = await User.find({
+        isActive: true,
+        accountStatus: "ACTIVE",
+        mustChangePassword: { $ne: true },
         $or: [
           { email: { $in: normalizedRecipients } },
           { collegeEmail: { $in: normalizedRecipients } },
@@ -330,7 +435,9 @@ export function registerCommunicationRoutes(app) {
         sender: currentUserId,
         senderEmail,
         senderName,
-        recipientEmails: normalizedRecipients,
+        recipientEmails: toEmails,
+        ccEmails: copiedEmails,
+        bccEmails: blindCopiedEmails,
         recipients: recipientUsers.map((u) => u._id),
         subject: String(subject).trim() || "(no subject)",
         body: String(body).trim(),
@@ -363,7 +470,7 @@ export function registerCommunicationRoutes(app) {
   });
 
   // 5. Toggle Star state
-  app.patch("/api/mail/:id/star", requireAuth, async (req, res) => {
+  app.patch("/api/mail/:id/star", requireAuth, requirePermission("mail.view"), async (req, res) => {
     try {
       const currentUserId = req.user._id || req.user.id;
       const mail = await Mail.findById(req.params.id);
@@ -394,7 +501,7 @@ export function registerCommunicationRoutes(app) {
   });
 
   // 6. Toggle Read state
-  app.patch("/api/mail/:id/read", requireAuth, async (req, res) => {
+  app.patch("/api/mail/:id/read", requireAuth, requirePermission("mail.view"), async (req, res) => {
     try {
       const currentUserId = req.user._id || req.user.id;
       const { isRead = true } = req.body || {};
@@ -424,7 +531,7 @@ export function registerCommunicationRoutes(app) {
   });
 
   // 7. Move to Trash / Archive / Folder
-  app.patch("/api/mail/:id/folder", requireAuth, async (req, res) => {
+  app.patch("/api/mail/:id/folder", requireAuth, requirePermission("mail.view"), async (req, res) => {
     try {
       const currentUserId = req.user._id || req.user.id;
       const { folder = "trash" } = req.body || {};
@@ -454,7 +561,7 @@ export function registerCommunicationRoutes(app) {
   });
 
   // 8. Delete mail (Permanent or Trash)
-  app.delete("/api/mail/:id", requireAuth, async (req, res) => {
+  app.delete("/api/mail/:id", requireAuth, requirePermission("mail.view"), async (req, res) => {
     try {
       const currentUserId = req.user._id || req.user.id;
       const mail = await Mail.findById(req.params.id);
@@ -687,6 +794,37 @@ export function registerCommunicationRoutes(app) {
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: "Failed to mark all as read." });
+    }
+  });
+
+  // 10. Mark a single notification as unread (toggle back).
+  app.patch("/api/notifications/:id/unread", requireAuth, async (req, res) => {
+    try {
+      const currentUserId = req.user._id || req.user.id;
+      const notif = await Notification.findOneAndUpdate(
+        { _id: req.params.id, user: currentUserId },
+        { read: false, readAt: null },
+        { returnDocument: 'after' }
+      );
+      if (!notif) return res.status(404).json({ error: "Notification not found." });
+      res.json({ success: true, read: false });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to update notification." });
+    }
+  });
+
+  // 11. Dismiss (delete) a single notification from the active list.
+  app.delete("/api/notifications/:id", requireAuth, async (req, res) => {
+    try {
+      const currentUserId = req.user._id || req.user.id;
+      const notif = await Notification.findOneAndDelete({
+        _id: req.params.id,
+        user: currentUserId,
+      });
+      if (!notif) return res.status(404).json({ error: "Notification not found." });
+      res.json({ success: true, deleted: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to dismiss notification." });
     }
   });
 }

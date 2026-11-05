@@ -3,7 +3,15 @@ export { Student } from "./Student.js";
 export { Staff } from "./Staff.js";
 export { Employee } from "./Employee.js";
 export { LeaveRequest } from "./LeaveRequest.js";
-export { LibraryBook, LibraryLoan } from "./Library.js";
+export {
+  LibraryBook,
+  LibraryBookCopy,
+  LibraryLoan,
+  LibraryReservation,
+  LibraryFine,
+  LibraryFinePayment,
+  LibraryPolicy,
+} from "./Library.js";
 export { Department } from "./Department.js";
 export { Program } from "./Program.js";
 export { Section } from "./Section.js";
@@ -57,6 +65,9 @@ export { ExamSeatingPlan } from "./ExamSeatingPlan.js";
 export { Invoice } from "./Invoice.js";
 export { Payment } from "./Payment.js";
 export { WorkflowCase } from "./WorkflowCase.js";
+export { WorkflowDefinition } from "./WorkflowDefinition.js";
+export { WorkflowInstance } from "./WorkflowInstance.js";
+export { Folder } from "./Folder.js";
 export { Document } from "./Document.js";
 export { Notice } from "./Notice.js";
 export { Message } from "./Message.js";
@@ -67,6 +78,15 @@ export { InstitutionSetting } from "./InstitutionSetting.js";
 export { Session } from "./Session.js";
 export { PasswordResetToken } from "./PasswordResetToken.js";
 export { Room } from "./Room.js";
+export {
+  Building,
+  FacilityLab,
+  FacilityReservation,
+  FacilityMaintenanceRequest,
+  FacilityAsset,
+  TransportVehicle,
+  TransportRoute,
+} from "./Facilities.js";
 export {
   AcademicCalendarEvent,
   ACADEMIC_EVENT_TYPES,
@@ -161,4 +181,4 @@ export { ITTicket, TICKET_CATEGORIES, TICKET_PRIORITIES, TICKET_STATUSES } from 
 export { SecurityEvent, SECURITY_EVENT_TYPES } from "./SecurityEvent.js";
 export { DigitalCredential, CREDENTIAL_TYPES, CREDENTIAL_STATUSES } from "./DigitalCredential.js";
 export { AttendanceQRSession } from "./AttendanceQRSession.js";
-
+export { LoginAttempt } from "./LoginAttempt.js";

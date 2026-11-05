@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPaperPlane,
@@ -21,19 +21,319 @@ import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { FormField } from "../ui/Input";
 import { Alert } from "../ui/Alert";
-import { apiRequest } from "../../services/apiClient";
+import { apiRequest, resolveAssetUrl } from "../../services/apiClient";
+
+type RecipientContact = {
+  id?: string;
+  name: string;
+  email: string;
+  avatarUrl?: string | null;
+  department?: string | null;
+  designation?: string | null;
+  role?: string;
+  source: "directory" | "manual";
+};
+
+type RecipientBucket = "to" | "cc" | "bcc";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+const initialsFor = (name: string, email: string) => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return (words.length > 1
+    ? `${words[0][0]}${words[words.length - 1][0]}`
+    : words[0]?.slice(0, 2) || email.slice(0, 2)
+  ).toUpperCase();
+};
+
+const RecipientField: React.FC<{
+  id: string;
+  label: string;
+  placeholder: string;
+  contacts: RecipientContact[];
+  onAdd: (contact: RecipientContact) => boolean;
+  onRemove: (email: string) => void;
+}> = ({ id, label, placeholder, contacts, onAdd, onRemove }) => {
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<RecipientContact[]>([]);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [inputError, setInputError] = useState("");
+
+  useEffect(() => {
+    const search = query.trim();
+    if (search.length < 2) {
+      setSuggestions([]);
+      setLoading(false);
+      setSearchError("");
+      setOpen(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setOpen(true);
+    setSearchError("");
+    setLoading(true);
+    const timer = window.setTimeout(() => {
+      void apiRequest<{ suggestions: RecipientContact[] }>(
+        `/mail/recipients/suggest?q=${encodeURIComponent(search)}`,
+        { signal: controller.signal },
+      )
+        .then((result) => {
+          setSuggestions(result.suggestions);
+          setActiveIndex(-1);
+        })
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          setSuggestions([]);
+          setSearchError(
+            error instanceof Error
+              ? error.message
+              : "Could not search CollegeOS contacts. Try again.",
+          );
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query]);
+
+  const addManualAddress = () => {
+    const email = query.trim().replace(/,$/, "").toLowerCase();
+    if (!email) return false;
+    if (!EMAIL_PATTERN.test(email)) {
+      setInputError("Enter a valid email address.");
+      return false;
+    }
+    const registered = suggestions.find(
+      (contact) => contact.email.toLowerCase() === email,
+    );
+    const added = onAdd(
+      registered || { name: email, email, source: "manual" },
+    );
+    if (!added) {
+      setInputError("This recipient is already included.");
+      return false;
+    }
+    setQuery("");
+    setSuggestions([]);
+    setInputError("");
+    setOpen(false);
+    return true;
+  };
+
+  const selectContact = (contact: RecipientContact) => {
+    if (!onAdd(contact)) {
+      setInputError("This recipient is already included.");
+      return;
+    }
+    setQuery("");
+    setSuggestions([]);
+    setInputError("");
+    setOpen(false);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown" && suggestions.length > 0) {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((index) => (index + 1) % suggestions.length);
+    } else if (event.key === "ArrowUp" && suggestions.length > 0) {
+      event.preventDefault();
+      setActiveIndex((index) =>
+        index <= 0 ? suggestions.length - 1 : index - 1,
+      );
+    } else if (event.key === "Escape") {
+      event.stopPropagation();
+      setOpen(false);
+      setActiveIndex(-1);
+    } else if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      if (open && activeIndex >= 0 && suggestions[activeIndex]) {
+        selectContact(suggestions[activeIndex]);
+      } else {
+        addManualAddress();
+      }
+    }
+  };
+
+  return (
+    <div>
+      <div
+        className="relative flex min-h-11 flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus-within:border-[var(--color-primary)] focus-within:ring-2 focus-within:ring-[var(--color-primary)]/15"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setOpen(false);
+          }
+        }}
+      >
+        {contacts.map((contact) => (
+          <span
+            key={contact.email}
+            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-1.5 text-xs text-slate-700"
+          >
+            <span className="max-w-[16rem] truncate">
+              {contact.source === "directory" && contact.name !== contact.email
+                ? `${contact.name} · `
+                : ""}
+              {contact.email}
+            </span>
+            {contact.source === "manual" && (
+              <span className="shrink-0 rounded bg-slate-200 px-1 text-[10px] text-slate-600">
+                Manual
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => onRemove(contact.email)}
+              aria-label={`Remove ${contact.email} from ${label}`}
+              className="ml-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+            >
+              <FontAwesomeIcon icon={faTimes} className="h-2.5 w-2.5" />
+            </button>
+          </span>
+        ))}
+        <input
+          id={id}
+          name={id}
+          type="text"
+          autoComplete="off"
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setInputError("");
+          }}
+          onFocus={() => {
+            if (query.trim().length >= 2) setOpen(true);
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder={contacts.length ? "Add another recipient" : placeholder}
+          aria-label={label}
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={`${id}-suggestions`}
+          aria-activedescendant={
+            activeIndex >= 0 ? `${id}-suggestion-${activeIndex}` : undefined
+          }
+          className="min-w-[12rem] flex-1 border-0 bg-transparent py-1 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+        />
+        {open && query.trim().length >= 2 && (
+          <div
+            id={`${id}-suggestions`}
+            role="listbox"
+            aria-label={`${label} contact suggestions`}
+            className="absolute left-0 right-0 top-full z-50 mt-2 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+          >
+            {loading ? (
+              <div className="px-3 py-4 text-center text-sm text-slate-500" role="status">
+                Searching CollegeOS contacts…
+              </div>
+            ) : searchError ? (
+              <div className="px-3 py-4 text-center text-sm text-rose-600" role="status">
+                {searchError}
+              </div>
+            ) : suggestions.length === 0 ? (
+              <div className="px-3 py-4 text-center text-sm text-slate-500">
+                No matching registered contacts. You can still add a valid email
+                address by pressing Enter.
+              </div>
+            ) : (
+              suggestions.map((contact, index) => (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={index === activeIndex}
+                  id={`${id}-suggestion-${index}`}
+                  key={contact.id || contact.email}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => selectContact(contact)}
+                  className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition ${
+                    index === activeIndex
+                      ? "bg-blue-50"
+                      : "hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-sm font-semibold text-blue-800">
+                    {initialsFor(contact.name, contact.email)}
+                    {contact.avatarUrl && (
+                      <img
+                        src={resolveAssetUrl(contact.avatarUrl)}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.style.display = "none";
+                        }}
+                      />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-900">
+                      {contact.name}
+                    </span>
+                    <span className="block truncate text-xs text-slate-600">
+                      {contact.email}
+                    </span>
+                    {(contact.department || contact.designation || contact.role) && (
+                      <span className="block truncate text-[11px] text-slate-500">
+                        {[contact.department, contact.designation || contact.role]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                    CollegeOS
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+      {(inputError || (query.trim().length > 0 && query.trim().length < 2)) && (
+        <p className="mt-1 text-xs text-rose-600" role="status">
+          {inputError || "Type at least 2 characters to search contacts."}
+        </p>
+      )}
+      {!inputError && (
+        <p className="mt-1 text-xs text-slate-500">
+          Type a name or email, then press Enter to add a manual address.
+        </p>
+      )}
+    </div>
+  );
+};
 
 export interface MailComposerProps {
   isOpen: boolean;
   onClose: () => void;
-  onSend: (payload: { recipientEmail: string; subject: string; body: string; attachments: File[] }) => Promise<void>;
+  onSend: (payload: {
+    recipientEmail: string;
+    recipientEmails: string[];
+    ccEmails: string[];
+    bccEmails: string[];
+    subject: string;
+    body: string;
+    attachments: File[];
+  }) => Promise<void>;
   initialRecipient?: string;
   initialSubject?: string;
   initialBody?: string;
 }
 
 export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onSend, initialRecipient = "", initialSubject = "", initialBody = "" }) => {
-  const [recipientEmail, setRecipientEmail] = useState(initialRecipient);
+  const [toRecipients, setToRecipients] = useState<RecipientContact[]>([]);
+  const [ccRecipients, setCcRecipients] = useState<RecipientContact[]>([]);
+  const [bccRecipients, setBccRecipients] = useState<RecipientContact[]>([]);
+  const [showCc, setShowCc] = useState(false);
+  const [showBcc, setShowBcc] = useState(false);
   const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState(initialBody);
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -54,11 +354,47 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
   const signatureImageInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const signatureEditorRef = useRef<HTMLDivElement>(null);
+  const signatureRangeRef = useRef<Range | null>(null);
   const [signatureColor, setSignatureColor] = useState("#000000");
+  const [signatureFormats, setSignatureFormats] = useState({
+    bold: false,
+    italic: false,
+    underline: false,
+  });
+
+  const updateSignatureFormats = useCallback(() => {
+    const editor = signatureEditorRef.current;
+    const selection = window.getSelection();
+    if (
+      !editor ||
+      !selection?.anchorNode ||
+      !editor.contains(selection.anchorNode)
+    ) {
+      setSignatureFormats({ bold: false, italic: false, underline: false });
+      return;
+    }
+
+    if (selection.rangeCount > 0) {
+      signatureRangeRef.current = selection.getRangeAt(0).cloneRange();
+    }
+    setSignatureFormats({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+    });
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
-    setRecipientEmail(initialRecipient);
+    setToRecipients(
+      initialRecipient
+        ? [{ name: initialRecipient, email: initialRecipient, source: "manual" }]
+        : [],
+    );
+    setCcRecipients([]);
+    setBccRecipients([]);
+    setShowCc(false);
+    setShowBcc(false);
     setSubject(initialSubject);
     setAttachments([]);
     setError("");
@@ -73,6 +409,10 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
         const imgUrl = prof.profile?.signature_image_url || null;
         setSignature(sig);
         setSignatureImageUrl(imgUrl);
+        if (signatureEditorRef.current) {
+          signatureEditorRef.current.innerHTML = sig;
+          signatureRangeRef.current = null;
+        }
         if (editorRef.current) {
           const base = initialBody || "";
           const imgHtml = imgUrl ? `<br><img src="${imgUrl}" style="max-height:60px;" />` : "";
@@ -85,8 +425,24 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
     return () => { cancelled = true; };
   }, [isOpen, initialRecipient, initialSubject, initialBody]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    document.addEventListener("selectionchange", updateSignatureFormats);
+    return () =>
+      document.removeEventListener("selectionchange", updateSignatureFormats);
+  }, [isOpen, updateSignatureFormats]);
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!toRecipients.length) {
+      setError("Add at least one recipient in the To field.");
+      return;
+    }
+    const allRecipients = [...toRecipients, ...ccRecipients, ...bccRecipients];
+    if (allRecipients.some(({ email }) => !EMAIL_PATTERN.test(email))) {
+      setError("Enter a valid email address for each recipient.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -94,7 +450,15 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
       const img = includeHandwritten && signatureImageUrl ? `<br><img src="${signatureImageUrl}" style="max-height:60px;" />` : "";
       const separator = signature ? "<br><hr style='border:none;border-top:1px solid #cbd5e1;margin:0.5rem 0;' /><br>" : "";
       const finalBody = signature ? `${content}${separator}${signature}${img}` : (img ? `${content}${img}` : content);
-      await onSend({ recipientEmail: recipientEmail.trim(), subject, body: finalBody, attachments });
+      await onSend({
+        recipientEmail: toRecipients[0].email,
+        recipientEmails: toRecipients.map(({ email }) => email),
+        ccEmails: ccRecipients.map(({ email }) => email),
+        bccEmails: bccRecipients.map(({ email }) => email),
+        subject,
+        body: finalBody,
+        attachments,
+      });
       onClose();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Could not send this mail.");
@@ -219,17 +583,57 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
     }
   };
 
+  const addRecipient = (
+    bucket: RecipientBucket,
+    contact: RecipientContact,
+  ) => {
+    const email = contact.email.trim().toLowerCase();
+    const duplicate = [...toRecipients, ...ccRecipients, ...bccRecipients].some(
+      (recipient) => recipient.email.toLowerCase() === email,
+    );
+    if (duplicate) return false;
+    const normalized = { ...contact, email };
+    if (bucket === "to") setToRecipients((current) => [...current, normalized]);
+    if (bucket === "cc") setCcRecipients((current) => [...current, normalized]);
+    if (bucket === "bcc") setBccRecipients((current) => [...current, normalized]);
+    return true;
+  };
+
+  const removeRecipient = (bucket: RecipientBucket, email: string) => {
+    const remove = (current: RecipientContact[]) =>
+      current.filter(
+        (contact) => contact.email.toLowerCase() !== email.toLowerCase(),
+      );
+    if (bucket === "to") setToRecipients(remove);
+    if (bucket === "cc") setCcRecipients(remove);
+    if (bucket === "bcc") setBccRecipients(remove);
+  };
+
   const execSignature = (cmd: string, value?: string) => {
+    const editor = signatureEditorRef.current;
+    const selection = window.getSelection();
+    const savedRange = signatureRangeRef.current;
+    if (
+      editor &&
+      savedRange &&
+      editor.contains(savedRange.commonAncestorContainer) &&
+      selection
+    ) {
+      editor.focus();
+      selection.removeAllRanges();
+      selection.addRange(savedRange);
+    }
     document.execCommand(cmd, false, value);
-    signatureEditorRef.current?.focus();
-    setSignature(signatureEditorRef.current?.innerHTML || "");
+    if (editor) setSignature(editor.innerHTML);
+    updateSignatureFormats();
   };
 
   const saveSignature = async () => {
     setUploading(true);
     setMessage("");
     try {
-      const html = signature.trim();
+      const html = (signatureEditorRef.current?.innerHTML || signature).trim();
+      setSignature(html);
       await apiRequest("/users/me/signature", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -247,6 +651,11 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
     if (!window.confirm("Remove your email signature?")) return;
     setUploading(true);
     setSignature("");
+    if (signatureEditorRef.current) {
+      signatureEditorRef.current.innerHTML = "";
+      signatureRangeRef.current = null;
+    }
+    setSignatureFormats({ bold: false, italic: false, underline: false });
     try {
       await apiRequest("/users/me/signature", {
         method: "PUT",
@@ -270,11 +679,64 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
     }>
       <form id="mail-composer-form" onSubmit={submit} noValidate className="space-y-5">
         {error && <Alert variant="error">{error}</Alert>}
-        <FormField label="Recipient" required>
-          {({ id, describedBy, invalid }) => (
-            <input id={id} name="recipient" type="email" required autoComplete="off" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="name@techspire.edu.np" aria-describedby={describedBy} aria-invalid={invalid || undefined} className="cos-input" />
+        <FormField label="To" required>
+          {({ id }) => (
+            <RecipientField
+              id={id}
+              label="To"
+              placeholder="Search name or email"
+              contacts={toRecipients}
+              onAdd={(contact) => addRecipient("to", contact)}
+              onRemove={(email) => removeRecipient("to", email)}
+            />
           )}
         </FormField>
+        <div className="-mt-3 flex gap-3 text-xs">
+          <button
+            type="button"
+            onClick={() => setShowCc((visible) => !visible)}
+            aria-expanded={showCc}
+            className="font-medium text-[var(--color-primary)] hover:underline"
+          >
+            {showCc ? "Hide Cc" : "Add Cc"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowBcc((visible) => !visible)}
+            aria-expanded={showBcc}
+            className="font-medium text-[var(--color-primary)] hover:underline"
+          >
+            {showBcc ? "Hide Bcc" : "Add Bcc"}
+          </button>
+        </div>
+        {showCc && (
+          <FormField label="Cc">
+            {({ id }) => (
+              <RecipientField
+                id={id}
+                label="Cc"
+                placeholder="Search name or email"
+                contacts={ccRecipients}
+                onAdd={(contact) => addRecipient("cc", contact)}
+                onRemove={(email) => removeRecipient("cc", email)}
+              />
+            )}
+          </FormField>
+        )}
+        {showBcc && (
+          <FormField label="Bcc">
+            {({ id }) => (
+              <RecipientField
+                id={id}
+                label="Bcc"
+                placeholder="Search name or email"
+                contacts={bccRecipients}
+                onAdd={(contact) => addRecipient("bcc", contact)}
+                onRemove={(email) => removeRecipient("bcc", email)}
+              />
+            )}
+          </FormField>
+        )}
         <FormField label="Subject" required>
           {({ id, describedBy, invalid }) => (
             <input id={id} name="subject" type="text" required maxLength={180} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-describedby={describedBy} aria-invalid={invalid || undefined} className="cos-input" />
@@ -366,13 +828,71 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
             </h3>
           </div>
           <div className="px-3 py-3 space-y-2">
-            <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-2">
-              <button type="button" onClick={() => execSignature("bold")} className="rounded px-2 py-1 text-xs hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-primary)]">B</button>
-              <button type="button" onClick={() => execSignature("italic")} className="rounded px-2 py-1 text-xs hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-primary)]">I</button>
-              <button type="button" onClick={() => execSignature("underline")} className="rounded px-2 py-1 text-xs hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-primary)]">U</button>
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 pb-2">
+              <button
+                type="button"
+                title="Bold"
+                aria-label="Bold"
+                aria-pressed={signatureFormats.bold}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => execSignature("bold")}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                  signatureFormats.bold
+                    ? "bg-[var(--color-primary)] text-white shadow-sm"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                <FontAwesomeIcon icon={faBold} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                title="Italic"
+                aria-label="Italic"
+                aria-pressed={signatureFormats.italic}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => execSignature("italic")}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                  signatureFormats.italic
+                    ? "bg-[var(--color-primary)] text-white shadow-sm"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                <FontAwesomeIcon icon={faItalic} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                title="Underline"
+                aria-label="Underline"
+                aria-pressed={signatureFormats.underline}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => execSignature("underline")}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                  signatureFormats.underline
+                    ? "bg-[var(--color-primary)] text-white shadow-sm"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                <FontAwesomeIcon icon={faUnderline} aria-hidden="true" />
+              </button>
               <input type="color" value={signatureColor} onChange={(e) => { setSignatureColor(e.target.value); execSignature("foreColor", e.target.value); }} className="h-6 w-6 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-primary)]" title="Text color" />
             </div>
-            <div ref={signatureEditorRef} contentEditable className="min-h-[6rem] max-h-[12rem] resize-y border border-slate-300 rounded p-2 leading-relaxed overflow-y-auto" onInput={() => setSignature(signatureEditorRef.current?.innerHTML || "")} dangerouslySetInnerHTML={{ __html: signature }} />
+            <div
+              ref={signatureEditorRef}
+              contentEditable
+              dir="ltr"
+              role="textbox"
+              aria-label="Email signature"
+              aria-multiline="true"
+              spellCheck
+              className="min-h-[6rem] max-h-[12rem] resize-y overflow-y-auto rounded border border-slate-300 p-2 text-left leading-relaxed [direction:ltr]"
+              onInput={() => {
+                setSignature(signatureEditorRef.current?.innerHTML || "");
+                updateSignatureFormats();
+              }}
+              onKeyUp={updateSignatureFormats}
+              onMouseUp={updateSignatureFormats}
+              onFocus={updateSignatureFormats}
+            />
             <div className="flex gap-2">
               <Button onClick={saveSignature} isLoading={uploading} className="text-xs">Save Signature</Button>
               <Button variant="secondary" onClick={clearSignature} disabled={signature === ""} className="text-xs">Clear Signature</Button>

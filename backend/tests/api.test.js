@@ -60,8 +60,8 @@ function formWithField(field, fields, filename) {
   return form;
 }
 
-async function api(path, { method = "GET", token, body } = {}) {
-  const headers = {};
+async function api(path, { method = "GET", token, body, headers: requestHeaders = {} } = {}) {
+  const headers = { ...requestHeaders };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let payload;
@@ -85,8 +85,8 @@ async function api(path, { method = "GET", token, body } = {}) {
   return { status: response.status, data, text, headers: response.headers };
 }
 
-async function login(email, password) {
-  const res = await api("/api/auth/login", { method: "POST", body: { email, password } });
+async function login(email, password, headers) {
+  const res = await api("/api/auth/login", { method: "POST", body: { email, password }, headers });
   assert.equal(res.status, 200, `login failed for ${email}: ${res.text}`);
   return res.data.token;
 }
@@ -263,6 +263,126 @@ test("protected routes reject an anonymous caller", async () => {
   assert.ok(res.data.error);
 });
 
+test("mail contact search and recipient delivery enforce directory and BCC rules", async () => {
+  const { Mail, User } = await import("../src/models/index.js");
+  const fullEmail = await api(
+    `/api/mail/recipients/suggest?q=${encodeURIComponent(ctx.teacher.email)}`,
+    { token: ctx.adminToken },
+  );
+  assert.equal(fullEmail.status, 200);
+  const teacher = fullEmail.data.suggestions.find(
+    (contact) => contact.email === ctx.teacher.email,
+  );
+  assert.ok(teacher, "complete registered email should be searchable");
+  assert.equal(teacher.source, "directory");
+  assert.equal(teacher.avatarUrl, null);
+  assert.equal("passwordHash" in teacher, false);
+
+  const partialEmail = await api(
+    `/api/mail/recipients/suggest?q=${encodeURIComponent(ctx.teacher.email.slice(0, 5))}`,
+    { token: ctx.adminToken },
+  );
+  assert.ok(
+    partialEmail.data.suggestions.some(
+      (contact) => contact.email === ctx.teacher.email,
+    ),
+    "partial email should match",
+  );
+  const nameSearch = await api(
+    "/api/mail/recipients/suggest?q=Suresh%20Karki",
+    { token: ctx.adminToken },
+  );
+  assert.ok(
+    nameSearch.data.suggestions.some(
+      (contact) => contact.email === ctx.teacher.email,
+    ),
+    "first and last name should match together",
+  );
+  assert.equal((await api(
+    `/api/mail/recipients/suggest?q=${encodeURIComponent(ctx.teacher.email)}`,
+  )).status, 401);
+
+  const passive = await api("/api/admin/users", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      firstName: "Passive",
+      lastName: "Contact",
+      role: "faculty",
+      designation: "Lecturer",
+    },
+  });
+  assert.equal(passive.status, 201);
+  const passiveSearch = await api(
+    `/api/mail/recipients/suggest?q=${encodeURIComponent(passive.data.email)}`,
+    { token: ctx.adminToken },
+  );
+  assert.equal(passiveSearch.data.suggestions.length, 0);
+
+  const originalRoles = await User.findById(ctx.teacher.userId).select("roles");
+  try {
+    await User.updateOne(
+      { _id: ctx.teacher.userId },
+      { $set: { roles: ["unknown_role"] } },
+    );
+    const forbidden = await api(
+      `/api/mail/recipients/suggest?q=${encodeURIComponent(ctx.otherTeacher.email)}`,
+      { token: ctx.teacher.token },
+    );
+    assert.equal(forbidden.status, 403);
+  } finally {
+    await User.updateOne(
+      { _id: ctx.teacher.userId },
+      { $set: { roles: originalRoles.roles } },
+    );
+  }
+
+  const invalidSend = await api("/api/mail", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { recipientEmails: ["not-an-email"], subject: "Invalid" },
+  });
+  assert.equal(invalidSend.status, 400);
+
+  const externalEmail = "external.contact@example.com";
+  const sent = await api("/api/mail", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      recipientEmails: [ctx.teacher.email, externalEmail],
+      ccEmails: [ctx.otherTeacher.email],
+      bccEmails: [ctx.coordinator.email, ctx.teacher.email],
+      subject: "Recipient autocomplete integration",
+      body: "Mail delivered to selected recipients.",
+    },
+  });
+  assert.equal(sent.status, 201);
+  const stored = await Mail.findById(sent.data.mailId).lean();
+  assert.deepEqual(stored.recipientEmails, [ctx.teacher.email, externalEmail]);
+  assert.deepEqual(stored.ccEmails, [ctx.otherTeacher.email]);
+  assert.deepEqual(stored.bccEmails, [ctx.coordinator.email]);
+  const inboxUserIds = stored.userStates.map((state) => String(state.user));
+  assert.ok(inboxUserIds.includes(ctx.teacher.userId));
+  assert.ok(inboxUserIds.includes(ctx.otherTeacher.userId));
+  assert.ok(inboxUserIds.includes(ctx.coordinator.userId));
+  assert.equal(inboxUserIds.includes(externalEmail), false);
+
+  const senderDetail = await api(`/api/mail/${sent.data.mailId}`, {
+    token: ctx.adminToken,
+  });
+  assert.deepEqual(senderDetail.data.bccEmails, [ctx.coordinator.email]);
+  const recipientDetail = await api(`/api/mail/${sent.data.mailId}`, {
+    token: ctx.teacher.token,
+  });
+  assert.equal(recipientDetail.status, 200);
+  assert.deepEqual(recipientDetail.data.bccEmails, []);
+  assert.equal(
+    JSON.stringify(recipientDetail.data).includes(ctx.coordinator.email),
+    false,
+    "BCC addresses must not be visible to a regular recipient",
+  );
+});
+
 test("a revoked session token stops working", async () => {
   const res = await api("/api/auth/logout", { method: "POST", token: ctx.coordinator.token });
   assert.equal(res.status, 200);
@@ -270,6 +390,193 @@ test("a revoked session token stops working", async () => {
   assert.equal(after.status, 401);
   // Re-activate so later tests still have a working coordinator session.
   ctx.coordinator.token = await login(ctx.coordinator.email, ctx.coordinator.password);
+});
+
+test("profile endpoints persist authenticated notification preferences", async () => {
+  const profile = await api("/api/profile/me", { token: ctx.teacher.token });
+  assert.equal(profile.status, 200);
+  assert.ok(profile.data.profile);
+
+  const loaded = await api("/api/profile/notifications", { token: ctx.teacher.token });
+  assert.equal(loaded.status, 200);
+  assert.deepEqual(loaded.data, { email: true, sms: false, push: true });
+
+  const updated = { email: false, sms: true, push: false };
+  const saved = await api("/api/profile/notifications", {
+    method: "PUT",
+    token: ctx.teacher.token,
+    body: updated,
+  });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.data, updated);
+
+  const persisted = await api("/api/profile/notifications", { token: ctx.teacher.token });
+  assert.deepEqual(persisted.data, updated);
+  const { User } = await import("../src/models/index.js");
+  const user = await User.findById(ctx.teacher.userId);
+  assert.equal(user.notificationEmail, false);
+  assert.equal(user.notificationSms, true);
+  assert.equal(user.notificationPush, false);
+
+  const restored = await api("/api/profile/notifications", {
+    method: "PUT",
+    token: ctx.teacher.token,
+    body: loaded.data,
+  });
+  assert.equal(restored.status, 200);
+});
+
+test("active sessions expose device metadata and revocation invalidates tokens", async () => {
+  const userAgent =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
+  const { Session } = await import("../src/models/index.js");
+  const { hashToken } = await import("../src/db.js");
+  await Session.updateOne(
+    { tokenHash: hashToken(ctx.teacher.token) },
+    { $unset: { userAgent: "", ipAddress: "" } },
+  );
+  const otherToken = await login(ctx.teacher.email, ctx.teacher.password, {
+    "user-agent": userAgent,
+  });
+  const listed = await api("/api/auth/sessions", {
+    token: ctx.teacher.token,
+    headers: { "user-agent": userAgent },
+  });
+  assert.equal(listed.status, 200);
+  const current = listed.data.sessions.find((session) => session.isCurrent);
+  const other = listed.data.sessions.find(
+    (session) => !session.isCurrent && session.status === "Active",
+  );
+  assert.ok(current);
+  assert.ok(other);
+  assert.equal(other.deviceName, "Windows PC");
+  assert.equal(other.browser, "Chrome");
+  assert.equal(other.operatingSystem, "Windows");
+  assert.equal(current.deviceName, "Windows PC");
+  assert.equal(current.browser, "Chrome");
+  assert.ok(
+    other.ipAddress === "Local network" || /\.xxx$/.test(other.ipAddress),
+    `IP address was not masked: ${other.ipAddress}`,
+  );
+  assert.ok(other.createdAt);
+  assert.ok(other.lastActiveAt);
+
+  const revoked = await api(`/api/auth/sessions/${other.id}`, {
+    method: "DELETE",
+    token: ctx.teacher.token,
+  });
+  assert.equal(revoked.status, 200);
+  const invalidated = await api("/api/auth/me", { token: otherToken });
+  assert.equal(invalidated.status, 401);
+
+  const anotherToken = await login(ctx.teacher.email, ctx.teacher.password);
+  const revokeOthers = await api("/api/auth/sessions/revoke-others", {
+    method: "POST",
+    token: ctx.teacher.token,
+  });
+  assert.equal(revokeOthers.status, 200);
+  assert.equal(revokeOthers.data.revokedCount, 1);
+  const invalidatedOther = await api("/api/auth/me", { token: anotherToken });
+  assert.equal(invalidatedOther.status, 401);
+  const stillCurrent = await api("/api/auth/me", { token: ctx.teacher.token });
+  assert.equal(stillCurrent.status, 200);
+});
+
+test("HR directory includes provisioned staff records, supports search and protects employee edits", async () => {
+  const { Staff, Employee, User } = await import("../src/models/index.js");
+  const staff = await Staff.findOne({ user: ctx.teacher.userId });
+  assert.ok(staff, "staff provisioning should create a legacy Staff profile");
+
+  const denied = await api("/api/hr/employees", { token: ctx.teacher.token });
+  assert.equal(denied.status, 403);
+
+  const dashboard = await api("/api/hr/dashboard", { token: ctx.adminToken });
+  assert.equal(dashboard.status, 200);
+  assert.ok(dashboard.data.stats.totalEmployees > 0);
+
+  const search = await api(
+    `/api/hr/employees?search=${encodeURIComponent(staff.employeeId)}&limit=5`,
+    { token: ctx.adminToken },
+  );
+  assert.equal(search.status, 200);
+  assert.equal(search.data.total, 1);
+  assert.equal(search.data.employees[0].userId, ctx.teacher.userId);
+
+  const profile = await api(`/api/hr/employees/${staff._id}`, {
+    token: ctx.adminToken,
+  });
+  assert.equal(profile.status, 200);
+  assert.equal(profile.data.employee.user._id, ctx.teacher.userId);
+  assert.equal(profile.data.employee.user.passwordHash, undefined);
+  assert.equal(profile.data.employee.recordType, "staff");
+
+  const teacherUser = await User.findById(ctx.teacher.userId);
+  const usersBeforeOnboarding = await User.countDocuments();
+  const linkable = await api(
+    `/api/hr/users?search=${encodeURIComponent(teacherUser.collegeEmail || teacherUser.email)}`,
+    { token: ctx.adminToken },
+  );
+  assert.equal(linkable.status, 200);
+  assert.ok(linkable.data.users.some((user) => user.id === ctx.teacher.userId));
+
+  const linked = await api("/api/hr/employees", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      userId: ctx.teacher.userId,
+      employeeId: staff.employeeId,
+      department: staff.department,
+      designation: "Senior Lecturer",
+      roleType: "faculty",
+      employmentType: "permanent",
+      joiningDate: "2020-08-15",
+    },
+  });
+  assert.equal(linked.status, 201);
+  assert.equal(await Employee.countDocuments({ user: ctx.teacher.userId }), 1);
+  assert.equal(await User.countDocuments(), usersBeforeOnboarding);
+
+  const otherStaff = await Staff.findOne({ user: ctx.otherTeacher.userId });
+  assert.ok(otherStaff);
+  otherStaff.employeeId = staff.employeeId.toLowerCase();
+  await otherStaff.save();
+  const duplicate = await api("/api/hr/employees", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      userId: ctx.otherTeacher.userId,
+      employeeId: staff.employeeId,
+      department: "Computer Science",
+    },
+  });
+  assert.equal(duplicate.status, 409);
+
+  const edit = await api(`/api/hr/employees/${linked.data.employee._id}`, {
+    method: "PUT",
+    token: ctx.adminToken,
+    body: {
+      department: "Academic Affairs",
+      employmentStatus: "on-leave",
+      phone: "+977-9801234567",
+      personalEmail: "teacher.personal@example.test",
+    },
+  });
+  assert.equal(edit.status, 200);
+  const persistedEmployee = await Employee.findById(linked.data.employee._id);
+  const persistedUser = await User.findById(ctx.teacher.userId);
+  const persistedStaff = await Staff.findOne({ user: ctx.teacher.userId });
+  assert.equal(persistedEmployee.department, "Academic Affairs");
+  assert.equal(persistedEmployee.employmentStatus, "on-leave");
+  assert.equal(persistedUser.phone, "+977-9801234567");
+  assert.equal(persistedUser.personalEmail, "teacher.personal@example.test");
+  assert.equal(persistedStaff.department, "Academic Affairs");
+  assert.equal(persistedStaff.designation, "Senior Lecturer");
+
+  const filtered = await api("/api/hr/employees?employmentStatus=on-leave", {
+    token: ctx.adminToken,
+  });
+  assert.equal(filtered.status, 200);
+  assert.ok(filtered.data.employees.some((employee) => employee.userId === ctx.teacher.userId));
 });
 
 test("a wrong password is rejected without revealing the account state", async () => {
@@ -1316,4 +1623,755 @@ test("audit log records account deletion", async () => {
   assert.ok(deleteLog, "ACCOUNT_DELETED audit entry should exist");
   assert.ok(deleteLog.details.includes(victim.email), "audit should reference deleted user email");
   assert.ok(deleteLog.details.includes("Sessions and credentials invalidated"), "audit should mention session invalidation");
+});
+
+test("room status updates persist and synchronize room availability", async () => {
+  const suffix = Date.now().toString();
+  const building = await api("/api/facilities/buildings", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { name: `Status Test Building ${suffix}`, code: `ST${suffix}` },
+  });
+  assert.equal(building.status, 201, `building creation failed: ${building.text}`);
+
+  const created = await api("/api/facilities/rooms", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      buildingId: building.data.building._id,
+      roomNumber: `R${suffix}`,
+      name: "Status Test Room",
+      status: "Occupied",
+    },
+  });
+  assert.equal(created.status, 201, `room creation failed: ${created.text}`);
+  assert.equal(created.data.room.status, "Occupied");
+  assert.equal(created.data.room.isAvailable, false);
+
+  const updated = await api(`/api/facilities/rooms/${created.data.room._id}/status`, {
+    method: "PATCH",
+    token: ctx.adminToken,
+    body: { status: "Available" },
+  });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.data.room.status, "Available");
+  assert.equal(updated.data.room.isAvailable, true);
+
+  const persisted = await api("/api/facilities/rooms", { token: ctx.adminToken });
+  const room = persisted.data.rooms.find((entry) => entry._id === created.data.room._id);
+  assert.equal(room.status, "Available");
+  assert.equal(room.isAvailable, true);
+
+  const invalid = await api(`/api/facilities/rooms/${created.data.room._id}/status`, {
+    method: "PATCH",
+    token: ctx.adminToken,
+    body: { status: "Unknown" },
+  });
+  assert.equal(invalid.status, 400);
+
+  const forbidden = await api(`/api/facilities/rooms/${created.data.room._id}/status`, {
+    method: "PATCH",
+    token: ctx.studentSem2.token,
+    body: { status: "Occupied" },
+  });
+  assert.equal(forbidden.status, 403);
+});
+
+test("workflow automation validates, routes requests, records decisions and enforces approver access", async () => {
+  const forbidden = await api("/api/workflows", {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: { name: "Unauthorized workflow" },
+  });
+  assert.equal(forbidden.status, 403);
+
+  const lecturerStepId = "111111111111111111111111";
+  const registrarStepId = "222222222222222222222222";
+  const draft = await api("/api/workflows", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      name: "Automated request routing",
+      description: "Integration workflow for general requests.",
+      category: "Administrative",
+      department: "Any",
+      triggerEvent: "case.created",
+      requestTypes: ["GENERAL"],
+      applicableUserTypes: ["faculty"],
+      approvalMode: "sequential",
+      steps: [
+        {
+          _id: lecturerStepId,
+          name: "Lecturer review",
+          assigneeType: "role",
+          role: "faculty",
+        },
+        {
+          _id: registrarStepId,
+          name: "Registrar review",
+          assigneeType: "role",
+          role: "registrar",
+        },
+      ],
+      conditions: [
+        {
+          stage: "before_step",
+          stepId: registrarStepId,
+          field: "request.data.days",
+          operator: "greater_than",
+          value: 3,
+          action: "reject",
+          message: "Requests longer than three days require the extended review path.",
+        },
+        {
+          stage: "before_start",
+          stepId: null,
+          field: "request.data.documentsComplete",
+          operator: "equals",
+          value: false,
+          action: "return",
+          message: "Upload the missing supporting documents.",
+        },
+      ],
+      notifications: {
+        approvers: true,
+        requesterStatusChanges: true,
+        pendingReminders: false,
+        reminderHours: 24,
+      },
+    },
+  });
+  assert.equal(draft.status, 201, `workflow draft failed: ${draft.text}`);
+  const workflowId = draft.data.workflow.id;
+
+  const editedDraft = await api(`/api/workflows/${workflowId}`, {
+    method: "PUT",
+    token: ctx.adminToken,
+    body: {
+      ...draft.data.workflow,
+      description: "Edited and persisted integration workflow.",
+    },
+  });
+  assert.equal(editedDraft.status, 200, `workflow draft edit failed: ${editedDraft.text}`);
+  assert.equal(
+    editedDraft.data.workflow.description,
+    "Edited and persisted integration workflow.",
+  );
+
+  const refreshedDrafts = await api("/api/workflows?status=draft", {
+    token: ctx.adminToken,
+  });
+  assert.ok(
+    refreshedDrafts.data.workflows.some(
+      (item) =>
+        item.id === workflowId &&
+        item.description === "Edited and persisted integration workflow.",
+    ),
+    "workflow draft edits should persist across reads",
+  );
+
+  const validation = await api("/api/workflows/validate", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: editedDraft.data.workflow,
+  });
+  assert.equal(validation.status, 200);
+  assert.equal(validation.data.valid, true, validation.data.errors?.join("; "));
+
+  const simulated = await api("/api/workflows/test", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      ...editedDraft.data.workflow,
+      sampleRequest: { request: { data: { days: 5, documentsComplete: true } } },
+    },
+  });
+  assert.equal(simulated.status, 200);
+  assert.equal(simulated.data.result, "reject");
+
+  const published = await api(`/api/workflows/${workflowId}/publish`, {
+    method: "POST",
+    token: ctx.adminToken,
+  });
+  assert.equal(published.status, 200, `workflow publish failed: ${published.text}`);
+  assert.equal(published.data.workflow.status, "published");
+
+  const rejectedCase = await api("/api/cases", {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: {
+      type: "GENERAL",
+      subject: "Extended leave request",
+      department: "Registrar",
+      workflowData: { days: 5, documentsComplete: true },
+    },
+  });
+  assert.equal(rejectedCase.status, 201, `case submission failed: ${rejectedCase.text}`);
+  const rejectedStart = await api(`/api/workflow-instances/${rejectedCase.data.workflowInstance}`, {
+    token: ctx.adminToken,
+  });
+  assert.equal(rejectedStart.data.instance.currentStep, "Lecturer review");
+  const rejectedDecision = await api(
+    `/api/workflow-instances/${rejectedCase.data.workflowInstance}/decision`,
+    {
+      method: "POST",
+      token: ctx.otherTeacher.token,
+      body: { decision: "approve" },
+    },
+  );
+  assert.equal(rejectedDecision.status, 200);
+  const rejectedInstance = await api(`/api/workflow-instances/${rejectedCase.data.workflowInstance}`, {
+    token: ctx.adminToken,
+  });
+  assert.equal(rejectedInstance.status, 200);
+  assert.equal(rejectedInstance.data.instance.status, "rejected");
+  assert.ok(rejectedInstance.data.instance.history.some((entry) => entry.event === "rejected"));
+
+  const returnedCase = await api("/api/cases", {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: {
+      type: "GENERAL",
+      subject: "Request missing documents",
+      department: "Registrar",
+      workflowData: { days: 1, documentsComplete: false },
+    },
+  });
+  assert.equal(returnedCase.status, 201, `case submission failed: ${returnedCase.text}`);
+  const returnedInstance = await api(
+    `/api/workflow-instances/${returnedCase.data.workflowInstance}`,
+    { token: ctx.adminToken },
+  );
+  assert.equal(returnedInstance.data.instance.status, "returned");
+  assert.equal(returnedInstance.data.instance.request.status, "MORE_INFO");
+
+  const requestCase = await api("/api/cases", {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: {
+      type: "GENERAL",
+      subject: "Standard request requiring approval",
+      department: "Registrar",
+      workflowData: { days: 2, documentsComplete: true },
+    },
+  });
+  assert.equal(requestCase.status, 201, `case submission failed: ${requestCase.text}`);
+  const instanceId = requestCase.data.workflowInstance;
+  assert.ok(instanceId, "a published workflow should start an instance on request submission");
+
+  const instance = await api(`/api/workflow-instances/${instanceId}`, {
+    token: ctx.adminToken,
+  });
+  assert.equal(instance.status, 200);
+  assert.equal(instance.data.instance.status, "in_progress");
+  assert.equal(instance.data.instance.currentStep, "Lecturer review");
+  assert.ok(instance.data.instance.currentApprovers.includes(ctx.otherTeacher.userId));
+
+  const deniedDecision = await api(`/api/workflow-instances/${instanceId}/decision`, {
+    method: "POST",
+    token: ctx.registrar.token,
+    body: { decision: "approve" },
+  });
+  assert.equal(deniedDecision.status, 403);
+
+  const lecturerApproval = await api(`/api/workflow-instances/${instanceId}/decision`, {
+    method: "POST",
+    token: ctx.otherTeacher.token,
+    body: { decision: "approve", note: "Lecturer review complete." },
+  });
+  assert.equal(lecturerApproval.status, 200);
+  assert.equal(lecturerApproval.data.instance.status, "in_progress");
+  assert.equal(lecturerApproval.data.instance.currentStep, "Registrar review");
+  assert.ok(lecturerApproval.data.instance.currentApprovers.includes(ctx.registrar.userId));
+
+  const approved = await api(`/api/workflow-instances/${instanceId}/decision`, {
+    method: "POST",
+    token: ctx.registrar.token,
+    body: { decision: "approve", note: "Request approved." },
+  });
+  assert.equal(approved.status, 200, `approval failed: ${approved.text}`);
+  assert.equal(approved.data.instance.status, "completed");
+  assert.ok(approved.data.instance.history.some((entry) => entry.event === "approved"));
+
+  const refreshedCases = await api("/api/cases", { token: ctx.teacher.token });
+  const persistedCase = refreshedCases.data.cases.find(
+    (item) => item.id === requestCase.data.caseId,
+  );
+  assert.equal(persistedCase.status, "APPROVED");
+
+  const definitions = await api("/api/workflows", { token: ctx.adminToken });
+  const persistedWorkflow = definitions.data.workflows.find((item) => item.id === workflowId);
+  assert.equal(persistedWorkflow.status, "published");
+  assert.equal(persistedWorkflow.executionCount, 3);
+
+  const parallelRegistrar = await provision(ctx.adminToken, {
+    firstName: "Parallel",
+    lastName: "Registrar",
+    role: "registrar",
+    designation: "Registrar",
+  });
+  const parallelDraft = await api("/api/workflows", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      name: "Parallel registrar review",
+      category: "Administrative",
+      department: "Any",
+      requestTypes: ["PARALLEL"],
+      applicableUserTypes: ["faculty"],
+      approvalMode: "parallel",
+      steps: [{ name: "Registrar review", assigneeType: "role", role: "registrar" }],
+    },
+  });
+  assert.equal(parallelDraft.status, 201);
+  const parallelPublished = await api(
+    `/api/workflows/${parallelDraft.data.workflow.id}/publish`,
+    { method: "POST", token: ctx.adminToken },
+  );
+  assert.equal(parallelPublished.status, 200);
+  const parallelCase = await api("/api/cases", {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: {
+      type: "PARALLEL",
+      subject: "Parallel approval request",
+      department: "Registrar",
+    },
+  });
+  assert.equal(parallelCase.status, 201);
+  const parallelId = parallelCase.data.workflowInstance;
+  const parallelStart = await api(`/api/workflow-instances/${parallelId}`, {
+    token: ctx.adminToken,
+  });
+  assert.ok(parallelStart.data.instance.currentApprovers.includes(ctx.registrar.userId));
+  assert.ok(parallelStart.data.instance.currentApprovers.includes(parallelRegistrar.userId));
+  const firstParallelApproval = await api(`/api/workflow-instances/${parallelId}/decision`, {
+    method: "POST",
+    token: ctx.registrar.token,
+    body: { decision: "approve" },
+  });
+  assert.equal(firstParallelApproval.status, 200);
+  assert.equal(firstParallelApproval.data.instance.status, "in_progress");
+  assert.ok(firstParallelApproval.data.instance.currentApprovers.includes(parallelRegistrar.userId));
+  const finalParallelApproval = await api(`/api/workflow-instances/${parallelId}/decision`, {
+    method: "POST",
+    token: parallelRegistrar.token,
+    body: { decision: "approve" },
+  });
+  assert.equal(finalParallelApproval.status, 200);
+  assert.equal(finalParallelApproval.data.instance.status, "completed");
+
+  const templateDraft = await api("/api/workflows", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      name: "Reusable approval template",
+      category: "Administrative",
+      department: "Any",
+      requestTypes: ["GENERAL"],
+      steps: [{ name: "Registrar review", assigneeType: "role", role: "registrar" }],
+    },
+  });
+  assert.equal(templateDraft.status, 201);
+  const templateId = templateDraft.data.workflow.id;
+  const savedTemplate = await api(`/api/workflows/${templateId}/template`, {
+    method: "PATCH",
+    token: ctx.adminToken,
+    body: { isTemplate: true },
+  });
+  assert.equal(savedTemplate.status, 200);
+  const templates = await api("/api/workflows?templates=true&status=template", {
+    token: ctx.adminToken,
+  });
+  assert.ok(templates.data.workflows.some((item) => item.id === templateId));
+  const clonedTemplate = await api(`/api/workflows/${templateId}/clone`, {
+    method: "POST",
+    token: ctx.adminToken,
+  });
+  assert.equal(clonedTemplate.status, 201, `template clone failed: ${clonedTemplate.text}`);
+  assert.equal(clonedTemplate.data.workflow.status, "draft");
+  assert.notEqual(clonedTemplate.data.workflow.id, templateId);
+
+  const notifications = await api("/api/notifications", { token: ctx.registrar.token });
+  assert.equal(notifications.status, 200);
+  assert.ok(
+    notifications.data.notifications.some((notification) => notification.category === "workflow"),
+    "assigned approver should receive an in-app workflow notification",
+  );
+});
+
+test("institutional documents preserve upload, access, sharing, folder and version behavior", async () => {
+  const uploaded = await api("/api/documents", {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: pdfForm({
+      title: "Restricted policy document",
+      description: "A policy available only to its owner until shared.",
+      category: "POLICY",
+      department: "Computer Science",
+      academicYear: "2026/2027",
+      tags: "policy,security",
+      accessLevel: "restricted",
+    }),
+  });
+  assert.equal(uploaded.status, 200, `document upload failed: ${uploaded.text}`);
+  const documentId = uploaded.data.document._id;
+  const fileId = uploaded.data.document.fileUrl.split("/").pop();
+
+  const details = await api(`/api/documents/${documentId}`, { token: ctx.teacher.token });
+  assert.equal(details.status, 200, `document details failed: ${details.text}`);
+  assert.equal(details.data.document.user.firstName, "Suresh");
+  assert.equal(details.data.document.versions[0].uploadedBy.firstName, "Suresh");
+  assert.deepEqual(details.data.document.tags, ["policy", "security"]);
+
+  const privateList = await api("/api/documents", { token: ctx.studentSem2.token });
+  assert.equal(privateList.status, 200);
+  assert.ok(!privateList.data.documents.some((item) => item._id === documentId));
+  const privateFile = await api(`/api/files/${fileId}`, { token: ctx.studentSem2.token });
+  assert.equal(privateFile.status, 404);
+
+  const shared = await api(`/api/documents/${documentId}/share`, {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: { userId: ctx.studentSem2.userId, permission: "view" },
+  });
+  assert.equal(shared.status, 200, `sharing failed: ${shared.text}`);
+  const sharedDetails = await api(`/api/documents/${documentId}`, {
+    token: ctx.teacher.token,
+  });
+  assert.equal(sharedDetails.data.document.sharedWith[0].user.email, ctx.studentSem2.email);
+
+  const sharedList = await api("/api/documents", { token: ctx.studentSem2.token });
+  assert.ok(sharedList.data.documents.some((item) => item._id === documentId));
+  const viewFile = await api(`/api/files/${fileId}`, { token: ctx.studentSem2.token });
+  assert.equal(viewFile.status, 200);
+  const deniedDownload = await api(`/api/files/${fileId}?download=true`, {
+    token: ctx.studentSem2.token,
+  });
+  assert.equal(deniedDownload.status, 404);
+
+  const upgradedShare = await api(`/api/documents/${documentId}/share`, {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: { userId: ctx.studentSem2.userId, permission: "download" },
+  });
+  assert.equal(upgradedShare.status, 200);
+  const allowedDownload = await api(`/api/files/${fileId}?download=true`, {
+    token: ctx.studentSem2.token,
+  });
+  assert.equal(allowedDownload.status, 200);
+
+  const revoked = await api(`/api/documents/${documentId}/share/${ctx.studentSem2.userId}`, {
+    method: "DELETE",
+    token: ctx.teacher.token,
+  });
+  assert.equal(revoked.status, 200);
+  const revokedFile = await api(`/api/files/${fileId}`, { token: ctx.studentSem2.token });
+  assert.equal(revokedFile.status, 404);
+
+  const newVersion = await api(`/api/documents/${documentId}/versions`, {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: pdfForm({ changeNote: "Clarified policy wording" }, "policy-v2.pdf"),
+  });
+  assert.equal(newVersion.status, 200, `version upload failed: ${newVersion.text}`);
+  assert.equal(newVersion.data.document.version, 2);
+  const versionHistory = await api(`/api/documents/${documentId}/versions`, {
+    token: ctx.teacher.token,
+  });
+  assert.equal(versionHistory.status, 200);
+  assert.equal(versionHistory.data.versions.length, 2);
+  assert.equal(versionHistory.data.versions[1].uploadedBy.firstName, "Suresh");
+
+  const folder = await api("/api/folders", {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: { name: "Policies" },
+  });
+  assert.equal(folder.status, 200);
+  const otherFolders = await api("/api/folders", { token: ctx.otherTeacher.token });
+  assert.ok(!otherFolders.data.folders.some((item) => item._id === folder.data.folder._id));
+  const deniedFolderRead = await api(
+    `/api/folders/${folder.data.folder._id}/documents`,
+    { token: ctx.otherTeacher.token },
+  );
+  assert.equal(deniedFolderRead.status, 404);
+  const deniedFolderUpload = await api("/api/documents", {
+    method: "POST",
+    token: ctx.otherTeacher.token,
+    body: pdfForm({
+      title: "Unauthorized folder upload",
+      accessLevel: "restricted",
+      folder: folder.data.folder._id,
+    }),
+  });
+  assert.equal(deniedFolderUpload.status, 403);
+  const moved = await api(`/api/documents/${documentId}/folder`, {
+    method: "PATCH",
+    token: ctx.teacher.token,
+    body: { folderId: folder.data.folder._id },
+  });
+  assert.equal(moved.status, 200);
+  const folderDocuments = await api(
+    `/api/folders/${folder.data.folder._id}/documents`,
+    { token: ctx.teacher.token },
+  );
+  assert.ok(folderDocuments.data.documents.some((item) => item._id === documentId));
+
+  const archived = await api(`/api/documents/${documentId}`, {
+    method: "DELETE",
+    token: ctx.teacher.token,
+  });
+  assert.equal(archived.status, 200);
+  const archivedList = await api("/api/documents?archived=true", {
+    token: ctx.teacher.token,
+  });
+  assert.ok(archivedList.data.documents.some((item) => item._id === documentId));
+  const restored = await api(`/api/documents/${documentId}`, {
+    method: "PATCH",
+    token: ctx.teacher.token,
+    body: { archived: false },
+  });
+  assert.equal(restored.status, 200);
+  assert.equal(restored.data.document.archived, false);
+
+  const publicDocument = await api("/api/documents", {
+    method: "POST",
+    token: ctx.teacher.token,
+    body: pdfForm({
+      title: "Institution-wide policy",
+      category: "POLICY",
+      accessLevel: "public",
+    }),
+  });
+  assert.equal(publicDocument.status, 200);
+  const publicFileId = publicDocument.data.document.fileUrl.split("/").pop();
+  const publicFile = await api(`/api/files/${publicFileId}`, {
+    token: ctx.studentSem2.token,
+  });
+  assert.equal(publicFile.status, 200);
+});
+
+test("finance and published institutional records synchronize into student documents", async () => {
+  const { Enrollment, Exam, ExamResult, Invoice, Student } = await import("../src/models/index.js");
+  const invoiceResponse = await api("/api/invoices", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      studentId: "BCA25001",
+      title: "Semester tuition",
+      description: "Semester 2 tuition fee",
+      amount: 42000,
+      dueDate: "2026-12-15",
+      category: "Tuition",
+    },
+  });
+  assert.equal(invoiceResponse.status, 201, invoiceResponse.text);
+  const invoiceId = invoiceResponse.data.invoice._id;
+
+  const studentInvoices = await api("/api/invoices", { token: ctx.studentSem2.token });
+  assert.ok(studentInvoices.data.invoices.some((invoice) => invoice.id === invoiceId));
+  const studentDocuments = await api("/api/documents", { token: ctx.studentSem2.token });
+  const linkedInvoice = studentDocuments.data.documents.find(
+    (document) => document.sourceType === "invoice" && document.sourceId === invoiceId,
+  );
+  assert.ok(linkedInvoice, "issued invoice should appear in My Documents");
+  assert.equal(linkedInvoice.category, "FINANCE");
+  assert.match(linkedInvoice.fileUrl, /\/api\/documents\/linked\/invoice\//);
+
+  const otherDocuments = await api("/api/documents", { token: ctx.studentSem4.token });
+  assert.ok(!otherDocuments.data.documents.some((document) => document.sourceId === invoiceId));
+  const deniedInvoice = await api(linkedInvoice.fileUrl, { token: ctx.studentSem4.token });
+  assert.equal(deniedInvoice.status, 404);
+  assert.equal((await api(`/api/invoices/${invoiceId}/amend`, {
+    method: "POST",
+    token: ctx.studentSem2.token,
+    body: { amount: 1, changeNote: "Unauthorized" },
+  })).status, 403);
+
+  const amended = await api(`/api/invoices/${invoiceId}/amend`, {
+    method: "POST",
+    token: ctx.adminToken,
+    body: {
+      amount: 45000,
+      dueDate: "2027-01-10",
+      changeNote: "Approved tuition adjustment",
+    },
+  });
+  assert.equal(amended.status, 200, amended.text);
+  assert.equal(amended.data.invoice.version, 2);
+  const latestDocuments = await api("/api/documents", { token: ctx.studentSem2.token });
+  const latestInvoice = latestDocuments.data.documents.find(
+    (document) => document.sourceId === invoiceId,
+  );
+  assert.equal(latestInvoice.version, 2);
+  assert.equal(latestInvoice.versions.length, 2);
+  const currentInvoiceHtml = await api(latestInvoice.fileUrl, { token: ctx.studentSem2.token });
+  assert.match(currentInvoiceHtml.text, /45000\.00/);
+  const invoiceDownload = await api(`${latestInvoice.fileUrl}?download=true`, {
+    token: ctx.studentSem2.token,
+  });
+  assert.match(invoiceDownload.headers.get("content-disposition"), /^attachment;/);
+  const previousInvoiceHtml = await api(
+    latestInvoice.versions.find((version) => version.version === 1).fileUrl,
+    { token: ctx.studentSem2.token },
+  );
+  assert.match(previousInvoiceHtml.text, /42000\.00/);
+
+  const payment = await api("/api/payments", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { invoiceId, amount: 45000, method: "bank_transfer", transactionId: "TEST-PAYMENT-1" },
+  });
+  assert.equal(payment.status, 201, payment.text);
+  const paidInvoice = (await api("/api/invoices", { token: ctx.studentSem2.token }))
+    .data.invoices.find((invoice) => invoice.id === invoiceId);
+  assert.equal(paidInvoice.status, "PAID");
+  assert.equal(paidInvoice.balance_due, 0);
+  const afterPayment = await api("/api/documents", { token: ctx.studentSem2.token });
+  const receipt = afterPayment.data.documents.find(
+    (document) => document.sourceType === "receipt" &&
+      document.title.includes(payment.data.payment.receipt_number),
+  );
+  assert.ok(receipt, "successful payment should publish a receipt document");
+  const receiptHtml = await api(receipt.fileUrl, { token: ctx.studentSem2.token });
+  assert.match(receiptHtml.text, /TEST-PAYMENT-1/);
+  const reloginToken = await login(ctx.studentSem2.email, ctx.studentSem2.password);
+  const afterRelogin = await api("/api/documents", { token: reloginToken });
+  assert.ok(afterRelogin.data.documents.some((document) => document.sourceId === invoiceId));
+  assert.ok(afterRelogin.data.documents.some((document) => document.sourceId === payment.data.payment.id));
+
+  const voidInvoice = await api("/api/invoices", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { studentId: "BCA25001", title: "Lab fee", amount: 1200, dueDate: "2026-12-01" },
+  });
+  assert.equal(voidInvoice.status, 201);
+  const voided = await api(`/api/invoices/${voidInvoice.data.invoice._id}/void`, {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { reason: "Duplicate charge" },
+  });
+  assert.equal(voided.status, 200, voided.text);
+  const voidDocument = (await api("/api/documents", { token: ctx.studentSem2.token }))
+    .data.documents.find((document) => document.sourceId === voidInvoice.data.invoice._id);
+  assert.match(voidDocument.description, /VOID/);
+  assert.equal((await api("/api/payments", {
+    method: "POST",
+    token: ctx.adminToken,
+    body: { invoiceId: voidInvoice.data.invoice._id, amount: 100 },
+  })).status, 409);
+
+  const student = await Student.findOne({ user: ctx.studentSem2.userId });
+  const enrollment = await Enrollment.findOneAndUpdate(
+    {
+      student: student._id,
+      studentUser: ctx.studentSem2.userId,
+      course: ctx.courseSem2.id,
+      sectionCode: "A1",
+      semester: 2,
+    },
+    { $set: { academicYear: "2026/2027", status: "ENROLLED" } },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+  const withEnrollment = await api("/api/documents", { token: ctx.studentSem2.token });
+  const enrollmentDocument = withEnrollment.data.documents.find(
+    (document) => document.sourceType === "enrollment" &&
+      document.sourceId === String(enrollment._id),
+  );
+  assert.ok(enrollmentDocument, "active enrollment should publish a confirmation document");
+  assert.equal((await api(enrollmentDocument.fileUrl, { token: ctx.studentSem2.token })).status, 200);
+  assert.equal((await api(enrollmentDocument.fileUrl, { token: ctx.studentSem4.token })).status, 404);
+
+  const exam = await Exam.create({
+    title: "Semester 2 Final",
+    semester: 2,
+    examDate: "2026-11-01",
+    startTime: "10:00",
+    endTime: "12:00",
+    academicYear: "2026/2027",
+    program: "BCA",
+  });
+  const publishedResult = await ExamResult.create({
+    exam: exam._id,
+    student: student._id,
+    studentUser: ctx.studentSem2.userId,
+    workflowStatus: "PUBLISHED",
+    publishedAt: new Date(),
+    percentage: 88,
+    grade: "A",
+    gpa: 3.8,
+    status: "PASSED",
+    subjectMarks: [{
+      code: "CS201",
+      name: "Data Structures",
+      marksObtained: 88,
+      totalMarks: 100,
+      status: "PASS",
+      grade: "A",
+    }],
+  });
+  const withResult = await api("/api/documents", { token: ctx.studentSem2.token });
+  const resultDocument = withResult.data.documents.find(
+    (document) => document.sourceType === "examResult" &&
+      document.sourceId === String(publishedResult._id),
+  );
+  assert.ok(resultDocument, "published exam result should appear in My Documents");
+  assert.equal((await api(resultDocument.fileUrl, { token: ctx.studentSem2.token })).status, 200);
+  assert.equal((await api(resultDocument.fileUrl, { token: ctx.studentSem4.token })).status, 404);
+
+  const otherStudent = await Student.findOne({ user: ctx.studentSem4.userId });
+  const unpublished = await ExamResult.create({
+    exam: exam._id,
+    student: otherStudent._id,
+    studentUser: ctx.studentSem4.userId,
+    workflowStatus: "DRAFT",
+  });
+  const otherDocumentsAfterDraft = await api("/api/documents", { token: ctx.studentSem4.token });
+  assert.ok(!otherDocumentsAfterDraft.data.documents.some(
+    (document) => document.sourceId === String(unpublished._id),
+  ));
+  assert.equal(
+    (await api(`/api/documents/linked/exam-result/${unpublished._id}`, {
+      token: ctx.studentSem4.token,
+    })).status,
+    404,
+  );
+
+  const invoiceHistory = await Invoice.findById(invoiceId).lean();
+  assert.equal(invoiceHistory.revisions[0].changeNote, "Approved tuition adjustment");
+});
+
+test("student-targeted institutional documents stay hidden until approved and only reach their student", async () => {
+  const uploaded = await api("/api/documents", {
+    method: "POST",
+    token: ctx.registrar.token,
+    body: pdfForm({
+      title: "Semester registration confirmation",
+      category: "ACADEMIC",
+      studentId: "BCA25001",
+      approvalStatus: "draft",
+    }, "registration-confirmation.pdf"),
+  });
+  assert.equal(uploaded.status, 200, uploaded.text);
+  const documentId = uploaded.data.document._id;
+  const fileId = uploaded.data.document.file.fileId;
+
+  const hidden = await api("/api/documents", { token: ctx.studentSem2.token });
+  assert.ok(!hidden.data.documents.some((document) => document._id === documentId));
+  assert.equal((await api(`/api/files/${fileId}`, { token: ctx.studentSem2.token })).status, 404);
+
+  const approved = await api(`/api/documents/${documentId}`, {
+    method: "PATCH",
+    token: ctx.registrar.token,
+    body: { approvalStatus: "approved" },
+  });
+  assert.equal(approved.status, 200, approved.text);
+  const visible = await api("/api/documents", { token: ctx.studentSem2.token });
+  assert.ok(visible.data.documents.some((document) => document._id === documentId));
+  assert.equal((await api(`/api/files/${fileId}`, { token: ctx.studentSem2.token })).status, 200);
+
+  const otherStudent = await api("/api/documents", { token: ctx.studentSem4.token });
+  assert.ok(!otherStudent.data.documents.some((document) => document._id === documentId));
+  assert.equal((await api(`/api/files/${fileId}`, { token: ctx.studentSem4.token })).status, 404);
 });

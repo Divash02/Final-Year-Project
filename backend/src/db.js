@@ -2,6 +2,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { connectDatabase, mongoose } from "./config/database.js";
+import { getBaseSessionPolicy } from "./config/sessionSecurity.js";
 import {
   User,
   Student,
@@ -21,13 +22,27 @@ import {
   AuditLog,
   Session,
   PasswordResetToken,
+  LoginAttempt,
 } from "./models/index.js";
 import { normalizeRoles, LEGACY_ROLE_ALIASES } from "./permissions/catalog.js";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || "collegeos-super-secure-production-jwt-token-secret-key-2026";
-const BOOTSTRAP_ADMIN_PASSWORD =
-  process.env.COLLEGEOS_BOOTSTRAP_ADMIN_PASSWORD || "Nepal@123";
+const JWT_SECRET = process.env.JWT_SECRET;
+const BOOTSTRAP_ADMIN_PASSWORD = process.env.COLLEGEOS_BOOTSTRAP_ADMIN_PASSWORD;
+
+// Fail fast when the signing secret is missing or still at its insecure default.
+// CollegeOS must never start with a hardcoded or placeholder JWT secret.
+if (!JWT_SECRET) {
+  throw new Error("Missing required environment variable: JWT_SECRET");
+}
+if (
+  JWT_SECRET === "replace-with-a-random-secret" ||
+  JWT_SECRET === "collegeos-super-secure-production-jwt-token-secret-key-2026"
+) {
+  throw new Error("JWT_SECRET must not be left at its default or placeholder value.");
+}
+if (!BOOTSTRAP_ADMIN_PASSWORD) {
+  throw new Error("Missing required environment variable: COLLEGEOS_BOOTSTRAP_ADMIN_PASSWORD");
+}
 
 export function getDb() {
   return mongoose.connection;
@@ -48,7 +63,7 @@ export function signToken(payload) {
     userId: String(payload?.userId || ""),
     jti: payload?.jti || randomUUID(),
   };
-  return jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: "8h" });
+  return jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: getBaseSessionPolicy().accessTokenTtl });
 }
 
 export function verifyToken(token) {
@@ -59,28 +74,52 @@ export function hashToken(token) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export async function createSession(userId, token, expiresAt) {
+export async function createSession(userId, token, expiresAt, metadata = {}) {
   const tokenHash = hashToken(token);
   return await Session.create({
     user: userId,
     tokenHash,
     expiresAt: new Date(expiresAt),
+    userAgent: String(metadata.userAgent || "").slice(0, 512),
+    ipAddress: metadata.ipAddress || null,
+    location: metadata.location || null,
+    lastActiveAt: new Date(),
   });
 }
 
-export async function getSessionByToken(token) {
+/**
+ * Classifies a bearer token's session without applying the staleness window
+ * used by touchSession. Used to report precise session failure reasons
+ * (revoked, absolutely expired, inactive, or missing) instead of a generic
+ * "invalid session". No token value or secret is ever logged by callers.
+ */
+export async function classifySession(token) {
   const tokenHash = hashToken(token);
-  const session = await Session.findOne({
-    tokenHash,
-    revokedAt: null,
-    expiresAt: { $gt: new Date() },
-  });
-  if (!session) return null;
+  const session = await Session.findOne({ tokenHash }).lean();
+  if (!session) return { session: null, status: "MISSING" };
+  if (session.revokedAt) return { session, status: "REVOKED" };
+  if (new Date(session.expiresAt).getTime() <= Date.now()) {
+    return { session, status: "EXPIRED_ABSOLUTE" };
+  }
+  return { session, status: "ACTIVE" };
+}
+
+export async function getSessionByToken(token) {
+  const classification = await classifySession(token);
+  if (classification.status !== "ACTIVE") return null;
+  const session = classification.session;
   return {
-    ...session.toObject(),
+    ...session,
     id: session._id.toString(),
     user_id: session.user.toString(),
   };
+}
+
+export async function forceTouchSession(sessionId) {
+  return await Session.updateOne(
+    { _id: sessionId, revokedAt: null },
+    { $set: { lastActiveAt: new Date() } },
+  );
 }
 
 export async function revokeSession(token) {
@@ -98,34 +137,123 @@ export async function revokeUserSessions(userId) {
   );
 }
 
-// In-memory or temporary collection login attempt tracker
-const loginAttempts = new Map();
+export async function touchSession(sessionId, metadata, session) {
+  const now = new Date();
+  const set = {};
+  const lastActiveAt = session.lastActiveAt
+    ? new Date(session.lastActiveAt).getTime()
+    : 0;
+  const activityIsStale = lastActiveAt < now.getTime() - 60_000;
+  if (activityIsStale) set.lastActiveAt = now;
+  if (!session.userAgent && metadata.userAgent) {
+    set.userAgent = String(metadata.userAgent).slice(0, 512);
+  }
+  if (!session.ipAddress && metadata.ipAddress) {
+    set.ipAddress = metadata.ipAddress;
+  }
+  if (Object.keys(set).length === 0) return null;
+
+  const conditions = [];
+  if (activityIsStale) {
+    conditions.push({
+      lastActiveAt: { $lt: new Date(now.getTime() - 60_000) },
+    });
+  }
+  if (set.userAgent) conditions.push({ userAgent: { $in: ["", null] } });
+  if (set.ipAddress) conditions.push({ ipAddress: { $in: ["", null] } });
+  return await Session.updateOne(
+    {
+      _id: sessionId,
+      revokedAt: null,
+      $or: conditions,
+    },
+    { $set: set },
+  );
+}
+
+// Persistent, distributed login attempt tracker backed by MongoDB.
+// Replaces the previous in-memory Map so counters survive server restarts
+// and are shared across multiple CollegeOS instances. No new infrastructure
+// dependency is introduced — MongoDB is already the primary data store.
+//
+// All counter updates use atomic MongoDB operators ($inc, $set) so concurrent
+// requests across instances cannot desynchronise the counter. A TTL index on
+// expiresAt automatically removes stale records.
+//
+// Fail-safe behaviour: if MongoDB is unreachable, these functions throw and
+// the login route returns 500, denying all attempts rather than allowing
+// unlimited retries.
 
 export function createLoginAttemptKey(email, ip) {
-  return `${String(email).trim().toLowerCase()}:${ip}`;
+  return `${String(email).trim().toLowerCase()}:${String(ip || "unknown")}`;
 }
 
-export function isLoginLocked(attemptKey) {
-  const entry = loginAttempts.get(attemptKey);
-  return Boolean(entry?.lockedUntil && entry.lockedUntil > Date.now());
+export async function isLoginLocked(attemptKey) {
+  const entry = await LoginAttempt.findOne({ attemptKey }).lean();
+  if (!entry || !entry.lockedUntil) return false;
+  return entry.lockedUntil.getTime() > Date.now();
 }
 
-export function recordLoginFailure(attemptKey) {
+export async function recordLoginFailure(attemptKey) {
   const now = Date.now();
-  const entry = loginAttempts.get(attemptKey);
-  const withinWindow = entry && now - entry.windowStartedAt < 15 * 60 * 1000;
-  const failures = withinWindow ? entry.failures + 1 : 1;
-  const lockedUntil = failures >= 5 ? now + 15 * 60 * 1000 : null;
-  loginAttempts.set(attemptKey, {
-    failures,
-    windowStartedAt: withinWindow ? entry.windowStartedAt : now,
-    lockedUntil,
-  });
-  return Boolean(lockedUntil);
+  const windowMs = 15 * 60 * 1000;
+  const cutoff = new Date(now - windowMs);
+
+  // Atomic find-or-increment. $inc is atomic across instances.
+  const entry = await LoginAttempt.findOneAndUpdate(
+    { attemptKey },
+    { $inc: { failures: 1 } },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    }
+  );
+
+  const withinWindow =
+    entry && entry.windowStartedAt && entry.windowStartedAt.getTime() > cutoff.getTime();
+
+  if (!withinWindow) {
+    // Window expired — reset counter atomically.
+    await LoginAttempt.findOneAndUpdate(
+      { attemptKey },
+      {
+        $set: {
+          failures: 1,
+          windowStartedAt: new Date(now),
+          lockedUntil: null,
+          expiresAt: new Date(now + windowMs * 2),
+        },
+      }
+    );
+    return { locked: false, remaining: 14 };
+  }
+
+  const failures = entry ? entry.failures : 1;
+
+  // If we just reached the threshold, set the lockout.
+  if (failures >= 15 && (!entry || !entry.lockedUntil)) {
+    await LoginAttempt.findOneAndUpdate(
+      { attemptKey },
+      {
+        $set: {
+          lockedUntil: new Date(now + windowMs),
+          expiresAt: new Date(now + windowMs * 2),
+        },
+      }
+    );
+    return { locked: true, remaining: 0 };
+  }
+
+  const remaining = Math.max(0, 15 - failures);
+  const locked = Boolean(
+    entry && entry.lockedUntil && entry.lockedUntil.getTime() > now
+  );
+  return { locked, remaining };
 }
 
-export function clearLoginFailures(attemptKey) {
-  loginAttempts.delete(attemptKey);
+export async function clearLoginFailures(attemptKey) {
+  await LoginAttempt.deleteOne({ attemptKey });
 }
 
 /**
@@ -277,6 +405,15 @@ export async function getPasswordResetToken(userId, rawToken) {
   const tokenHash = hashToken(rawToken);
   return await PasswordResetToken.findOne({
     user: userId,
+    tokenHash,
+    usedAt: null,
+    expiresAt: { $gt: new Date() },
+  }).sort({ createdAt: -1 });
+}
+
+export async function getPasswordResetTokenByHash(rawToken) {
+  const tokenHash = hashToken(rawToken);
+  return await PasswordResetToken.findOne({
     tokenHash,
     usedAt: null,
     expiresAt: { $gt: new Date() },
@@ -468,9 +605,7 @@ export async function seedBaseUsers() {
   });
 
   if (!existingAdmin) {
-    const adminPasswordHash = hashPassword(
-      BOOTSTRAP_ADMIN_PASSWORD || "Nepal@123",
-    );
+    const adminPasswordHash = hashPassword(BOOTSTRAP_ADMIN_PASSWORD);
     const admin = await User.create({
       email: adminEmail,
       collegeEmail: adminEmail,

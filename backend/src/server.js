@@ -8,6 +8,10 @@ import {
   startAcademicScheduler,
   stopAcademicScheduler,
 } from "./services/lms/scheduler.js";
+import {
+  startWorkflowScheduler,
+  stopWorkflowScheduler,
+} from "./services/workflowScheduler.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4000);
@@ -24,10 +28,12 @@ const server = app.listen(PORT, () => {
 // re-derives the same state from the clock — so a missed pass can never leave a
 // window open or let a student submit late.
 startAcademicScheduler();
+startWorkflowScheduler();
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     stopAcademicScheduler();
+    stopWorkflowScheduler();
     server.close(() => process.exit(0));
   });
 }
