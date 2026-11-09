@@ -29,6 +29,7 @@ const ctx = {};
 let baseUrl = "";
 let server = null;
 let mongooseRef = null;
+const csrfTokens = new Map();
 
 /** Minimal but genuinely valid files: the backend sniffs magic bytes on upload. */
 const PDF_BYTES = Buffer.from(
@@ -63,6 +64,11 @@ function formWithField(field, fields, filename) {
 async function api(path, { method = "GET", token, body, headers: requestHeaders = {} } = {}) {
   const headers = { ...requestHeaders };
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   let payload;
   if (body instanceof FormData) {
@@ -82,12 +88,22 @@ async function api(path, { method = "GET", token, body, headers: requestHeaders 
       data = text;
     }
   }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
+  }
   return { status: response.status, data, text, headers: response.headers };
 }
 
 async function login(email, password, headers) {
   const res = await api("/api/auth/login", { method: "POST", body: { email, password }, headers });
   assert.equal(res.status, 200, `login failed for ${email}: ${res.text}`);
+  assert.ok(res.data.csrfToken, "login did not issue a CSRF token");
+  csrfTokens.set(res.data.token, res.data.csrfToken);
   return res.data.token;
 }
 
@@ -179,7 +195,7 @@ before(async () => {
     code: "CS201",
     name: "Data Structures",
     department: "Computer Science",
-    program: "BCA",
+    program: "BScIT",
     semester: 2,
     credits: 4,
     courseType: "CORE",
@@ -188,7 +204,7 @@ before(async () => {
     code: "CS401",
     name: "Software Engineering",
     department: "Computer Science",
-    program: "BCA",
+    program: "BScIT",
     semester: 4,
     credits: 4,
     courseType: "CORE",
@@ -200,7 +216,7 @@ before(async () => {
     const section = await api("/api/sections", {
       method: "POST",
       token: ctx.adminToken,
-      body: { code: "A1", program: "BCA", semester, batch: "2025", room: "Hall 101" },
+      body: { code: "A1", program: "BScIT", semester, batch: "2025", room: "Hall 101" },
     });
     assert.equal(section.status, 201, `section creation failed: ${section.text}`);
   }
@@ -210,7 +226,7 @@ before(async () => {
     lastName: "Tamang",
     role: "student",
     studentId: "BCA25001",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 2,
     section: "A1",
@@ -220,7 +236,7 @@ before(async () => {
     lastName: "Thapa",
     role: "student",
     studentId: "BCA25002",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 4,
     section: "A1",
@@ -624,7 +640,7 @@ test("curriculum staff manage courses while a teacher cannot", async () => {
     body: {
       code: "CS301",
       name: "Database Systems",
-      program: "BCA",
+      program: "BScIT",
       semester: 3,
       department: "Computer Science",
       credits: 4,
@@ -686,7 +702,7 @@ test("sections are real records and renaming one carries its students", async ()
   const created = await api("/api/sections", {
     method: "POST",
     token: ctx.adminToken,
-    body: { code: "B2", program: "BCA", semester: 2, batch: "2025", capacity: 30 },
+    body: { code: "B2", program: "BScIT", semester: 2, batch: "2025", capacity: 30 },
   });
   assert.equal(created.status, 201, created.text);
   assert.equal(created.data.section.code, "B2");
@@ -695,21 +711,21 @@ test("sections are real records and renaming one carries its students", async ()
   const duplicate = await api("/api/sections", {
     method: "POST",
     token: ctx.adminToken,
-    body: { code: "B2", program: "BCA", semester: 2, batch: "2025" },
+    body: { code: "B2", program: "BScIT", semester: 2, batch: "2025" },
   });
   assert.equal(duplicate.status, 409);
 
   const forbidden = await api("/api/sections", {
     method: "POST",
     token: ctx.teacher.token,
-    body: { code: "B3", program: "BCA", semester: 2 },
+    body: { code: "B3", program: "BScIT", semester: 2 },
   });
   assert.equal(forbidden.status, 403);
 
   const moved = await api("/api/sections", {
     method: "POST",
     token: ctx.adminToken,
-    body: { code: "B4", program: "BCA", semester: 2, batch: "2025" },
+    body: { code: "B4", program: "BScIT", semester: 2, batch: "2025" },
   });
   assert.equal(moved.status, 201, moved.text);
 
@@ -744,7 +760,7 @@ test("admissions run registrar-only and enrolment creates the student identity",
   const forbidden = await api("/api/admissions/applications", {
     method: "POST",
     token: ctx.teacher.token,
-    body: { applicantName: "Rejected Applicant", email: "no@example.com", programme: "BCA" },
+    body: { applicantName: "Rejected Applicant", email: "no@example.com", programme: "BScIT" },
   });
   assert.equal(forbidden.status, 403);
 
@@ -755,7 +771,7 @@ test("admissions run registrar-only and enrolment creates the student identity",
       applicantName: "Prashant Shrestha",
       email: "prashant.shrestha@example.com",
       phone: "+9779800000099",
-      programme: "BCA",
+      programme: "BScIT",
       batch: "2025",
       semester: 1,
       section: "A1",
@@ -850,7 +866,7 @@ test("calendar events reach only their intended cohort", async () => {
       audience: {
         targetType: "SPECIFIC",
         target: {
-          programCodes: ["BCA"],
+          programCodes: ["BScIT"],
           batchYears: ["2025"],
           semesters: [4],
           sectionCodes: ["A1"],
@@ -979,7 +995,7 @@ test("learning materials are limited to the courses a teacher may teach", async 
         courseId: ctx.courseSem4.id,
         sectionCodes: "A1",
         semester: 4,
-        program: "BCA",
+        program: "BScIT",
         batch: "2025",
         academicYear: "2025/2026",
       },
@@ -1016,7 +1032,7 @@ test("learning materials are limited to the courses a teacher may teach", async 
         courseId: ctx.courseSem2.id,
         sectionCodes: "A1",
         semester: 2,
-        program: "BCA",
+        program: "BScIT",
         batch: "2025",
         academicYear: "2025/2026",
       },
@@ -1265,7 +1281,7 @@ test("timetable conflicts are refused unless the actor holds the override", asyn
   const base = {
     course: ctx.courseSem4.id,
     facultyUser: ctx.teacher.userId,
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 4,
     sectionCode: "A1",
@@ -1404,7 +1420,7 @@ test("super_admin can permanently delete a user account", async () => {
     lastName: "Target",
     role: "student",
     studentId: "BCA25099",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 1,
     section: "A1",
@@ -1446,7 +1462,7 @@ test("non-admin roles cannot delete user accounts", async () => {
     lastName: "Target2",
     role: "student",
     studentId: "BCA25098",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 1,
     section: "A1",
@@ -1486,7 +1502,7 @@ test("unauthenticated requests to delete user are rejected", async () => {
     lastName: "Target3",
     role: "student",
     studentId: "BCA25097",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 1,
     section: "A1",
@@ -1568,7 +1584,7 @@ test("deletion revokes sessions and invalidates tokens", async () => {
     lastName: "Test",
     role: "student",
     studentId: "BCA25096",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 1,
     section: "A1",
@@ -1605,7 +1621,7 @@ test("audit log records account deletion", async () => {
     lastName: "Target",
     role: "student",
     studentId: "BCA25095",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 1,
     section: "A1",
@@ -2272,7 +2288,7 @@ test("finance and published institutional records synchronize into student docum
       semester: 2,
     },
     { $set: { academicYear: "2026/2027", status: "ENROLLED" } },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
   );
   const withEnrollment = await api("/api/documents", { token: ctx.studentSem2.token });
   const enrollmentDocument = withEnrollment.data.documents.find(
@@ -2290,7 +2306,7 @@ test("finance and published institutional records synchronize into student docum
     startTime: "10:00",
     endTime: "12:00",
     academicYear: "2026/2027",
-    program: "BCA",
+    program: "BScIT",
   });
   const publishedResult = await ExamResult.create({
     exam: exam._id,

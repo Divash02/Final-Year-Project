@@ -12,10 +12,16 @@ let baseUrl = "";
 let server = null;
 let mongooseRef = null;
 const context = {};
+const csrfTokens = new Map();
 
 async function api(path, { method = "GET", token, body } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
   let payload;
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -29,12 +35,22 @@ async function api(path, { method = "GET", token, body } = {}) {
   } catch {
     data = text;
   }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
+  }
   return { status: response.status, data, text };
 }
 
 async function login(email, password) {
   const result = await api("/api/auth/login", { method: "POST", body: { email, password } });
   assert.equal(result.status, 200, result.text);
+  assert.ok(result.data.csrfToken, "login did not issue a CSRF token");
+  csrfTokens.set(result.data.token, result.data.csrfToken);
   return result.data.token;
 }
 
@@ -51,7 +67,7 @@ async function activate(email, temporaryPassword, password) {
 
 async function provision(role, firstName) {
   const studentFields = role === "student"
-    ? { studentId: `LIB${Date.now()}${Math.random().toString(36).slice(2, 4).toUpperCase()}`, program: "BCA", batch: "2026", semester: 1, section: "LIB" }
+    ? { studentId: `LIB${Date.now()}${Math.random().toString(36).slice(2, 4).toUpperCase()}`, program: "BScIT", batch: "2026", semester: 1, section: "LIB" }
     : {};
   const created = await api("/api/admin/users", {
     method: "POST",
@@ -83,7 +99,7 @@ before(async () => {
   await api("/api/sections", {
     method: "POST",
     token: context.adminToken,
-    body: { code: "LIB", program: "BCA", semester: 1, batch: "2026", room: "Library Test Room" },
+    body: { code: "LIB", program: "BScIT", semester: 1, batch: "2026", room: "Library Test Room" },
   });
   const student = await provision("student", "LibraryStudent");
   context.studentToken = student.token;

@@ -39,10 +39,16 @@ let mongooseRef = null;
 let InstitutionSettingModel = null;
 let EnrollmentModel = null;
 let StudentModel = null;
+const csrfTokens = new Map();
 
 async function api(path, { method = "GET", token, body } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   let payload;
   if (body !== undefined) {
@@ -60,12 +66,22 @@ async function api(path, { method = "GET", token, body } = {}) {
       data = text;
     }
   }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
+  }
   return { status: response.status, data, text };
 }
 
 async function login(email, password) {
   const res = await api("/api/auth/login", { method: "POST", body: { email, password } });
   assert.equal(res.status, 200, `login failed for ${email}: ${res.text}`);
+  assert.ok(res.data.csrfToken, "login did not issue a CSRF token");
+  csrfTokens.set(res.data.token, res.data.csrfToken);
   return res.data.token;
 }
 
@@ -262,7 +278,7 @@ test("enrolments are grouped into In Progress, Past and Future by real period", 
     lastName: "Thapa",
     role: "student",
     studentId: "BCA25002",
-    program: "BCA",
+    program: "BScIT",
     semester: 4,
     section: "A1",
   });
@@ -419,7 +435,7 @@ test("a student receives only their own courses", async () => {
     lastName: "Lama",
     role: "student",
     studentId: "BCA25004",
-    program: "BCA",
+    program: "BScIT",
     semester: 5,
     section: "B1",
   });

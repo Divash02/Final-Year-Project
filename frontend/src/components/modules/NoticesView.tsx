@@ -881,7 +881,7 @@ export const NoticesView: React.FC = () => {
                           onChange={(event) =>
                             updateForm("programCodes", event.target.value)
                           }
-                          placeholder="BCA, MCA"
+                          placeholder="BScIT"
                           className="cos-input w-full"
                         />
                       </div>

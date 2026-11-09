@@ -10,7 +10,8 @@ import {
   faTrash,
   faUserPlus,
 } from "@fortawesome/free-solid-svg-icons";
-import { apiRequest } from "../../services/apiClient";
+import { apiRequest, ApiError } from "../../services/apiClient";
+import { fetchTimetableFilters } from "../../services/adminTimetableApi";
 import {
   formatDateTimeForCalendar,
   formatTimestampForCalendar,
@@ -79,6 +80,13 @@ interface Course {
   courseType: string;
   credits: number | null;
   status: string;
+}
+
+interface ProgramOption {
+  code: string;
+  name: string;
+  department?: string | null;
+  totalSemesters?: number | null;
 }
 
 interface SubjectAssignment {
@@ -175,9 +183,15 @@ export const UserManagementView: React.FC = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
   const [deleteConfirmLoading, setDeleteConfirmLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState("");
 
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkAcademicYear, setBulkAcademicYear] = useState("");
+  const [bulkAcademicYears, setBulkAcademicYears] = useState<string[]>([]);
+  const [bulkOptionsLoading, setBulkOptionsLoading] = useState(false);
   const [bulkProgram, setBulkProgram] = useState("");
   const [bulkDepartment, setBulkDepartment] = useState("");
   const [bulkBatch, setBulkBatch] = useState("");
@@ -191,6 +205,29 @@ export const UserManagementView: React.FC = () => {
   const [bulkError, setBulkError] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkResult, setBulkResult] = useState<any>(null);
+
+  useEffect(() => {
+    if (!bulkOpen) return;
+    let active = true;
+    setBulkOptionsLoading(true);
+    (async () => {
+      try {
+        const data: any = await fetchTimetableFilters();
+        const f = data?.filters || {};
+        if (!active) return;
+        setBulkAcademicYears(Array.isArray(f.academicYears) ? f.academicYears : []);
+        if (!bulkAcademicYear || !f.academicYears.includes(bulkAcademicYear)) {
+          setBulkAcademicYear(f.academicYears?.[0] || "");
+        }
+      } catch {
+        if (!active) return;
+        setBulkAcademicYears([]);
+      } finally {
+        if (active) setBulkOptionsLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [bulkOpen, bulkAcademicYear]);
 
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
@@ -215,11 +252,16 @@ export const UserManagementView: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [subjectAssignments, setSubjectAssignments] = useState<string[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
+  const [subjectsError, setSubjectsError] = useState<string | null>(null);
+  const [subjectWarning, setSubjectWarning] = useState<string | null>(null);
+  const [subjectSearch, setSubjectSearch] = useState("");
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [availableSemesters, setAvailableSemesters] = useState<number[]>([]);
   const [selectedSemesters, setSelectedSemesters] = useState<number[]>([]);
   const [semestersLoading, setSemestersLoading] = useState(false);
-  const [subjectsError, setSubjectsError] = useState<string | null>(null);
+  const [semestersError, setSemestersError] = useState<string | null>(null);
+  const [programOptions, setProgramOptions] = useState<ProgramOption[]>([]);
+  const [programsLoading, setProgramsLoading] = useState(false);
 
   const loadUsers = useCallback(async () => {
     const params = new URLSearchParams();
@@ -305,8 +347,15 @@ export const UserManagementView: React.FC = () => {
           setRoleChangeDepartment(result.user.department || "");
           if (result.user.subjectAssignments) {
             setSubjectAssignments(result.user.subjectAssignments.map((sa) => sa.courseId));
+            const sems = [...new Set(
+              result.user.subjectAssignments
+                .map((sa) => sa.semester)
+                .filter((s): s is number => Number.isInteger(s) && (s as number) >= 1),
+            )].sort((a, b) => (a as number) - (b as number)) as number[];
+            setSelectedSemesters(sems);
           } else {
             setSubjectAssignments([]);
+            setSelectedSemesters([]);
           }
         }
       })
@@ -323,63 +372,116 @@ export const UserManagementView: React.FC = () => {
     };
   }, [selected]);
 
-  // Load semesters when role changes to faculty
+  // Load academic programs for faculty assignment context
   useEffect(() => {
-    if (role === "faculty") {
-      setSemestersLoading(true);
-      apiRequest<{ filters: { semesters: number[] } }>("/courses/filters")
-        .then((result) => {
-          const semesters = result.filters.semesters.filter((s) => s >= 1 && s <= 6).sort((a, b) => a - b);
-          setAvailableSemesters(semesters);
-        })
-        .catch(() => {
-          setAvailableSemesters([1, 2, 3, 4, 5, 6]);
-        })
-        .finally(() => {
-          setSemestersLoading(false);
-        });
-    } else {
+    if (role !== "faculty") {
+      setProgramOptions([]);
+      return;
+    }
+    let active = true;
+    setProgramsLoading(true);
+    apiRequest<{ filters: { programs?: ProgramOption[] } }>("/courses/filters")
+      .then((result) => {
+        if (!active) return;
+        const programs = Array.isArray(result.filters?.programs) ? result.filters.programs : [];
+        setProgramOptions(programs);
+        if (!program && programs.length === 1) setProgram(programs[0].code);
+      })
+      .catch(() => {
+        if (active) setProgramOptions([]);
+      })
+      .finally(() => {
+        if (active) setProgramsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [role, program]);
+
+  // Load semesters when role changes to faculty (program-aware)
+  useEffect(() => {
+    if (role !== "faculty") {
       setAvailableSemesters([]);
       setSelectedSemesters([]);
       setCourses([]);
       setSubjectAssignments([]);
       setSubjectsError(null);
+      setSemestersError(null);
+      setSubjectWarning(null);
+      return;
     }
-  }, [role]);
-
-  // Load courses when selected semesters change
-  useEffect(() => {
-    if (role !== "faculty" || selectedSemesters.length === 0) {
-      setCourses([]);
-      setSubjectAssignments((prev) => {
-        // Keep only assignments that belong to selected semesters
-        // We'll filter after courses are loaded
-        return prev;
+    let active = true;
+    setSemestersLoading(true);
+    setSemestersError(null);
+    const params = program ? `?program=${encodeURIComponent(program)}` : "";
+    apiRequest<{ filters: { semesters: number[] } }>(`/courses/filters${params}`)
+      .then((result) => {
+        if (!active) return;
+        const semesters = (result.filters?.semesters || [])
+          .map((s) => Number(s))
+          .filter((s) => Number.isInteger(s) && s >= 1)
+          .sort((a, b) => a - b);
+        setAvailableSemesters(semesters);
+        setSelectedSemesters((prev) => prev.filter((s) => semesters.includes(s)));
+      })
+      .catch((err) => {
+        if (!active) return;
+        setAvailableSemesters([]);
+        setSemestersError(err instanceof Error ? err.message : "Failed to load semesters.");
+      })
+      .finally(() => {
+        if (active) setSemestersLoading(false);
       });
+    return () => {
+      active = false;
+    };
+  }, [role, program]);
+
+  const loadCoursesForSemesters = useCallback(async (semesters: number[]) => {
+    if (role !== "faculty" || semesters.length === 0) {
+      setCourses([]);
+      setSubjectAssignments([]);
       setSubjectsError(null);
       return;
     }
-
     setCoursesLoading(true);
     setSubjectsError(null);
-    const semesterParams = selectedSemesters.map((s) => `semester=${s}`).join("&");
-    apiRequest<{ courses: Course[] }>(`/courses?scope=curriculum&limit=200&${semesterParams}`)
-      .then((result) => {
-        const loadedCourses = result.courses.filter((c) => c.status === "ACTIVE");
-        setCourses(loadedCourses);
-
-        // Filter subject assignments to only keep those belonging to selected semesters
-        const validCourseIds = new Set(loadedCourses.map((c) => c.id));
-        setSubjectAssignments((prev) => prev.filter((id) => validCourseIds.has(id)));
-      })
-      .catch((err) => {
-        setCourses([]);
-        setSubjectsError(err instanceof Error ? err.message : "Failed to load subjects.");
-      })
-      .finally(() => {
-        setCoursesLoading(false);
+    try {
+      const params = new URLSearchParams();
+      params.set("scope", "curriculum");
+      params.set("limit", "200");
+      if (program) params.set("program", program);
+      semesters.forEach((s) => params.append("semester", String(s)));
+      const result = await apiRequest<{ courses: Course[] }>(`/courses?${params.toString()}`);
+      const loadedCourses = (result.courses || []).filter((c) => c.status === "ACTIVE");
+      setCourses(loadedCourses);
+      const validCourseIds = new Set(loadedCourses.map((c) => c.id));
+      setSubjectAssignments((prev) => {
+        const next = prev.filter((id) => validCourseIds.has(id));
+        if (next.length !== prev.length) {
+          setSubjectWarning("Some selected subjects were removed because their semester is no longer selected.");
+        }
+        return next;
       });
-  }, [role, selectedSemesters]);
+    } catch (err) {
+      setCourses([]);
+      setSubjectsError(err instanceof Error ? err.message : "Failed to load subjects.");
+    } finally {
+      setCoursesLoading(false);
+    }
+  }, [role, program]);
+
+  // Load courses when selected semesters/program change
+  useEffect(() => {
+    if (role !== "faculty") return;
+    if (selectedSemesters.length === 0) {
+      setCourses([]);
+      setSubjectAssignments([]);
+      setSubjectsError(null);
+      return;
+    }
+    void loadCoursesForSemesters(selectedSemesters);
+  }, [role, selectedSemesters, loadCoursesForSemesters]);
 
   const visibleUsers = useMemo(() => {
     const filter = departmentFilter.trim().toLowerCase();
@@ -407,10 +509,14 @@ export const UserManagementView: React.FC = () => {
     setSelectedSemesters([]);
     setCourses([]);
     setSubjectsError(null);
+    setSemestersError(null);
+    setSubjectWarning(null);
+    setSubjectSearch("");
   };
 
   const createAccount = async (event: React.FormEvent) => {
     event.preventDefault();
+    setProvisioning(false);
     setBusy(true);
     setError("");
 
@@ -433,21 +539,25 @@ export const UserManagementView: React.FC = () => {
           semester: semester ? Number(semester) : null,
           section,
           campus,
+          assignedSemesters: role === "faculty" ? selectedSemesters : [],
           subjectAssignments: role === "faculty" ? subjectAssignments : [],
         }),
       });
       setProvisioned(result);
       setShowCredential(false);
       setCopied(false);
-      setProvisioning(false);
       resetForm();
       await loadUsers();
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Account creation failed.",
-      );
+      const message =
+        requestError instanceof ApiError && requestError.status === 409
+          ? "Employee ID or institutional email may already exist. " + requestError.message
+          : requestError instanceof ApiError && requestError.status === 403
+            ? "You do not have permission to create this account."
+            : requestError instanceof Error
+              ? requestError.message
+              : "Account creation failed.";
+      toast.toast({ variant: "error", message, duration: 6000 });
     } finally {
       setBusy(false);
     }
@@ -566,6 +676,41 @@ export const UserManagementView: React.FC = () => {
     }
   };
 
+  const bulkDeleteAccounts = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkDeleteLoading(true);
+    setBulkDeleteError("");
+    try {
+      const result: any = await apiRequest("/admin/users/bulk-delete", {
+        method: "POST",
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const deletedCount = Array.isArray(result?.deleted) ? result.deleted.length : 0;
+      const failed = Array.isArray(result?.failed) ? result.failed : [];
+      if (failed.length > 0) {
+        setBulkDeleteError(
+          `Some accounts could not be deleted: ${failed.map((f: any) => f.error).join("; ")}`,
+        );
+      }
+      const deletedIds = new Set((result?.deleted || []).map((d: any) => d.id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        deletedIds.forEach((id) => next.delete(id as number));
+        return next;
+      });
+      await loadUsers();
+      if (deletedCount > 0) {
+        toast.toast({ message: `${deletedCount} accounts deleted successfully.`, variant: "success", duration: 7000 });
+      }
+      if (failed.length === 0) setBulkDeleteConfirmOpen(false);
+    } catch (requestError) {
+      setBulkDeleteError(
+        requestError instanceof Error ? requestError.message : "Bulk delete failed.",
+      );
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  };
   const deleteAccount = async (userId: number) => {
     if (!details) return;
 
@@ -662,7 +807,8 @@ export const UserManagementView: React.FC = () => {
           type="button"
         onClick={() => {
           setBulkOpen(true);
-          setBulkAcademicYear(""); setBulkProgram(""); setBulkDepartment(""); setBulkBatch("");
+          setBulkAcademicYear(""); setBulkAcademicYears([]); setBulkOptionsLoading(false);
+          setBulkProgram(""); setBulkDepartment(""); setBulkBatch("");
           setBulkSemester(""); setBulkSection(""); setBulkText("");
           setBulkResult(null); setBulkError("");
         }}
@@ -809,6 +955,16 @@ export const UserManagementView: React.FC = () => {
               <option key={status}>{status}</option>
             ))}
           </select>
+          {selectedIds.size > 0 && (
+            <button
+              type="button"
+              disabled={bulkDeleteLoading}
+              onClick={() => setBulkDeleteConfirmOpen(true)}
+              className="rounded border border-red-600 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              {bulkDeleteLoading ? "Deleting…" : `Delete selected (${selectedIds.size})`}
+            </button>
+          )}
           <select
             value={credentialFilter}
             onChange={(event) => setCredentialFilter(event.target.value)}
@@ -833,6 +989,17 @@ export const UserManagementView: React.FC = () => {
             <table className="w-full min-w-[760px] text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
+                  <th className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all users"
+                      checked={visibleUsers.length > 0 && visibleUsers.every((u) => selectedIds.has(u.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedIds(new Set(visibleUsers.map((u) => u.id)));
+                        else setSelectedIds(new Set());
+                      }}
+                    />
+                  </th>
                   <th className="px-4 py-3">Person</th>
                   <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Department</th>
@@ -844,9 +1011,22 @@ export const UserManagementView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {visibleUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-900">
+                   <tr key={user.id} className="hover:bg-slate-50">
+                     <td className="px-4 py-3">
+                       <input
+                         type="checkbox"
+                         aria-label={`Select ${user.name}`}
+                         checked={selectedIds.has(user.id)}
+                         onChange={(e) => {
+                           const next = new Set(selectedIds);
+                           if (e.target.checked) next.add(user.id);
+                           else next.delete(user.id);
+                           setSelectedIds(next);
+                         }}
+                       />
+                     </td>
+                     <td className="px-4 py-3">
+                       <p className="font-semibold text-slate-900">
                         {user.name}
                       </p>
                       <p className="cos-page-subtitle">
@@ -906,6 +1086,35 @@ export const UserManagementView: React.FC = () => {
         </div>
       </div>
 
+      {bulkDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center bg-slate-950/50 p-4">
+          <section className="w-full max-w-lg space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-xl" role="dialog" aria-modal="true">
+            <h2 className="text-base font-semibold">Permanently Delete Accounts?</h2>
+            <p className="text-xs text-slate-600">
+              This will permanently delete {selectedIds.size} selected account(s). This action cannot simply be undone.
+            </p>
+            {bulkDeleteError && <p className="text-xs text-red-600">{bulkDeleteError}</p>}
+            <div className="max-h-60 overflow-y-auto rounded border border-slate-200">
+              <ul className="divide-y divide-slate-100 text-xs">
+                {users.filter((u) => selectedIds.has(u.id)).map((u) => (
+                  <li key={u.id} className="px-3 py-2">
+                    <p className="font-medium">{u.name}</p>
+                    <p className="text-slate-500">{u.email}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" disabled={bulkDeleteLoading} onClick={() => { setBulkDeleteConfirmOpen(false); setBulkDeleteError(""); }} className="rounded border border-slate-300 px-3 py-2 text-xs">
+                Cancel
+              </button>
+              <button type="button" disabled={bulkDeleteLoading} onClick={() => void bulkDeleteAccounts()} className="rounded bg-red-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                {bulkDeleteLoading ? "Deleting…" : "Permanently Delete"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {provisioning && (
         <div
           className="fixed inset-0 z-[210] overflow-y-auto bg-slate-950/40 p-4"
@@ -913,29 +1122,31 @@ export const UserManagementView: React.FC = () => {
         >
           <form
             onSubmit={createAccount}
-            className="mx-auto my-8 max-w-2xl space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
+            className="mx-auto my-8 max-w-4xl space-y-6 rounded-2xl border border-slate-200/80 bg-white p-0 shadow-2xl"
+
             role="dialog"
             aria-modal="true"
             aria-labelledby="provision-title"
           >
-            <div className="flex items-start justify-between">
+            <div className="flex items-center justify-between gap-4 rounded-t-2xl border-b border-slate-100 bg-slate-50/80 px-6 py-5">
               <div>
-                <h2 id="provision-title" className="text-base font-semibold">
-                  Create institutional account
+                <h2 id="provision-title" className="text-xl font-semibold tracking-tight text-slate-900">
+                  Create Institutional Account
                 </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  The account starts passive and requires first-login password
-                  setup.
+                <p className="mt-1 text-sm text-slate-500">
+                  Set up an institutional account and configure its academic access.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setProvisioning(false)}
-                className="text-xs text-slate-500"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50"
               >
                 Close
               </button>
             </div>
+            <div className="space-y-6 px-6 py-6">
+
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <label className="text-sm text-slate-600">
                   First name <span className="text-red-500">*</span>
@@ -1082,6 +1293,31 @@ export const UserManagementView: React.FC = () => {
                   </label>
                   {selectedRole === "faculty" && (
                     <>
+                      <label className="text-sm text-slate-600">
+                        Programme / Curriculum Context
+                        <select
+                          value={program}
+                          onChange={(event) => {
+                            setProgram(event.target.value);
+                            setSelectedSemesters([]);
+                            setSubjectAssignments([]);
+                            setCourses([]);
+                            setSubjectsError(null);
+                            setSemestersError(null);
+                            setSubjectWarning(null);
+                          }}
+                          className="mt-1 w-full rounded border border-slate-300 px-2 py-2 text-xs"
+                          disabled={programsLoading}
+                        >
+                          <option value="">Select programme (optional if single-program setup)</option>
+                          {programOptions.map((item) => (
+                            <option key={item.code} value={item.code}>
+                              {item.code}{item.name ? ` - ${item.name}` : ""}{item.totalSemesters ? ` (${item.totalSemesters} semesters)` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {programsLoading && <p className="mt-1 text-xs text-slate-500">Loading programmes...</p>}
+                      </label>
                       <div className="text-sm text-slate-600">
                         <MultiSelect
                           options={availableSemesters.map((sem) => ({
@@ -1089,8 +1325,13 @@ export const UserManagementView: React.FC = () => {
                             label: `Semester ${sem}`,
                           }))}
                           value={selectedSemesters.map(String)}
-                          onChange={(vals) => setSelectedSemesters(vals.map(Number))}
-                          placeholder="Select semester(s)..."
+                          onChange={(vals) => {
+                            setSubjectWarning(null);
+                            setSelectedSemesters(
+                              [...new Set(vals.map(Number).filter((n) => Number.isInteger(n) && n >= 1))].sort((a, b) => a - b),
+                            );
+                          }}
+                          placeholder={program ? "Select semester(s)...": "Select programme first or available semesters"}
                           searchable
                           label="Assigned Semester(s)"
                           required
@@ -1099,30 +1340,112 @@ export const UserManagementView: React.FC = () => {
                         {semestersLoading && (
                           <p className="mt-1 text-xs text-slate-500">Loading semesters...</p>
                         )}
+                        {semestersError && (
+                          <p className="mt-1 text-xs text-red-600">
+                            {semestersError}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSemestersError(null);
+                                setSemestersLoading(true);
+                                const params = program ? `?program=${encodeURIComponent(program)}` : "";
+                                apiRequest<{ filters: { semesters: number[] } }>(`/courses/filters${params}`)
+                                  .then((result) => {
+                                    const semesters = (result.filters?.semesters || [])
+                                      .map((s) => Number(s))
+                                      .filter((s) => Number.isInteger(s) && s >= 1)
+                                      .sort((a, b) => a - b);
+                                    setAvailableSemesters(semesters);
+                                    setSelectedSemesters((prev) => prev.filter((s) => semesters.includes(s)));
+                                  })
+                                  .catch((err) => setSemestersError(err instanceof Error ? err.message : "Failed to load semesters."))
+                                  .finally(() => setSemestersLoading(false));
+                              }}
+                              className="ml-2 text-blue-600 hover:underline"
+                            >
+                              Retry
+                            </button>
+                          </p>
+                        )}
+                        {!semestersLoading && !semestersError && availableSemesters.length === 0 && (
+                          <p className="mt-1 text-xs text-amber-600">
+                            No valid semesters found for the selected programme/curriculum.
+                          </p>
+                        )}
                       </div>
                       <div className="text-sm text-slate-600">
-                        <MultiSelect
-                          options={courses.map((course) => ({
-                            id: course.id,
-                            label: `${course.code} - ${course.name}`,
-                            group: course.semester
-                              ? `Semester ${course.semester}${course.program ? ` (${course.program})` : ""}`
-                              : course.department || "General",
-                            course,
-                          }))}
-                          value={subjectAssignments}
-                          onChange={setSubjectAssignments}
-                          placeholder={
-                            selectedSemesters.length === 0
-                              ? "Select a semester first to view its subjects."
-                              : "Search and select subjects..."
-                          }
-                          searchable
-                          groupBy={(opt) => opt.group}
-                          label="Assigned Subjects"
-                          required
-                          disabled={coursesLoading || selectedSemesters.length === 0}
-                        />
+                        <label className="mb-1 block text-sm font-medium text-slate-600">Assigned Subjects <span className="text-red-500">*</span></label>
+                        <div className="rounded-lg border border-slate-200 bg-white">
+                          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2">
+                            <input
+                              type="search"
+                              value={subjectSearch}
+                              onChange={(e) => setSubjectSearch(e.target.value)}
+                              placeholder={selectedSemesters.length === 0 ? "Select semester(s) first" : "Search by subject name or course code"}
+                              disabled={coursesLoading || selectedSemesters.length === 0}
+                              className="min-w-[180px] flex-1 rounded border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-[#1F6B45] disabled:bg-slate-50"
+                            />
+                            <span className="text-[11px] text-slate-500">{subjectAssignments.length} selected</span>
+                          </div>
+                          {selectedSemesters.length > 0 && !coursesLoading && !subjectsError && (
+                            <div className="max-h-72 overflow-y-auto p-2">
+                              {[...selectedSemesters].sort((a,b)=>a-b).map((sem) => {
+                                const groupCourses = courses
+                                  .filter((c) => c.semester === sem)
+                                  .filter((c) => {
+                                    const q = subjectSearch.trim().toLowerCase();
+                                    if (!q) return true;
+                                    return c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q);
+                                  });
+                                if (groupCourses.length === 0 && subjectSearch.trim()) return null;
+                                return (
+                                  <section key={sem} className="mb-3 last:mb-0">
+                                    <div className="mb-2 flex items-center justify-between rounded-lg bg-[#1F6B45] px-3 py-2 text-white shadow-sm">
+                                      <span className="text-sm font-semibold">Semester {sem}</span>
+                                      {program && (
+                                        <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium text-white">
+                                          {program}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {groupCourses.length === 0 ? (
+                                      <p className="px-2 py-2 text-xs text-slate-500">No subjects found for this semester.</p>
+                                    ) : (
+                                      <div className="space-y-1.5">
+                                        {groupCourses.map((course) => {
+                                          const checked = subjectAssignments.includes(course.id);
+                                          return (
+                                            <label key={course.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-xs transition ${checked ? "border-[#1F6B45]/40 bg-[#1F6B45]/5 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"}`}>
+                                              <input
+                                                type="checkbox"
+                                                className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-[#1F6B45] focus:ring-[#1F6B45]"
+                                                checked={checked}
+                                                onChange={() => {
+                                                  setSubjectWarning(null);
+                                                  setSubjectAssignments((prev) => prev.includes(course.id) ? prev.filter((id) => id !== course.id) : [...prev, course.id]);
+                                                }}
+                                              />
+                                              <span className="min-w-0 flex-1">
+                                                <span className="block break-words font-medium leading-snug text-slate-900">{course.name}</span>
+                                                <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                                                  <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">{course.code}</span>
+                                                  {course.credits != null && <span className="text-[10px] text-slate-500">{course.credits} credits</span>}
+                                                </span>
+                                              </span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </section>
+                                );
+                              })}
+                              {subjectSearch.trim() && courses.filter((c)=>selectedSemesters.includes(Number(c.semester)) && (c.name.toLowerCase().includes(subjectSearch.toLowerCase()) || c.code.toLowerCase().includes(subjectSearch.toLowerCase()))).length === 0 && (
+                                <p className="px-2 py-3 text-center text-xs text-slate-500">No matching subjects found.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                         {coursesLoading && (
                           <p className="mt-1 text-xs text-slate-500">Loading subjects...</p>
                         )}
@@ -1133,8 +1456,11 @@ export const UserManagementView: React.FC = () => {
                         )}
                         {courses.length === 0 && selectedSemesters.length > 0 && !coursesLoading && !subjectsError && (
                           <p className="mt-1 text-xs text-amber-600">
-                            No active subjects found for the selected semester(s).
+                            No active subjects found for the selected semester(s) and programme/curriculum.
                           </p>
+                        )}
+                        {subjectWarning && (
+                          <p className="mt-1 text-xs text-amber-700">{subjectWarning}</p>
                         )}
                         {subjectsError && (
                           <p className="mt-1 text-xs text-red-600">
@@ -1142,29 +1468,35 @@ export const UserManagementView: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => {
-                                const semesterParams = selectedSemesters.map((s) => `semester=${s}`).join("&");
-                                setCoursesLoading(true);
-                                setSubjectsError(null);
-                                apiRequest<{ courses: Course[] }>(`/courses?scope=curriculum&limit=200&${semesterParams}`)
-                                  .then((result) => {
-                                    const loadedCourses = result.courses.filter((c) => c.status === "ACTIVE");
-                                    setCourses(loadedCourses);
-                                    const validCourseIds = new Set(loadedCourses.map((c) => c.id));
-                                    setSubjectAssignments((prev) => prev.filter((id) => validCourseIds.has(id)));
-                                  })
-                                  .catch((err) => {
-                                    setCourses([]);
-                                    setSubjectsError(err instanceof Error ? err.message : "Failed to load subjects.");
-                                  })
-                                  .finally(() => {
-                                    setCoursesLoading(false);
-                                  });
+                                void loadCoursesForSemesters(selectedSemesters);
                               }}
                               className="ml-2 text-blue-600 hover:underline"
                             >
                               Retry
                             </button>
                           </p>
+                        )}
+                        {subjectAssignments.length > 0 && (
+                          <div className="mt-2 rounded border border-slate-200 bg-slate-50/60 p-2">
+                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Selected subjects</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {subjectAssignments.map((id) => {
+                                const course = courses.find((c) => c.id === id) || details?.user.subjectAssignments?.find((a) => a.courseId === id);
+                                const name = course && 'name' in course ? course.name : (course as any)?.courseName || 'Selected subject';
+                                const code = course && 'code' in course ? course.code : (course as any)?.courseCode || '';
+                                const sem = course && 'semester' in course ? course.semester : (course as any)?.semester;
+                                return (
+                                  <span key={id} className="inline-flex max-w-full items-start gap-1 rounded border border-[#1F6B45]/20 bg-white px-2 py-1 text-[11px] text-slate-800" title={`${name}${code ? ` (${code})` : ''}`}>
+                                    <span className="min-w-0">
+                                      <span className="block font-medium leading-snug">{name}</span>
+                                      <span className="text-slate-500">{code}{sem ? ` · Sem ${sem}` : ''}</span>
+                                    </span>
+                                    <button type="button" aria-label={`Remove ${name}`} className="mt-0.5 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" onClick={() => setSubjectAssignments((prev) => prev.filter((x) => x !== id))}>×</button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
                         )}
                       </div>
                     </>
@@ -1180,11 +1512,15 @@ export const UserManagementView: React.FC = () => {
                 />
               </label>
             </div>
-            <p className="border-t border-slate-100 pt-3 text-sm text-slate-500">
+            </div>
+            <p className="border-t border-slate-100 px-6 pt-4 text-sm text-slate-500">
               Institutional email uses the configured name/year format at{" "}
-              <strong>@{domain}</strong>. Initial status: PASSIVE.
+              <strong className="text-slate-700">@{domain}</strong>. Initial status:{" "}
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">PASSIVE</span>
             </p>
-            <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
+
               <button
                 type="button"
                 onClick={() => setProvisioning(false)}
@@ -1395,27 +1731,37 @@ export const UserManagementView: React.FC = () => {
                 {details.user.subjectAssignments &&
                 details.user.subjectAssignments.length > 0 && (
                   <div className="border-y border-slate-200 py-4">
-                    <h3 className="text-xs font-semibold uppercase text-slate-500 mb-2">
+                    <h3 className="mb-3 rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800">
                       Assigned Subjects
                     </h3>
-                    <ul className="space-y-1">
+                    <ul className="grid gap-2 sm:grid-cols-2">
                       {details.user.subjectAssignments.map((assignment) => (
                         <li
                           key={assignment.courseId}
-                          className="text-xs text-slate-700 flex items-center gap-2"
+                          className="min-w-0 rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
                         >
-                          <FontAwesomeIcon
-                            icon={faCheck}
-                            className="w-3 h-3 text-emerald-600 shrink-0"
-                          />
-                          <span>
-                            {assignment.courseCode} - {assignment.courseName}
-                            {assignment.semester && (
-                              <span className="ml-2 text-slate-500">
-                                (Semester {assignment.semester}{assignment.program ? `, ${assignment.program}` : ""})
-                              </span>
-                            )}
-                          </span>
+                          <div className="flex items-start gap-2">
+                            <FontAwesomeIcon
+                              icon={faCheck}
+                              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="break-words text-sm font-medium text-slate-900">
+                                {assignment.courseName}
+                              </p>
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                                  {assignment.courseCode}
+                                </span>
+                                {assignment.semester && (
+                                  <span className="text-[10px] text-slate-500">
+                                    Semester {assignment.semester}
+                                    {assignment.program ? ` · ${assignment.program}` : ""}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -1663,7 +2009,20 @@ export const UserManagementView: React.FC = () => {
             <h2 className="text-base font-semibold">Bulk Student Creation</h2>
             <p className="text-xs text-slate-500">Select academic assignment, then paste student names (one per line).</p>
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-xs">Academic Year<input className="w-full rounded border border-slate-300 px-2 py-1" value={bulkAcademicYear} onChange={(e)=>setBulkAcademicYear(e.target.value)} placeholder="2083/84" /></label>
+              <label className="text-xs">Academic Year
+                <select
+                  className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                  value={bulkAcademicYear}
+                  onChange={(e) => setBulkAcademicYear(e.target.value)}
+                  disabled={bulkOptionsLoading}
+                >
+                  <option value="">Select academic year</option>
+                  {bulkAcademicYears.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                {bulkOptionsLoading && <span className="text-[10px] text-slate-400 block">Loading…</span>}
+              </label>
               <label className="text-xs">Program<input className="w-full rounded border border-slate-300 px-2 py-1" value={bulkProgram} onChange={(e)=>setBulkProgram(e.target.value)} placeholder="BCA" /></label>
               <label className="text-xs">Department<input className="w-full rounded border border-slate-300 px-2 py-1" value={bulkDepartment} onChange={(e)=>setBulkDepartment(e.target.value)} placeholder="Computer Science" /></label>
               <label className="text-xs">Batch<input className="w-full rounded border border-slate-300 px-2 py-1" value={bulkBatch} onChange={(e)=>setBulkBatch(e.target.value)} placeholder="2083" /></label>

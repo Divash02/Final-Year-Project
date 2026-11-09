@@ -201,6 +201,24 @@ export function toNumberList(value, { maxItems = 50 } = {}) {
   ).slice(0, maxItems);
 }
 
+/** Parses integer list input (JSON array, repeated query params, or CSV). */
+export function toIntList(
+  value,
+  field,
+  { min = null, max = null, maxItems = 50, fallback = [] } = {},
+) {
+  if (value === undefined || value === null || value === "") return [...fallback];
+  const source = Array.isArray(value) ? value : toStringList(value);
+  const list = [];
+  for (const entry of source) {
+    if (entry === "" || entry === null || entry === undefined) continue;
+    const parsed = toInt(entry, field, { min, max });
+    if (!list.includes(parsed)) list.push(parsed);
+    if (list.length >= maxItems) break;
+  }
+  return list;
+}
+
 /** Server-side pagination. Never faked in the browser. */
 export function readPagination(query, { defaultLimit = 25, maxLimit = 200 } = {}) {
   const limit = Math.min(
@@ -215,7 +233,7 @@ export function readPagination(query, { defaultLimit = 25, maxLimit = 200 } = {}
 export function requireObjectId(value, field) {
   const text = String(value ?? "").trim();
   if (!mongoose.Types.ObjectId.isValid(text)) {
-    throw badRequest(`${field} is not a valid identifier.`);
+    throw badRequest(`Invalid ${field}: expected a 24-character session ID (got "${text}").`);
   }
   return text;
 }

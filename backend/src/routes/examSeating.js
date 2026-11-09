@@ -287,7 +287,7 @@ export function registerExamSeatingRoutes(app) {
     async (req, res) => {
       try {
         const {
-          program = "BCA",
+          program = "BScIT",
           semester = 1,
           courseId,
           candidateScope = "SEMESTER_WIDE",

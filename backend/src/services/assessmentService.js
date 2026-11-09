@@ -47,7 +47,7 @@ export async function getOrInitAssessmentStructure({
   academicYear = "2083/84",
   semester = 4,
   sectionCode = "ALL",
-  program = "BCA",
+  program = "BScIT",
   userId = null,
 }) {
   let config = await CourseAssessmentComponent.findOne({
@@ -119,7 +119,7 @@ export async function getFacultyAssignedCourses({ user, academicYear = "2083/84"
       code: c.code,
       name: c.name,
       semester: c.semester,
-      program: c.program || "BCA",
+      program: c.program || "BScIT",
       department: c.department || "Computer Science",
       credits: c.credits || 3,
       sectionCodes: ["A", "B", "ALL"],
@@ -148,7 +148,7 @@ export async function getFacultyAssignedCourses({ user, academicYear = "2083/84"
           code: ta.course.code,
           name: ta.course.name,
           semester: ta.course.semester,
-          program: ta.course.program || "BCA",
+          program: ta.course.program || "BScIT",
           department: ta.course.department || "Computer Science",
           credits: ta.course.credits || 3,
           sectionCodes: [ta.sectionCode || "A"],
@@ -171,7 +171,7 @@ export async function getFacultyAssignedCourses({ user, academicYear = "2083/84"
           code: sa.course.code,
           name: sa.course.name,
           semester: sa.course.semester,
-          program: sa.course.program || "BCA",
+          program: sa.course.program || "BScIT",
           department: sa.course.department || "Computer Science",
           credits: sa.course.credits || 3,
           sectionCodes: ["A", "ALL"],
@@ -191,7 +191,7 @@ export async function getCandidatesForAssessment({
   academicYear = "2083/84",
   semester = 4,
   sectionCode = "A",
-  program = "BCA",
+  program = "BScIT",
   userId = null,
 }) {
   const course = await Course.findById(courseId);
@@ -383,7 +383,7 @@ export async function saveStudentAssessmentMark({
     academicYear,
     semester,
     sectionCode,
-    program: student.program || "BCA",
+    program: student.program || "BScIT",
     userId: actorUser._id,
   });
 
@@ -422,7 +422,7 @@ export async function saveStudentAssessmentMark({
       academicYear,
       semester: Number(semester),
       sectionCode: student.section || sectionCode,
-      program: student.program || "BCA",
+      program: student.program || "BScIT",
       components: [],
       workflowStatus: "DRAFT",
     });

@@ -26,7 +26,7 @@ const CourseAssessmentComponentSchema = new mongoose.Schema(
     courseName: { type: String, required: true, trim: true },
     academicYear: { type: String, required: true, trim: true, index: true },
     semester: { type: Number, required: true, index: true },
-    program: { type: String, default: "BCA", uppercase: true, trim: true, index: true },
+    program: { type: String, default: "BScIT", uppercase: true, trim: true, index: true },
     sectionCode: { type: String, default: "ALL", uppercase: true, trim: true },
     components: {
       type: [AssessmentComponentItemSchema],

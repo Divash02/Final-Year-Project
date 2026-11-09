@@ -639,9 +639,9 @@ export const FacultyAssessmentWorkspaceView: React.FC = () => {
                 <option value="">No courses assigned for this semester</option>
               ) : (
                 courses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.code} – {c.name} ({c.credits} Cr · Sem {c.semester})
-                  </option>
+                            <option key={c.id} value={c.id}>
+                              {c.name} ({c.code} · {c.credits} Cr · Sem {c.semester})
+                            </option>
                 ))
               )}
             </select>
@@ -1216,7 +1216,7 @@ export const FacultyAssessmentWorkspaceView: React.FC = () => {
             <div>
               <h3 className="font-bold text-slate-900">Class Mark List Register</h3>
               <p className="text-xs text-slate-500">
-                {selectedCourse?.code} – {selectedCourse?.name} · {academicYear} Semester {selectedSemester} Section {sectionCode}
+                      {selectedCourse?.name} <span className="text-xs font-normal text-slate-500">({selectedCourse?.code})</span> · {academicYear} Semester {selectedSemester} Section {sectionCode}
               </p>
             </div>
           </div>

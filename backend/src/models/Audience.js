@@ -8,7 +8,7 @@ import mongoose from "mongoose";
  * the same `audience` shape. Authorisation is then decided in one place
  * (`services/accessControl.js`) instead of being re-implemented per module, so
  * a calendar event and a learning material can never drift apart in how they
- * treat "BCA · 2025 · Semester 4 · A1 + A2".
+ * treat "BSc IT · 2025 · Semester 4 · A25".
  */
 export const AUDIENCE_TARGET_TYPES = ["ALL", "STAFF", "SPECIFIC"];
 
@@ -18,7 +18,7 @@ export const AUDIENCE_TARGET_TYPES = ["ALL", "STAFF", "SPECIFIC"];
  * Semantics: every dimension that carries values is an AND constraint; the
  * values inside one dimension are an OR set. An empty dimension imposes no
  * constraint. `allSections` is the explicit "every section of the selected
- * cohort" switch, so a record can say "BCA 2025 Semester 4, all sections"
+ * cohort" switch, so a record can say "BSc IT 2025 Semester 4, all sections"
  * without listing section codes.
  */
 const AcademicTargetSchema = new mongoose.Schema(

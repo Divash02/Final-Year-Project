@@ -62,10 +62,8 @@ export async function auditAdmissionApplications({ status = "SUBMITTED" }) {
     const meetsEligibility = gpa >= 2.0 || gpa >= 45;
 
     let recommendedRoute = "ADMISSIONS_REVIEW_BOARD";
-    if (app.programApplied === "BCA" || app.programApplied === "BIT") {
+    if (app.programApplied === "BScIT") {
       recommendedRoute = "COMPUTING_FACULTY_EVALUATION";
-    } else if (app.programApplied === "BBA") {
-      recommendedRoute = "MANAGEMENT_FACULTY_EVALUATION";
     }
 
     auditedList.push({

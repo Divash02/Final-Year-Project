@@ -127,14 +127,20 @@ export function toErrorResponse(error, { logContext } = {}) {
 
   // Middleware such as `express.static` reports client-side problems (a missing
   // asset, an unsupported media type) with a 4xx status and no useful message.
-  // Those statuses are honoured with a generic, safe description.
+  // Those statuses are honoured with a generic, safe description. Application
+  // errors that carry a 4xx status and a safe message are surfaced so the UI can
+  // explain the real validation/authorization problem.
   const middlewareStatus = Number(error?.status || error?.statusCode);
   if (Number.isInteger(middlewareStatus) && middlewareStatus >= 400 && middlewareStatus < 500) {
+    const safeMessage =
+      typeof error?.message === "string" && error.message.trim() && error.expose !== false
+        ? error.message.trim()
+        : "The requested resource could not be delivered.";
     return {
       status: middlewareStatus,
       body: {
-        error: "The requested resource could not be delivered.",
-        code: "REQUEST_FAILED",
+        error: safeMessage,
+        code: error?.code || "REQUEST_FAILED",
         requestId,
       },
     };

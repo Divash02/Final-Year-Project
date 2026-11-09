@@ -64,7 +64,7 @@ export function registerAssessmentRoutes(app) {
           $set: {
             courseCode: course.code,
             courseName: course.name,
-            program: course.program || "BCA",
+            program: course.program || "BScIT",
             components,
             totalMaxMarks: totalMax,
             totalPassMarks: totalPass,
@@ -109,7 +109,7 @@ export function registerAssessmentRoutes(app) {
         academicYear = "2083/84",
         semester = 4,
         sectionCode = "A",
-        program = "BCA",
+        program = "BScIT",
       } = req.query;
 
       if (!courseId) return res.status(400).json({ error: "courseId is required" });

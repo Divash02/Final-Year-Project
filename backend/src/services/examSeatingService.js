@@ -163,7 +163,7 @@ export function renumberRoomAllocation(roomAlloc, seatsPerBench = SEATS_PER_BENC
  * institution's existing enrollment and eligibility rules.
  */
 export async function resolveEligibleCandidates({
-  program = "BCA",
+  program = "BScIT",
   semester = 1,
   courseId = null,
   candidateScope = "SEMESTER_WIDE",
@@ -379,7 +379,7 @@ export async function generateSeatingPlan(
     title,
     examType = "FINAL",
     academicYear = "2083/84",
-    program = "BCA",
+    program = "BScIT",
     semester = 1,
     courseId = null,
     examDate,
@@ -1266,7 +1266,7 @@ export async function listSeatingPlans({ status = null, semester = null, examId 
  * (one continuous alphabetical list) plus section breakdown.
  */
 export async function previewEligibleStudents({
-  program = "BCA",
+  program = "BScIT",
   semester = 1,
   courseId = null,
   candidateScope = "SEMESTER_WIDE",

@@ -344,7 +344,7 @@ export async function buildMyCourses(user) {
       program: course.program || course.programCode || null,
       credits: course.credits ?? null,
       courseType: course.courseType || "CORE",
-      semester: card.semester ?? course.semester ?? null,
+      semester: period.semester ?? card.semester ?? course.semester ?? null,
       academicYear: card.academicYear || course.academicYear || null,
       courseStatus: course.status || "ACTIVE",
       relation: card.relation,

@@ -61,6 +61,30 @@ const MyCoursesView = lazyModule(
   () => import("./components/modules/MyCoursesView"),
   (m) => m.MyCoursesView,
 );
+const ConnectWorkspaceView = lazyModule(
+  () => import("./components/modules/connect/ConnectWorkspaceView"),
+  (m) => m.ConnectWorkspaceView,
+);
+const OnlineClassJoinPage = lazyModule(
+  () => import("./components/modules/connect/OnlineClassJoinPage"),
+  (m) => m.OnlineClassJoinPage,
+);
+const OnlineClassPreJoinPage = lazyModule(
+  () => import("./components/modules/connect/OnlineClassPreJoinPage"),
+  (m) => m.OnlineClassPreJoinPage,
+);
+const OnlineClassRoomPage = lazyModule(
+  () => import("./components/modules/connect/OnlineClassRoomPage"),
+  (m) => m.OnlineClassRoomPage,
+);
+const OnlineClassWaitingRoomPage = lazyModule(
+  () => import("./components/modules/connect/OnlineClassWaitingRoomPage"),
+  (m) => m.OnlineClassWaitingRoomPage,
+);
+const OnlineClassClassroomPage = lazyModule(
+  () => import("./components/modules/connect/OnlineClassClassroomPage"),
+  (m) => m.default,
+);
 const LmsWorkspace = lazyModule(
   () => import("./components/modules/lms/LmsWorkspace"),
   (m) => m.LmsWorkspace,
@@ -174,6 +198,10 @@ const CampusFacilitiesExtendedView = lazyModule(
   () => import("./components/modules/campus/CampusFacilitiesExtendedView"),
   (m) => m.CampusFacilitiesExtendedView,
 );
+const NotificationsPage = lazyModule(
+  () => import("./components/modules/NotificationsPage"),
+  (m) => m.NotificationsPage,
+);
 const ReceiptModal = lazyModule(
   () => import("./components/common/ReceiptModal"),
   (m) => m.ReceiptModal,
@@ -232,13 +260,15 @@ const AppContent: React.FC = () => {
   //  "splash"   — cinematic intro playing
   //  "welcome"  — public landing page visible
   //  "login"    — visitor clicked "Enter CollegeOS", show LoginView
-  const isRootPath = window.location.pathname === "/";
+  const pathname = window.location.pathname;
+  const isRootPath = pathname === "/";
   const splashAlreadyShown =
     typeof sessionStorage !== "undefined" &&
     sessionStorage.getItem(SPLASH_SESSION_KEY) === "1";
 
   const [publicStage, setPublicStage] = useState<"splash" | "welcome" | "login">(
     () => {
+      if (pathname === "/login") return "login";
       if (isRootPath && !splashAlreadyShown) return "splash";
       if (isRootPath) return "welcome";
       return "login"; // non-root path → go straight to login
@@ -255,6 +285,9 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleEnterPortal = useCallback(() => {
+    if (window.location.pathname !== "/login") {
+      window.history.pushState({}, "", "/login");
+    }
     setPublicStage("login");
   }, []);
 
@@ -262,7 +295,7 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated && !loginTransition && !isHydrating) {
       const path = window.location.pathname;
-      if (path !== "/" && path !== "/account/activate" && routeToView[path]) {
+      if (path !== "/" && path !== "/login" && path !== "/account/activate" && routeToView[path]) {
         setIntendedDestination(path);
       }
     }
@@ -325,8 +358,9 @@ const AppContent: React.FC = () => {
      calendar_documents: "calendar.view",
      communication: "mail.view",
      messages: "messages.view",
-     notices: "notices.view",
-     documents: "documents.view",
+      notices: "notices.view",
+      connect: "connect.view",
+      documents: "documents.view",
      library: "library.view",
      facilities_library: "facilities.view",
      campus_facilities_ext: "facilities.view",
@@ -442,6 +476,22 @@ const AppContent: React.FC = () => {
       case "notices":
         return <NoticesView />;
 
+      case "notifications":
+        return <NotificationsPage />;
+
+      case "connect":
+        return <ConnectWorkspaceView />;
+
+      case "online_class_join":
+        return <OnlineClassJoinPage />;
+      case "online_class_pre_join":
+        return <OnlineClassPreJoinPage />;
+      case "online_class_room":
+      case "online_class_classroom":
+        return <OnlineClassClassroomPage />;
+      case "online_class_waiting":
+        return <OnlineClassWaitingRoomPage />;
+
       case "facilities_library":
       case "library":
         return <FacilitiesLibraryView />;
@@ -547,7 +597,7 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <CollegeOSProvider>
-      <ToastProvider>
+      <ToastProvider position="top-right">
         <AppContent />
       </ToastProvider>
     </CollegeOSProvider>

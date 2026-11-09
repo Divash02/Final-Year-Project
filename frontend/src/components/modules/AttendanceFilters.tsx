@@ -154,8 +154,9 @@ const AttendanceFilters: React.FC<AttendanceFiltersProps> = ({
               id="att-date"
               type="date"
               value={classDate}
-              onChange={(event) => onDateChange(event.target.value)}
-              className="cos-input"
+              readOnly
+              disabled
+              className="cos-input bg-slate-100 text-slate-600 cursor-not-allowed"
             />
           </label>
 

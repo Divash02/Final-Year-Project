@@ -1,6 +1,5 @@
 ﻿import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useCollegeOS } from "../../context/CollegeOSContext";
-import { apiRequest } from "../../services/apiClient";
 import { getNepalDateTime } from "../../lib/nepaliCalendar";
 import { resolveInstitutionTimeZone } from "../../lib/institutionTime";
 import { UserRoleType } from "../../types";
@@ -20,6 +19,8 @@ import {
 import { IconButton } from "../ui/IconButton";
 import { BrandLogo } from "./BrandLogo";
 import { NotificationCenter } from "./NotificationCenter";
+import { fetchUnreadCount } from "../../services/notificationsApi";
+import { useNotificationSocket } from "../../services/notificationSocket";
 
 export const ROLE_LABELS: Record<UserRoleType, string> = {
   super_admin: "Super Admin",
@@ -52,72 +53,36 @@ export const Navbar: React.FC = () => {
   } = useCollegeOS();
 
   /**
-   * Notifications are read from the institution database
-   * (`GET /api/notifications`) and marked read through the API,
-   * so the bell reflects the server's records for this user.
+   * Unread count is sourced from the institution database and kept in sync
+   * via the authenticated notification socket.
    */
-  const [notifications, setNotifications] = useState<
-    {
-      id: string;
-      title: string;
-      message: string;
-      category: string;
-      priority: string;
-      read: boolean;
-      actionUrl: string | null;
-      created_at: string;
-    }[]
-  >([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const loadNotifications = useCallback(async () => {
+  const loadUnreadCount = useCallback(async () => {
     try {
-      const result = await apiRequest<{
-        notifications: {
-          id: string;
-          title: string;
-          message: string;
-          category: string;
-          priority: string;
-          read: boolean;
-          actionUrl: string | null;
-          created_at: string;
-        }[];
-        unreadCount: number;
-      }>("/notifications");
-      setNotifications(result.notifications || []);
+      const result = await fetchUnreadCount();
+      setUnreadCount(result.unreadCount || 0);
     } catch {
-      // The bell stays empty rather than showing invented notices.
-      setNotifications([]);
+      setUnreadCount(0);
     }
   }, []);
 
   useEffect(() => {
     if (!currentUser) {
-      setNotifications([]);
+      setUnreadCount(0);
       return;
     }
-    void loadNotifications();
-  }, [currentUser, loadNotifications]);
+    void loadUnreadCount();
+  }, [currentUser, loadUnreadCount]);
 
-  const markNotificationRead = useCallback(
-    async (notificationId: string) => {
-      setNotifications((current) =>
-        current.map((notification) =>
-          notification.id === notificationId
-            ? { ...notification, read: true }
-            : notification,
-        ),
-      );
-      try {
-        await apiRequest(`/notifications/${notificationId}/read`, {
-          method: "PATCH",
-        });
-      } catch {
-        // Keep the optimistic mark; the next refresh reconciles it.
-      }
+  useNotificationSocket(Boolean(currentUser), {
+    onUnread: (p) => {
+      if (typeof p?.unreadCount === "number") setUnreadCount(p.unreadCount);
     },
-    [],
-  );
+    onNew: (n) => {
+      if (n && !n.read) setUnreadCount((c) => c + 1);
+    },
+  });
 
   const [showNotifs, setShowNotifs] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
@@ -169,8 +134,6 @@ export const Navbar: React.FC = () => {
     };
   }, [showNotifs, showRoleMenu]);
 
-  const unreadCount = notifications.filter((notification) => !notification.read)
-    .length;
   const userRoles =
     currentUser?.roles && currentUser.roles.length > 0
       ? currentUser.roles
@@ -341,7 +304,7 @@ export const Navbar: React.FC = () => {
               aria-expanded={showNotifs}
               onClick={() => {
                 setShowNotifs((previous) => {
-                  if (!previous) void loadNotifications();
+                  if (!previous) void loadUnreadCount();
                   return !previous;
                 });
               }}
@@ -354,7 +317,11 @@ export const Navbar: React.FC = () => {
             )}
 
             {showNotifs && (
-              <NotificationCenter open={showNotifs} onClose={() => setShowNotifs(false)} />
+              <NotificationCenter
+                open={showNotifs}
+                onClose={() => setShowNotifs(false)}
+                onUnreadChange={setUnreadCount}
+              />
             )}
           </div>
 

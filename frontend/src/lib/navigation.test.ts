@@ -187,6 +187,7 @@ test("super admin sees all seven sections and the complete admin navigation", ()
     "Messages",
     "Notices",
     "Requests & Cases",
+    "Techspire Meet",
   ]);
   assert.deepEqual(sectionItems["account-personal"], ["My Profile"]);
 

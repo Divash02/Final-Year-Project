@@ -122,7 +122,7 @@ export const Input: React.FC<InputProps> = ({
           aria-invalid={invalid || undefined}
           className={[
             "cos-input",
-            icon ? "pl-11" : "",
+            icon || leftIcon ? "pl-11" : "",
             trailing ? "pr-11" : "",
             className,
           ]

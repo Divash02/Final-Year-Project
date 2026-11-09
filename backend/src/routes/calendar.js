@@ -50,7 +50,7 @@ const documentUploader = createUploader("academic_calendar_document", { field: "
  * academic events, attach an image or PDF notice, and target each event at all
  * students or at a specific programme/batch/semester/section cohort. The
  * audience decision is made here and in `services/accessControl.js`, so an
- * event for BCA 2025 Semester 4 A1+A2 is unreachable for a Semester 2 student
+ * event for BSc IT 2025 Semester 4 A25 is unreachable for a Semester 2 student
  * even when the event id is requested directly.
  */
 export function registerAcademicCalendarRoutes(app) {

@@ -217,7 +217,7 @@ export const AttendanceWorkspaceView: React.FC = () => {
     async (session: AttendanceSessionView) => {
       setCourseId(session.courseId);
       setClassType(session.classType);
-      setClassDate(session.date);
+      setClassDate(today());
       setStartTime(session.startTime || "");
       setEndTime(session.endTime || "");
       setSelectedSections(session.sectionCodes);
@@ -267,7 +267,7 @@ export const AttendanceWorkspaceView: React.FC = () => {
         if (seed) {
           setCourseId(seed.courseId);
           setClassType(seed.classType);
-          setClassDate(seed.date);
+          setClassDate(today());
           setStartTime(seed.startTime || "");
           setEndTime(seed.endTime || "");
           setSelectedSections(seed.sectionCodes);
@@ -427,7 +427,7 @@ export const AttendanceWorkspaceView: React.FC = () => {
         batch: batch || undefined,
         semester: selectedCourse?.semester,
         classType: classType || undefined,
-        date: classDate,
+          date: today(),
         startTime: startTime || undefined,
         endTime: endTime || undefined,
         topic: "",

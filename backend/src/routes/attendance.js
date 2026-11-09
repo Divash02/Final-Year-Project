@@ -3,8 +3,10 @@ import { getUserRoles, logAudit } from "../db.js";
 import {
   Student,
   Course,
+  Section,
   Enrollment,
   CourseTeachingAssignment,
+  FacultySubjectAssignment,
   Attendance,
   AttendanceSession,
   ATTENDANCE_STATUSES,
@@ -12,6 +14,7 @@ import {
   CLASS_TYPES,
 } from "../models/index.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
+import { getInstitutionTimeZone } from "../services/academicClock.js";
 
 /**
  * Roles that may deliver or administer attendance institution-wide. Everyone
@@ -91,9 +94,17 @@ async function resolveDeliveryScope(user) {
     return { mode: "institution", roles, assignments: [] };
   }
 
-  const assignments = await CourseTeachingAssignment.find({ facultyUser: userId })
+  const raw = await FacultySubjectAssignment.find({ facultyUser: userId, isActive: true })
     .populate("course")
     .lean();
+  const assignments = await Promise.all(raw.map(async (a) => {
+    let sectionCodes = [];
+    if (a.course?.program && a.course?.semester) {
+      const sections = await Section.find({ program: a.course.program, semester: a.course.semester }).select("code").lean();
+      sectionCodes = sections.map((s) => s.code);
+    }
+    return { ...a, sectionCode: sectionCodes[0] || null, sectionCodes };
+  }));
 
   return {
     mode: "assigned",
@@ -582,12 +593,13 @@ export function registerAttendanceRoutes(app) {
           return res.status(403).json({ error: permission.reason });
         }
 
-        const classDate = isValidDate(date)
-          ? String(date).trim()
-          : new Date().toISOString().slice(0, 10);
-        if (!isValidDate(date) && date) {
-          return res.status(400).json({ error: "Enter a valid class date." });
-        }
+        const institutionTimeZone = await getInstitutionTimeZone();
+        const classDate = new Intl.DateTimeFormat("en-CA", {
+          timeZone: institutionTimeZone,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date());
 
         for (const [label, value] of [
           ["start time", startTime],
@@ -1799,3 +1811,4 @@ async function summariseSessions(sessions) {
 
 
 }
+

@@ -13,6 +13,7 @@ import {
   Course,
   Section,
   Enrollment,
+  Program,
   InstitutionSetting,
   AuditLog,
   PasswordResetToken,
@@ -30,6 +31,14 @@ import {
   provisionStudentAccount,
   provisionStaffProfile,
 } from "../services/studentProvisioning.js";
+import {
+  DEFAULT_PROGRAM,
+  DEFAULT_SECTION,
+  DEFAULT_ACADEMIC_YEAR,
+  requireValidProgram,
+  requireValidSection,
+  requireValidAcademicYear,
+} from "../config/academic.js";
 
 const STAFF_PROFILE_ROLES = new Set([
   "campus_admin",
@@ -300,7 +309,7 @@ export function registerAdministrationRoutes(app) {
         ["super_admin", "registrar"].includes(r)
       );
       if (!isAuthorized) {
-        return res.status(403).json({ error: "You are not authorized to provision accounts." });
+        return res.status(403).json({ error: "You do not have permission to create institutional accounts." });
       }
 
       const {
@@ -312,14 +321,15 @@ export function registerAdministrationRoutes(app) {
         role = "student",
         studentId,
         employeeId,
-        program = "BCA",
+        program = "BScIT",
         department = "Computer Science",
         designation,
         batch = "2025",
         semester = 1,
-        section = "A",
+        section = "A25",
         campus = "Main Campus",
         subjectAssignments = [],
+        assignedSemesters = [],
       } = req.body || {};
 
       const first = String(firstName || "").trim();
@@ -332,6 +342,17 @@ export function registerAdministrationRoutes(app) {
       if (role === "student" && !String(studentId || "").trim()) {
         return res.status(400).json({ error: "Student ID is required for student accounts." });
       }
+      if ((role === "faculty" || STAFF_PROFILE_ROLES.has(role)) && !String(employeeId || "").trim()) {
+        return res.status(400).json({ error: "Employee ID is required for staff and faculty accounts." });
+      }
+
+      const normalizedProgram = role === "student"
+        ? requireValidProgram(program, "program")
+        : String(program || DEFAULT_PROGRAM).trim().toUpperCase();
+      const normalizedSection = role === "student"
+        ? requireValidSection(section, "section")
+        : String(section || DEFAULT_SECTION).trim().toUpperCase() || DEFAULT_SECTION;
+      const departmentValue = String(department || "").trim() || "General";
 
       // Student provisioning (account + student identity + section + enrolment)
       // is shared with admission enrolment so both entry points create exactly
@@ -344,11 +365,11 @@ export function registerAdministrationRoutes(app) {
           phone,
           personalEmail,
           studentId,
-          program,
+          program: normalizedProgram,
           department,
           batch,
           semester,
-          section,
+          section: normalizedSection,
           campus,
           createdBy: req.user._id || req.user.id,
         });
@@ -388,8 +409,18 @@ export function registerAdministrationRoutes(app) {
       }
 
       const email = await generateInstitutionalEmail(first, last, batch);
+      const existingUser = await User.findOne({ $or: [{ email }, { collegeEmail: email }] }).select("_id");
+      if (existingUser) {
+        return res.status(409).json({ error: "An account with this generated institutional email already exists." });
+      }
+      if (role === "faculty" || STAFF_PROFILE_ROLES.has(role)) {
+        const existingStaff = await Staff.findOne({ employeeId: String(employeeId).trim() }).select("_id");
+        if (existingStaff) {
+          return res.status(409).json({ error: `Employee ID ${String(employeeId).trim()} is already in use.` });
+        }
+      }
       const minLength = await getMinimumPasswordLength();
-      const temporaryPassword = "Techspire@123";
+      const temporaryPassword = createTemporaryPassword(minLength);
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
       const newUser = await User.create({
@@ -416,39 +447,69 @@ export function registerAdministrationRoutes(app) {
           userId: newUser._id,
           employeeId,
           role,
-          department,
+          department: departmentValue,
           designation,
           campus,
         });
       }
 
       // Create faculty subject assignments if provided
-      if (role === "faculty" && Array.isArray(subjectAssignments) && subjectAssignments.length > 0) {
-        const validCourseIds = subjectAssignments
-          .map((id) => String(id).trim())
-          .filter(Boolean);
-        
+      if (role === "faculty") {
+        const requestedSemesters = Array.isArray(assignedSemesters)
+          ? [...new Set(assignedSemesters.map((s) => Number(s)).filter((s) => Number.isInteger(s) && s >= 1 && s <= 20))]
+          : [];
+        const validCourseIds = Array.isArray(subjectAssignments)
+          ? [...new Set(subjectAssignments.map((id) => String(id).trim()).filter(Boolean))]
+          : [];
+
+        if (requestedSemesters.length === 0 && validCourseIds.length > 0) {
+          return res.status(400).json({ error: "Select at least one assigned semester before assigning subjects." });
+        }
+
         if (validCourseIds.length > 0) {
-          // Verify all courses exist and are active
-          const courses = await Course.find({ _id: { $in: validCourseIds }, status: "ACTIVE" }).select("_id");
-          const foundCourseIds = new Set(courses.map((c) => c._id.toString()));
-          const invalidCourseIds = validCourseIds.filter((id) => !foundCourseIds.has(id));
+          const courses = await Course.find({ _id: { $in: validCourseIds }, status: "ACTIVE" })
+            .select("_id code name semester program department")
+            .lean();
+          const foundById = new Map(courses.map((c) => [c._id.toString(), c]));
+          const invalidCourseIds = validCourseIds.filter((id) => !foundById.has(id));
           if (invalidCourseIds.length > 0) {
-            return res.status(400).json({ 
-              error: `Invalid or inactive course IDs: ${invalidCourseIds.join(", ")}. Only active courses can be assigned.` 
+            return res.status(400).json({
+              error: `Invalid or inactive course IDs: ${invalidCourseIds.join(", ")}. Only active courses can be assigned.`,
             });
           }
-          const assignmentsToCreate = validCourseIds
-            .map((courseId) => ({
-              facultyUser: newUser._id,
-              course: courseId,
-              assignedBy: req.user._id || req.user.id,
-              isActive: true,
-            }));
 
-          if (assignmentsToCreate.length > 0) {
-            await FacultySubjectAssignment.insertMany(assignmentsToCreate, { ordered: false });
+          const normalizedProgram = String(program || "").trim().toUpperCase();
+          const knownProgram = normalizedProgram
+            ? await Program.findOne({ code: normalizedProgram }).select("code totalSemesters").lean()
+            : null;
+          if (knownProgram?.totalSemesters && requestedSemesters.some((s) => s > Number(knownProgram.totalSemesters))) {
+            return res.status(400).json({
+              error: `One or more selected semesters exceed ${knownProgram.code}'s ${knownProgram.totalSemesters}-semester structure.`,
+            });
           }
+
+          const mismatch = validCourseIds
+            .map((id) => foundById.get(id))
+            .filter(Boolean)
+            .find((course) => {
+              if (!requestedSemesters.includes(Number(course.semester))) return true;
+              if (normalizedProgram && course.program && String(course.program).toUpperCase() !== normalizedProgram) return true;
+              return false;
+            });
+          if (mismatch) {
+            return res.status(400).json({
+              error: `Subject ${mismatch.code} - ${mismatch.name} is not valid for the selected program/curriculum and assigned semester(s).`,
+            });
+          }
+
+          const assignmentsToCreate = validCourseIds.map((courseId) => ({
+            facultyUser: newUser._id,
+            course: courseId,
+            assignedBy: req.user._id || req.user.id,
+            isActive: true,
+          }));
+
+          await FacultySubjectAssignment.insertMany(assignmentsToCreate, { ordered: false });
         }
       }
 
@@ -509,7 +570,7 @@ export function registerAdministrationRoutes(app) {
       if (!user) return res.status(404).json({ error: "Account not found." });
 
       const minLength = await getMinimumPasswordLength();
-      const temporaryPassword = "Techspire@123";
+      const temporaryPassword = createTemporaryPassword(minLength);
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
       user.passwordHash = hashPassword(temporaryPassword);
@@ -697,6 +758,89 @@ export function registerAdministrationRoutes(app) {
     }
   );
 
+  // Bulk permanently delete user accounts (super_admin only)
+  app.post(
+    "/api/admin/users/bulk-delete",
+    requireAuth,
+    requireRole(["super_admin"]),
+    async (req, res) => {
+      try {
+        const actorUserId = req.user._id || req.user.id;
+        const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+        if (ids.length === 0) {
+          return res.status(400).json({ error: "No account identifiers provided." });
+        }
+
+        const results = { deleted: [], failed: [] };
+        for (const id of ids) {
+          try {
+            if (String(id) === String(actorUserId)) {
+              results.failed.push({ id, error: "Cannot delete your own account." });
+              continue;
+            }
+            const targetUser = await User.findById(id);
+            if (!targetUser) {
+              results.failed.push({ id, error: "Account not found." });
+              continue;
+            }
+            const targetRoles = getUserRoles(targetUser);
+            if (targetRoles.includes("super_admin")) {
+              const superAdminCount = await User.countDocuments({
+                roles: "super_admin",
+                isActive: true,
+                accountStatus: { $ne: "DISABLED" },
+              });
+              if (superAdminCount <= 1) {
+                results.failed.push({ id, error: "Cannot delete the last active Super Admin account." });
+                continue;
+              }
+            }
+
+            const deletedUserEmail = targetUser.email;
+            const deletedUserName = [targetUser.firstName, targetUser.middleName, targetUser.lastName]
+              .filter(Boolean)
+              .join(" ");
+            const deletedUserRoles = targetUser.roles || ["student"];
+
+            const [studentProfile, staffProfile] = await Promise.all([
+              Student.findOne({ user: id }),
+              Staff.findOne({ user: id }),
+            ]);
+
+            await User.findByIdAndDelete(id);
+            if (studentProfile) await Student.findByIdAndDelete(studentProfile._id);
+            if (staffProfile) await Staff.findByIdAndDelete(staffProfile._id);
+            await Session.deleteMany({ user: id });
+            await PasswordResetToken.deleteMany({ user: id });
+
+            await logAudit({
+              userId: actorUserId,
+              action: "ACCOUNT_DELETED",
+              module: "administration",
+              resource: "user",
+              resourceId: id,
+              details: `Permanently deleted account: ${deletedUserName} (${deletedUserEmail}). Roles: ${deletedUserRoles.join(", ")}.`,
+            });
+
+            results.deleted.push({ id, email: deletedUserEmail, name: deletedUserName, roles: deletedUserRoles });
+          } catch (err) {
+            results.failed.push({ id, error: err.message || "Failed to delete account." });
+          }
+        }
+
+        res.json({
+          success: results.failed.length === 0,
+          message: `${results.deleted.length} account(s) permanently deleted.`,
+          deleted: results.deleted,
+          failed: results.failed,
+        });
+      } catch (err) {
+        console.error("Bulk account deletion error:", err);
+        res.status(500).json({ error: "Failed to delete accounts." });
+      }
+    }
+  );
+
   // Dedicated student creation route for convenience
   app.post(
     "/api/users/student",
@@ -710,10 +854,10 @@ export function registerAdministrationRoutes(app) {
         lastName,
         phone,
         studentId,
-        program = "BCA",
+        program = "BScIT",
         department = "Computer Science",
         batch = "2025",
-        section = "A",
+        section = "A25",
         semester = 1,
         campus = "Main Campus",
       } = req.body || {};
@@ -721,6 +865,9 @@ export function registerAdministrationRoutes(app) {
       if (!firstName || !lastName || !studentId) {
         return res.status(400).json({ error: "Student name and student ID are required." });
       }
+
+      const normalizedProgram = requireValidProgram(program, "program");
+      const normalizedSection = requireValidSection(section, "section");
 
       try {
         const existingStudent = await Student.findOne({ studentId: String(studentId).trim() });
@@ -730,7 +877,7 @@ export function registerAdministrationRoutes(app) {
 
         const email = await generateInstitutionalEmail(firstName, lastName, batch);
         const minLength = await getMinimumPasswordLength();
-        const temporaryPassword = "Techspire@123";
+        const temporaryPassword = createTemporaryPassword(minLength);
         const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
         const newUser = await User.create({
@@ -750,7 +897,7 @@ export function registerAdministrationRoutes(app) {
           createdBy: req.user._id || req.user.id,
         });
 
-        const normalizedSection = String(section || "A").trim().toUpperCase();
+        const normalizedSection = String(section || "A25").trim().toUpperCase();
         const semNum = Number(semester) || 1;
 
         const student = await Student.create({
@@ -763,8 +910,8 @@ export function registerAdministrationRoutes(app) {
           email,
           collegeEmail: email,
           phone: String(phone || "").trim() || null,
-          program: program || "BCA",
-          programCode: program || "BCA",
+          program: normalizedProgram,
+          programCode: normalizedProgram,
           department: department || "Computer Science",
           batch: batch || "2025",
           section: normalizedSection,
@@ -776,8 +923,8 @@ export function registerAdministrationRoutes(app) {
 
         // Ensure section exists
         await Section.findOneAndUpdate(
-          { code: normalizedSection, program: program || "BCA", semester: semNum },
-          { code: normalizedSection, program: program || "BCA", semester: semNum, batch: batch || "2025" },
+          { code: normalizedSection, program: normalizedProgram, semester: semNum },
+          { code: normalizedSection, program: normalizedProgram, semester: semNum, batch: batch || "2025" },
           { upsert: true }
         );
 
@@ -834,12 +981,12 @@ export function registerAdministrationRoutes(app) {
         return res.status(403).json({ error: "You are not authorized to provision accounts." });
       }
       const body = req.body || {};
-      const academicYear = String(body.academicYear || "").trim();
-      const program = String(body.program || "BCA").trim();
+      const academicYear = requireValidAcademicYear(body.academicYear, "academicYear");
+      const program = requireValidProgram(body.program, "program");
       const department = String(body.department || "Computer Science").trim();
       const batch = String(body.batch || "2025").trim();
       const semester = Number(body.semester) || 1;
-      const section = String(body.section || "A").trim().toUpperCase();
+      const section = requireValidSection(body.section, "section");
       const campus = String(body.campus || "Main Campus").trim();
       const namesRaw = Array.isArray(body.names) ? body.names : String(body.names || "").split(/\n/);
       const names = namesRaw.map((n) => String(n).trim()).filter(Boolean);
@@ -847,8 +994,8 @@ export function registerAdministrationRoutes(app) {
       if (names.length === 0) {
         return res.status(400).json({ error: "No student names provided." });
       }
-      if (!program || !batch || !section) {
-        return res.status(400).json({ error: "Program, batch and section are required." });
+      if (!batch) {
+        return res.status(400).json({ error: "Batch is required." });
       }
 
       // Duplicate names within list
@@ -902,6 +1049,7 @@ export function registerAdministrationRoutes(app) {
             semester,
             section,
             campus,
+            academicYear,
             createdBy: req.user._id || req.user.id,
           });
           await logAudit({ userId: req.user._id || req.user.id, action: "ACCOUNT_CREATED", module: "administration", resource: "user", resourceId: provisioned.user._id.toString(), details: "Bulk: provisioned student account." });
@@ -916,6 +1064,9 @@ export function registerAdministrationRoutes(app) {
       res.status(200).json({ success: true, totalSubmitted: names.length, created, skipped, failed, results });
     } catch (err) {
       console.error("Bulk student creation error:", err);
+      if (Number.isInteger(err.status) && err.status >= 400 && err.status < 500) {
+        return res.status(err.status).json({ error: err.message, details: err.details });
+      }
       res.status(500).json({ error: "Failed to perform bulk student creation." });
     }
   });
@@ -974,34 +1125,66 @@ export function registerAdministrationRoutes(app) {
           return res.status(400).json({ error: "Subject assignments are only applicable to faculty accounts." });
         }
 
-        const { courseIds } = req.body || {};
+        const { courseIds, assignedSemesters = [], program: programHint = null } = req.body || {};
         if (!Array.isArray(courseIds)) {
           return res.status(400).json({ error: "courseIds must be an array." });
         }
 
-        const validCourseIds = courseIds
-          .map((id) => String(id).trim())
-          .filter(Boolean);
+        const validCourseIds = [...new Set(courseIds.map((id) => String(id).trim()).filter(Boolean))];
+        const requestedSemesters = Array.isArray(assignedSemesters)
+          ? [...new Set(assignedSemesters.map((s) => Number(s)).filter((s) => Number.isInteger(s) && s >= 1 && s <= 20))]
+          : [];
 
-        // Verify all courses exist and are active
+        if (requestedSemesters.length === 0 && validCourseIds.length > 0) {
+          return res.status(400).json({ error: "Select at least one assigned semester before assigning subjects." });
+        }
+
+        // Verify all courses exist and are active, and belong to selected semesters/program context.
         let courses = [];
         if (validCourseIds.length > 0) {
-          courses = await Course.find({ _id: { $in: validCourseIds }, status: "ACTIVE" }).select("_id");
+          courses = await Course.find({ _id: { $in: validCourseIds }, status: "ACTIVE" })
+            .select("_id code name semester program department")
+            .lean();
         }
-        const foundCourseIds = new Set(courses.map((c) => c._id.toString()));
-        const invalidCourseIds = validCourseIds.filter((id) => !foundCourseIds.has(id));
+        const foundById = new Map(courses.map((c) => [c._id.toString(), c]));
+        const invalidCourseIds = validCourseIds.filter((id) => !foundById.has(id));
         if (invalidCourseIds.length > 0) {
-          return res.status(400).json({ 
-            error: `Invalid or inactive course IDs: ${invalidCourseIds.join(", ")}. Only active courses can be assigned.` 
+          return res.status(400).json({
+            error: `Invalid or inactive course IDs: ${invalidCourseIds.join(", ")}. Only active courses can be assigned.`,
           });
         }
-        const assignmentsToCreate = validCourseIds
-          .map((courseId) => ({
-            facultyUser: user._id,
-            course: courseId,
-            assignedBy: req.user._id || req.user.id,
-            isActive: true,
-          }));
+
+        const staffProfile = await Staff.findOne({ user: user._id }).select("department designation").lean();
+        const normalizedProgram = String(programHint || "").trim().toUpperCase() || null;
+        const knownProgram = normalizedProgram
+          ? await Program.findOne({ code: normalizedProgram }).select("code totalSemesters").lean()
+          : null;
+        if (knownProgram?.totalSemesters && requestedSemesters.some((s) => s > Number(knownProgram.totalSemesters))) {
+          return res.status(400).json({
+            error: `One or more selected semesters exceed ${knownProgram.code}'s ${knownProgram.totalSemesters}-semester structure.`,
+          });
+        }
+
+        const mismatch = validCourseIds
+          .map((id) => foundById.get(id))
+          .filter(Boolean)
+          .find((course) => {
+            if (!requestedSemesters.includes(Number(course.semester))) return true;
+            if (normalizedProgram && course.program && String(course.program).toUpperCase() !== normalizedProgram) return true;
+            return false;
+          });
+        if (mismatch) {
+          return res.status(400).json({
+            error: `Subject ${mismatch.code} - ${mismatch.name} is not valid for the selected program/curriculum and assigned semester(s).`,
+          });
+        }
+
+        const assignmentsToCreate = validCourseIds.map((courseId) => ({
+          facultyUser: user._id,
+          course: courseId,
+          assignedBy: req.user._id || req.user.id,
+          isActive: true,
+        }));
 
         // Replace all assignments: deactivate existing, create new
         await FacultySubjectAssignment.updateMany(
@@ -1019,7 +1202,7 @@ export function registerAdministrationRoutes(app) {
           module: "administration",
           resource: "faculty_subject_assignment",
           resourceId: user._id.toString(),
-          details: `Subject assignments updated for faculty ${user.email}: ${assignmentsToCreate.length} subject(s) assigned.`,
+          details: `Subject assignments updated for faculty ${user.email}: ${assignmentsToCreate.length} subject(s) assigned.${staffProfile?.department ? ` Dept: ${staffProfile.department}.` : ""}`,
         });
 
         const newAssignments = await FacultySubjectAssignment.find({ facultyUser: user._id, isActive: true })

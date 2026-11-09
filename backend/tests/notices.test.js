@@ -42,9 +42,16 @@ function uploadForm(filename, bytes, mimeType) {
   return form;
 }
 
+const csrfTokens = new Map();
+
 async function api(path, { method = "GET", token, body } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   let payload;
   if (body instanceof FormData) {
@@ -64,12 +71,22 @@ async function api(path, { method = "GET", token, body } = {}) {
       data = text;
     }
   }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
+  }
   return { status: response.status, data, text };
 }
 
 async function login(email, password) {
   const res = await api("/api/auth/login", { method: "POST", body: { email, password } });
   assert.equal(res.status, 200, `login failed for ${email}: ${res.text}`);
+  assert.ok(res.data.csrfToken, "login did not issue a CSRF token");
+  csrfTokens.set(res.data.token, res.data.csrfToken);
   return res.data.token;
 }
 
@@ -157,7 +174,7 @@ before(async () => {
       code: "CS401",
       name: "Software Engineering",
       department: "Computer Science",
-      program: "BCA",
+      program: "BScIT",
       semester: 4,
       credits: 4,
       courseType: "CORE",
@@ -198,7 +215,7 @@ before(async () => {
     lastName: "Tamang",
     role: "student",
     studentId: "BCA25001",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 4,
     section: "A1",
@@ -208,7 +225,7 @@ before(async () => {
     lastName: "Thapa",
     role: "student",
     studentId: "BCA25002",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 2,
     section: "A1",
@@ -508,7 +525,7 @@ test("cohort targeting limits the audience", async () => {
     audience: {
       targetType: "SPECIFIC",
       target: {
-        programCodes: ["BCA"],
+        programCodes: ["BScIT"],
         batchYears: ["2025"],
         semesters: [4],
         allSections: true,
@@ -732,7 +749,7 @@ test("a notice may be linked to an exam", async () => {
       examDate: FUTURE.slice(0, 10),
       startTime: "10:00",
       endTime: "12:00",
-      program: "BCA",
+      program: "BScIT",
       semester: 4,
       courseId: ctx.courseId,
       batch: "2025",

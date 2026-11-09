@@ -1,0 +1,23 @@
+# Local development LiveKit for CollegeOS Connect (Phase 2).
+# Use ONLY for local/dev. For production, deploy LiveKit with TLS (wss://) and TURN/ICE.
+#
+# Start:  docker compose -f docker-compose.livekit.yml up -d
+# Stop:   docker compose -f docker-compose.livekit.yml down
+#
+# Then set in your server .env (never commit real secrets):
+#   LIVEKIT_URL=ws://localhost:7880
+#   LIVEKIT_API_KEY=devkey
+#   LIVEKIT_API_SECRET=secret
+#
+# Dev keys "devkey"/"secret" are LiveKit's local-development defaults.
+# Replace with strong, unique credentials for any shared/staging/production deployment.
+
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --dev --bind 0.0.0.0
+    ports:
+      - "7880:7880"   # HTTP / WebSocket signaling (ws://localhost:7880)
+      - "7881:7881"   # WebRTC over TCP (dev)
+      - "7882:7882/udp" # WebRTC over UDP (dev)
+    restart: unless-stopped

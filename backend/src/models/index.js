@@ -182,3 +182,9 @@ export { SecurityEvent, SECURITY_EVENT_TYPES } from "./SecurityEvent.js";
 export { DigitalCredential, CREDENTIAL_TYPES, CREDENTIAL_STATUSES } from "./DigitalCredential.js";
 export { AttendanceQRSession } from "./AttendanceQRSession.js";
 export { LoginAttempt } from "./LoginAttempt.js";
+export { ClassroomBoard } from "./ClassroomBoard.js";
+export {
+  VirtualSession,
+  VIRTUAL_SESSION_TYPES,
+  VIRTUAL_SESSION_STATUSES,
+} from "./VirtualSession.js";

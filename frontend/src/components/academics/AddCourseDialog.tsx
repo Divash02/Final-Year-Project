@@ -331,7 +331,7 @@ export const AddCourseDialog: React.FC<AddCourseDialogProps> = ({
                   value={formData.code}
                   onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                   className={`cos-input ${invalid ? "border-red-300" : ""}`}
-                  placeholder="e.g., BCA101"
+                  placeholder="e.g., BScIT101"
                   maxLength={32}
                   aria-describedby={describedBy}
                   aria-invalid={invalid || undefined}

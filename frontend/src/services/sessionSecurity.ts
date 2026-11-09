@@ -23,7 +23,7 @@ export interface SessionRenewalResult {
  * successful renewal.
  */
 export async function renewSession(): Promise<SessionRenewalResult> {
-  return apiRequest<SessionRenewalResult>("/api/auth/sessions/renew", {
+  return apiRequest<SessionRenewalResult>("/auth/sessions/renew", {
     method: "POST",
   });
 }

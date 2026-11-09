@@ -468,7 +468,7 @@ export function registerExaminationRoutes(app) {
     async (req, res) => {
       try {
         const {
-          program = "BCA",
+          program = "BScIT",
           semester = 1,
           courseId,
           candidateScope = "COURSE_SPECIFIC",
@@ -558,7 +558,7 @@ export function registerExaminationRoutes(app) {
     requireAuth,
     async (req, res) => {
       try {
-        const updated = await Room.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const updated = await Room.findByIdAndUpdate(req.params.id, req.body, { returnDocument: "after" });
         res.json({ room: updated });
       } catch (err) {
         res.status(500).json({ error: "Failed to update room." });
@@ -716,7 +716,7 @@ export function registerExaminationRoutes(app) {
           title,
           examType = "FINAL",
           academicYear = "2083/84",
-          program = "BCA",
+          program = "BScIT",
           semester = 1,
           courseId,
           examDate,
@@ -1777,18 +1777,23 @@ export function registerExaminationRoutes(app) {
         exam.publishedAt = exam.publishedAt || new Date();
         exam.publishedBy = req.user._id;
         await exam.save();
-
-        const { Notification } = await import("../models/index.js");
         for (const resItem of toPublish) {
           if (resItem.studentUser) {
-            await Notification.create({
+            await createAndEmitNotification({
               user: resItem.studentUser._id,
+              sender: req.user._id,
+              senderType: "department",
+              senderLabel: "Examination Office",
+              senderDepartment: "Examinations",
               title: `Official Statement of Marks Published: ${exam.title}`,
               message: `Your official examination marksheet for ${exam.title} (${exam.program} Sem ${exam.semester}) is now published.`,
               category: "exam",
               priority: "high",
               actionUrl: "/examination",
               examId: exam._id,
+              relatedEntityType: "exam",
+              relatedEntityId: exam._id,
+              metadata: { program: exam.program, semester: exam.semester, examTitle: exam.title },
             });
           }
         }

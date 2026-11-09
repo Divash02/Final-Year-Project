@@ -263,7 +263,7 @@ export function registerProfileRoutes(app) {
       if (req.body?.personal_email !== undefined) update.personalEmail = req.body.personal_email;
       if (req.body?.emergency_contact !== undefined) update.emergencyContact = req.body.emergency_contact;
       if (req.body?.avatar_url !== undefined) update.avatarUrl = req.body.avatar_url;
-      const user = await User.findByIdAndUpdate(req.user._id || req.user.id, update, { new: true });
+      const user = await User.findByIdAndUpdate(req.user._id || req.user.id, update, { returnDocument: "after" });
       if (!user) return res.status(404).json({ error: "User not found." });
       res.json({ profile: await buildProfilePayload(user) });
     } catch (err) {

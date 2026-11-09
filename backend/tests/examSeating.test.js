@@ -37,10 +37,16 @@ const ctx = {};
 let baseUrl = "";
 let server = null;
 let mongooseRef = null;
+const csrfTokens = new Map();
 
 async function api(path, { method = "GET", token, body } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
   }
@@ -58,12 +64,22 @@ async function api(path, { method = "GET", token, body } = {}) {
       data = text;
     }
   }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
+  }
   return { status: response.status, data, text };
 }
 
 async function login(email, password) {
   const res = await api("/api/auth/login", { method: "POST", body: { email, password } });
   assert.equal(res.status, 200, `login failed for ${email}: ${res.text}`);
+  assert.ok(res.data.csrfToken, "login did not issue a CSRF token");
+  csrfTokens.set(res.data.token, res.data.csrfToken);
   return res.data.token;
 }
 
@@ -144,7 +160,7 @@ async function generatePlan(token, { rooms, semester = 2, examDate = "2026-11-05
       title: "BCA Semester 2 Mid-Term Examination",
       examType: "MID_TERM",
       academicYear: "2083/84",
-      program: "BCA",
+      program: "BScIT",
       semester,
       examDate,
       startTime,
@@ -215,7 +231,7 @@ before(async () => {
       code: "CS201",
       name: "Data Structures",
       department: "Computer Science",
-      program: "BCA",
+      program: "BScIT",
       semester: 2,
       credits: 4,
       courseType: "CORE",
@@ -228,7 +244,7 @@ before(async () => {
     const section = await api("/api/sections", {
       method: "POST",
       token: ctx.adminToken,
-      body: { code: sectionCode, program: "BCA", semester: 2, batch: "2025", room: "Hall 101" },
+      body: { code: sectionCode, program: "BScIT", semester: 2, batch: "2025", room: "Hall 101" },
     });
     assert.equal(section.status, 201, `section creation failed: ${section.text}`);
   }
@@ -242,7 +258,7 @@ before(async () => {
       lastName: member.lastName,
       role: "student",
       studentId: member.studentId,
-      program: "BCA",
+      program: "BScIT",
       batch: "2025",
       semester: 2,
       section: member.section,
@@ -253,7 +269,7 @@ before(async () => {
     lastName: "Magar",
     role: "student",
     studentId: "BCA24001",
-    program: "BCA",
+    program: "BScIT",
     batch: "2024",
     semester: 4,
     section: "A1",
@@ -881,7 +897,7 @@ test("scheduled publication executes server-side exactly once and records failur
       title: "BCA Semester 2 Mid-Term Examination",
       examType: "MID_TERM",
       academicYear: "2083/84",
-      program: "BCA",
+      program: "BScIT",
       semester: 2,
       examDate: "2026-11-11",
       startTime: "10:00",
@@ -987,7 +1003,7 @@ test("existing examination scheduling, publishing and results workflows remain f
       title: "Data Structures Final Examination",
       examType: "FINAL",
       academicYear: "2083/84",
-      program: "BCA",
+      program: "BScIT",
       semester: 2,
       courseId: ctx.courseId,
       examDate: "2026-11-20",

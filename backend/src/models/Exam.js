@@ -68,7 +68,7 @@ const ExamSchema = new mongoose.Schema(
       default: "FINAL",
     },
     academicYear: { type: String, default: "2083/84", trim: true },
-    program: { type: String, default: "BCA", trim: true },
+    program: { type: String, default: "BScIT", trim: true },
     semester: { type: Number, required: true },
     course: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null },
     subjects: [ExamSubjectSchema],

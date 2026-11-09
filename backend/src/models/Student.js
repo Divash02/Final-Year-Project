@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { ACADEMIC_STRING_VALIDATION } from "../config/academic.js";
 
 const StudentSchema = new mongoose.Schema(
   {
@@ -57,13 +58,15 @@ const StudentSchema = new mongoose.Schema(
     },
     program: {
       type: String,
-      default: "BCA",
+      default: "BScIT",
       trim: true,
+      ...ACADEMIC_STRING_VALIDATION.program,
     },
     programCode: {
       type: String,
-      default: "BCA",
+      default: "BScIT",
       trim: true,
+      ...ACADEMIC_STRING_VALIDATION.program,
     },
     department: {
       type: String,
@@ -77,9 +80,15 @@ const StudentSchema = new mongoose.Schema(
     },
     section: {
       type: String,
-      default: "A",
+      default: "A25",
       trim: true,
       index: true,
+      ...ACADEMIC_STRING_VALIDATION.section,
+    },
+    academicYear: {
+      type: String,
+      default: "2025/2026",
+      trim: true,
     },
     semester: {
       type: Number,

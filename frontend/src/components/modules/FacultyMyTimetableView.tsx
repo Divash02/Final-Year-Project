@@ -6,6 +6,8 @@ import {
   faBookOpen,
   faCalendarCheck,
   faCalendarDays,
+  faChevronLeft,
+  faChevronRight,
   faClipboardList,
   faClock,
   faDoorOpen,
@@ -13,6 +15,7 @@ import {
   faFolderOpen,
   faGraduationCap,
   faHistory,
+  faLocationDot,
   faTriangleExclamation,
   faUserCheck,
   faUsers,
@@ -27,6 +30,7 @@ import { Modal } from "../ui/Modal";
 import { CardSkeleton } from "../ui/Skeleton";
 import { WorkspaceLayout } from "../layout/WorkspaceLayout";
 import { useCollegeOS } from "../../context/CollegeOSContext";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 import {
   completeClassSession,
   fetchMyTimetable,
@@ -558,93 +562,36 @@ const ClassCard: React.FC<{
   onCloseClass: (entry: MyClassEntry) => Promise<void>;
   onSelect: (entry: MyClassEntry) => void;
   onGoToAttendance: (entry: MyClassEntry) => void;
-}> = ({ entry, busy, compact, onOpenClass, onCloseClass, onSelect, onGoToAttendance }) => (
-  <div
-    className={`rounded-lg border p-2.5 text-left transition ${
-      entry.status === "COMPLETED"
-        ? "border-slate-200 bg-slate-50"
-        : "border-slate-200 bg-white hover:border-slate-300"
-    }`}
-  >
-    <button
-      type="button"
-      onClick={() => onSelect(entry)}
-      className="w-full text-left"
-      aria-label={`Open ${entry.courseCode} section ${entry.sectionCode}`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-slate-700">
-          {entry.startTime}–{entry.endTime}
-        </span>
-        <ClassStatusBadge status={entry.status} />
-      </div>
-      <p className="mt-1 truncate text-sm font-medium text-slate-900">
-        {entry.courseCode || "Class"}
-      </p>
-      {!compact && entry.courseName && (
-        <p className="truncate text-xs text-slate-500">{entry.courseName}</p>
-      )}
-      <p className="mt-0.5 truncate text-xs text-slate-500">
-        Section {entry.sectionCode}
-        {entry.room ? ` · ${roomLabel(entry)}` : ""}
-      </p>
-
-      {/* Attendance and teaching progress, stated as two separate facts. */}
-      <div className="mt-1.5 flex flex-wrap gap-1">
-        {entry.attendanceRecorded && (
-          <Badge variant={entry.attendanceStatus === "OPEN" ? "warning" : "success"} size="sm">
-            {entry.attendanceStatus === "OPEN" ? "Register open" : "Attendance taken"}
-          </Badge>
-        )}
-        {entry.teaching.recordCount > 0 ? (
-          <Badge variant="info" size="sm">
-            {entry.teaching.recordCount} taught
-          </Badge>
+}> = ({ entry, busy, compact, onOpenClass, onCloseClass, onSelect, onGoToAttendance }) => {
+  const tone = entry.status === 'IN_PROGRESS' ? {bg:'rgba(180,83,9,.08)',b:'#FCD34D',a:'#D97706',m:'#78350F'} : entry.status === 'COMPLETED' ? {bg:'rgba(21,128,61,.07)',b:'#86EFAC',a:'#15803D',m:'#14532D'} : entry.status === 'CANCELLED' ? {bg:'rgba(185,28,28,.06)',b:'#FECACA',a:'#B91C1C',m:'#7F1D1D'} : {bg:'rgba(15,118,110,.08)',b:'#99F6E4',a:'var(--color-primary,#0F766E)',m:'#334155'};
+  return (
+    <div className="overflow-hidden rounded-xl border text-left shadow-[0_1px_2px_rgba(15,23,42,0.06)]" style={{background:tone.bg,borderColor:tone.b,borderLeftWidth:4,borderLeftColor:tone.a}}>
+      <button type="button" onClick={() => onSelect(entry)} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]" aria-label={`Open ${entry.courseCode || "Class"} section ${entry.sectionCode}`}>
+        <div className={`flex flex-col ${compact ? 'gap-1 p-2.5' : 'gap-1.5 p-3'}`}>
+          <div className="flex items-start justify-between gap-2">
+            <span className="truncate text-sm font-semibold text-slate-900">{entry.courseCode || "Class"}</span>
+            <ClassStatusBadge status={entry.status} />
+          </div>
+          {!compact && entry.courseName && <p className="truncate text-xs text-slate-600">{entry.courseName}</p>}
+          <p className="text-xs font-medium" style={{color:tone.m}}>{entry.startTime}–{entry.endTime}</p>
+          <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-600"><FontAwesomeIcon icon={faLocationDot} className="shrink-0 text-[11px] text-slate-400" aria-hidden="true" /><span className="truncate">{entry.room ? roomLabel(entry) : "Not allocated"}</span><span className="text-slate-300">·</span><span className="truncate">Section {entry.sectionCode}</span></p>
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            {entry.attendanceRecorded && <Badge variant={entry.attendanceStatus === "OPEN" ? "warning" : "success"} size="sm" hideDot>{entry.attendanceStatus === "OPEN" ? "Register open" : "Attendance taken"}</Badge>}
+            {entry.teaching.recordCount > 0 ? <Badge variant="info" size="sm" hideDot>{entry.teaching.recordCount} taught</Badge> : (!compact && <Badge variant="neutral" size="sm" hideDot>Not recorded</Badge>)}
+          </div>
+        </div>
+      </button>
+      <div className={`flex flex-wrap gap-1 border-t bg-white/50 ${compact ? 'px-2 py-2' : 'px-3 py-2.5'}`} style={{borderColor:tone.b}}>
+        {entry.status === "IN_PROGRESS" ? (
+          <Button size="sm" variant="ghost" icon={faCalendarCheck} disabled={busy} onClick={() => void onCloseClass(entry)}>Complete</Button>
         ) : (
-          !compact && <Badge variant="neutral" size="sm">Not recorded</Badge>
+          <Button size="sm" variant="secondary" icon={faDoorOpen} disabled={busy || entry.status === "COMPLETED"} onClick={() => void onOpenClass(entry)}>Open class</Button>
         )}
+        <Button size="sm" variant="ghost" icon={faUserCheck} disabled={!entry.attendanceRecorded} onClick={() => onGoToAttendance(entry)} title={entry.attendanceRecorded ? "Open the attendance register for this class" : "Open the class first to attach its attendance register"}>Attendance</Button>
       </div>
-    </button>
-
-    <div className="mt-2 flex flex-wrap gap-1">
-      {entry.status === "IN_PROGRESS" ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          icon={faCalendarCheck}
-          disabled={busy}
-          onClick={() => void onCloseClass(entry)}
-        >
-          Complete
-        </Button>
-      ) : (
-        <Button
-          size="sm"
-          variant="secondary"
-          icon={faDoorOpen}
-          disabled={busy || entry.status === "COMPLETED"}
-          onClick={() => void onOpenClass(entry)}
-        >
-          Open class
-        </Button>
-      )}
-      <Button
-        size="sm"
-        variant="ghost"
-        icon={faUserCheck}
-        disabled={!entry.attendanceRecorded}
-        onClick={() => onGoToAttendance(entry)}
-        title={
-          entry.attendanceRecorded
-            ? "Open the attendance register for this class"
-            : "Open the class first to attach its attendance register"
-        }
-      >
-        Attendance
-      </Button>
     </div>
-  </div>
-);
+  );
+};
 
 const TodayView: React.FC<{
   day: MyTimetableResponse["days"][number] | null;
@@ -704,47 +651,85 @@ const WeekView: React.FC<{
   onCloseClass: (entry: MyClassEntry) => Promise<void>;
   onSelect: (entry: MyClassEntry) => void;
   onGoToAttendance: (entry: MyClassEntry) => void;
-}> = ({ days, today, busyId, onOpenClass, onCloseClass, onSelect, onGoToAttendance }) => (
-  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-    {days.map((day) => {
-      const heading = formatDateKeyHeading(day.date);
-      return (
-        <Card
-          key={day.date}
-          title={heading.weekday}
-          subtitle={`${heading.day} ${heading.month}`}
-          icon={day.isToday ? faCalendarCheck : faCalendarDays}
-          headerAction={
-            day.isToday ? (
-              <Badge variant="primary" size="sm">
-                Today
-              </Badge>
-            ) : day.date === today ? null : undefined
-          }
-        >
-          {day.entries.length === 0 ? (
-            <p className="text-xs text-slate-400">No class</p>
-          ) : (
-            <div className="space-y-2.5">
-              {day.entries.map((entry) => (
-                <ClassCard
-                  key={entry.id}
-                  entry={entry}
-                  compact
-                  busy={busyId === entry.id}
-                  onOpenClass={onOpenClass}
-                  onCloseClass={onCloseClass}
-                  onSelect={onSelect}
-                  onGoToAttendance={onGoToAttendance}
-                />
+}> = ({ days, today, busyId, onOpenClass, onCloseClass, onSelect, onGoToAttendance }) => {
+  const compact = useMediaQuery("(max-width: 767px)");
+  if (compact) {
+    return (
+      <div className="space-y-3">
+        {days.map((day) => {
+          const heading = formatDateKeyHeading(day.date);
+          return (
+            <Card key={day.date} padding={false} className="overflow-hidden">
+              <div className={`flex items-center justify-between border-b border-slate-200 px-4 py-3 ${day.isToday ? "bg-teal-50/70" : "bg-white"}`}>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{heading.weekday}, {heading.day} {heading.month}</p>
+                  <p className="text-xs text-slate-500">{day.entries.length} class{day.entries.length===1?"":"es"}</p>
+                </div>
+                {day.isToday && <Badge variant="primary" size="sm">Today</Badge>}
+              </div>
+              <div className="space-y-2 p-3">
+                {day.entries.length===0 ? <p className="text-xs text-slate-400">No classes scheduled.</p> : day.entries.map((entry)=><ClassCard key={entry.id} entry={entry} compact={false} busy={busyId===entry.id} onOpenClass={onOpenClass} onCloseClass={onCloseClass} onSelect={onSelect} onGoToAttendance={onGoToAttendance} />)}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const slotPx = 28; const axisPx = 68; const colMin = 148; const startHour=7; const endHour=20; const ws=startHour*60;
+  const slots: Array<{m:number;label:string;hour:boolean}>=[];
+  for(let h=startHour; h<=endHour; h++){ for(let m=0;m<60;m+=30){ if(h===endHour&&m>0) break; const mm=h*60+m; const ap=h>=12?'PM':'AM'; const hh=h%12===0?12:h%12; slots.push({m:mm,label:`${hh}:${String(m).padStart(2,'0')} ${ap}`,hour:m===0}); } }
+  const bodyH = slots.length*slotPx;
+  const toMin=(v?:string|null)=>{ if(!v) return null; const [h,m]=String(v).split(':').map(Number); if(Number.isNaN(h)||Number.isNaN(m)) return null; return h*60+m; };
+  const toTime=(v?:string|null)=>{ const n=toMin(v); if(n==null) return '—'; const h=Math.floor(n/60),m=n%60; const ap=h>=12?'PM':'AM'; const hh=h%12===0?12:h%12; return `${hh}:${String(m).padStart(2,'0')} ${ap}`; };
+  const tone=(status?:MyClassEntry['status'])=> status==='IN_PROGRESS'?{bg:'rgba(180,83,9,.08)',b:'#FCD34D',a:'#D97706',m:'#78350F'}:status==='COMPLETED'?{bg:'rgba(21,128,61,.07)',b:'#86EFAC',a:'#15803D',m:'#14532D'}:status==='CANCELLED'?{bg:'rgba(185,28,28,.06)',b:'#FECACA',a:'#B91C1C',m:'#7F1D1D'}:{bg:'rgba(15,118,110,.08)',b:'#99F6E4',a:'var(--color-primary,#0F766E)',m:'#334155'};
+  const layout=(entries:MyClassEntry[])=>{ const items=entries.map(e=>({e,s:toMin(e.startTime),en:toMin(e.endTime)})).filter((x):x is {e:MyClassEntry;s:number;en:number}=>x.s!=null&&x.en!=null).sort((a,b)=>a.s-b.s||b.en-a.en); const out: Array<{e:MyClassEntry;s:number;en:number;lane:number;lanes:number}>=[]; let cluster: typeof out=[]; let cend=-1; const flush=()=>{ if(!cluster.length) return; const lanes=cluster.reduce((mx,i)=>Math.max(mx,i.lane+1),1); cluster.forEach(i=>out.push({...i,lanes})); cluster=[]; cend=-1; }; for(const it of items){ const e=Math.max(it.en,it.s+15); if(cluster.length&&it.s>=cend) flush(); const ends=cluster.map(i=>Math.max(i.en,i.s+15)); let lane=ends.findIndex(v=>v<=it.s); if(lane<0) lane=cluster.length; cluster.push({...it,lane,lanes:1}); cend=Math.max(cend,e);} flush(); return out; };
+
+  return (
+    <Card padding={false} className="min-w-0 overflow-hidden">
+      <div className="overflow-auto bg-slate-50/40" style={{maxHeight:'min(68vh,860px)'}}>
+        <div style={{minWidth:axisPx + colMin*7}}>
+          <div className="sticky top-0 z-20 grid border-b border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)]" style={{gridTemplateColumns:`${axisPx}px repeat(7,minmax(${colMin}px,1fr))`}}>
+            <div className="sticky left-0 z-30 border-r border-slate-200 bg-white px-2 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Time</div>
+            {days.map((day)=>{ const h=formatDateKeyHeading(day.date); return (
+              <div key={day.date} className={`border-r border-slate-200 px-2 py-2.5 text-center last:border-r-0 ${day.isToday?'bg-teal-50/70':'bg-white'}`}>
+                <p className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${day.isToday?'text-[var(--color-primary-strong,#115E59)]':'text-slate-500'}`}>{h.weekday}</p>
+                <div className="mt-0.5 flex items-center justify-center gap-1.5">
+                  <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${day.isToday?'bg-[var(--color-primary)] text-white':'text-slate-800'}`}>{h.day}</span>
+                  {day.isToday && <span className="text-[11px] font-medium text-[var(--color-primary-strong,#115E59)]">Today</span>}
+                </div>
+              </div>
+            );})}
+          </div>
+          <div className="relative grid" style={{gridTemplateColumns:`${axisPx}px repeat(7,minmax(${colMin}px,1fr))`, height:bodyH}}>
+            <div className="sticky left-0 z-10 border-r border-slate-200 bg-slate-50/95">
+              {slots.map(slot=>(
+                <div key={slot.m} className={`relative border-b ${slot.hour?'border-slate-200':'border-slate-100'}`} style={{height:slotPx}}>
+                  {slot.hour && <span className="absolute -top-2 right-2 bg-slate-50/95 px-1 text-[11px] font-medium text-slate-500">{slot.label}</span>}
+                </div>
               ))}
             </div>
-          )}
-        </Card>
-      );
-    })}
-  </div>
-);
+            {days.map(day=>{ const pos=layout(day.entries); return (
+              <div key={day.date} className={`relative border-r border-slate-200 last:border-r-0 ${day.isToday?'bg-teal-50/20':'bg-white'}`} style={{height:bodyH}}>
+                {slots.map(slot=> <div key={`${day.date}-${slot.m}`} className={`border-b ${slot.hour?'border-slate-200/90':'border-slate-100'}`} style={{height:slotPx}} aria-hidden="true" />)}
+                {pos.map(({e,s:st,en,lane,lanes})=>{ const top=Math.max(0,((Math.max(st,ws)-ws)/30)*slotPx); const height=Math.max(slotPx*1.45,((Math.max(en,st+15)-st)/30)*slotPx); const tn=tone(e.status); const w=100/lanes; const compactCard=height<86; const loc=e.room?roomLabel(e):'Not allocated'; const statusLabel=e.status==='IN_PROGRESS'?'Live':e.status==='COMPLETED'?'Completed':e.status==='CANCELLED'?'Cancelled':'Scheduled'; return (
+                  <div key={e.id} className="absolute overflow-hidden rounded-xl border shadow-[0_1px_2px_rgba(15,23,42,0.08)] transition hover:z-20 hover:shadow-md" style={{top:top+2,height:Math.max(36,height-4),left:`calc(${lane*w}% + 4px)`,width:`calc(${w}% - 8px)`,background:tn.bg,borderColor:tn.b,borderLeftWidth:4,borderLeftColor:tn.a}}>
+                    <button type="button" onClick={()=>onSelect(e)} className="flex h-full w-full min-w-0 flex-col gap-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]" style={{padding:compactCard?'6px':'8px'}} aria-label={`${e.courseCode||'Class'}, ${toTime(e.startTime)} to ${toTime(e.endTime)}, ${loc}, ${statusLabel}`}>
+                      <div className="flex items-start justify-between gap-1"><span className="min-w-0 truncate text-[13px] font-semibold leading-4 text-slate-900">{e.courseCode||'Class'}</span><span className="shrink-0 rounded-full border bg-white/60 px-1.5 py-0 text-[10px] font-medium leading-4" style={{borderColor:tn.b,color:tn.a}}>{statusLabel}</span></div>
+                      <div className="min-w-0 text-[11px] font-medium leading-4" style={{color:tn.m}}>{toTime(e.startTime)} – {toTime(e.endTime)}</div>
+                      {!compactCard && <div className="mt-auto flex min-w-0 items-start gap-1 text-[11px] leading-4 text-slate-600"><FontAwesomeIcon icon={faLocationDot} className="mt-0.5 shrink-0 text-[10px] text-slate-400" aria-hidden="true" /><span className="min-w-0 truncate">{loc}</span></div>}
+                    </button>
+                  </div>
+                );})}
+              </div>
+            );})}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+};
 
 /**
  * The month.

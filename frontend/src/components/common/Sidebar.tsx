@@ -47,10 +47,12 @@ export const Sidebar: React.FC = () => {
     };
   }, []);
 
+  const permissions = new Set(currentUser?.permissions || []);
+
   /**
    * Sidebar badges are computed from the institution database.
-   * A caller without the matching permission gets a zero count
-   * rather than an invented one.
+   * Only fetch counts the session user is permitted to read so
+   * we avoid predictable 403 noise for roles without access.
    */
   const [badgeCounts, setBadgeCounts] = useState<
     Record<NonNullable<NavItem["badge"]>, number>
@@ -58,14 +60,18 @@ export const Sidebar: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      apiFetch("/cases").then((response) =>
-        response.ok ? response.json() : { cases: [] },
-      ),
-      apiFetch("/invoices").then((response) =>
-        response.ok ? response.json() : { invoices: [] },
-      ),
-    ])
+    const canReadInvoices = permissions.has("finance.invoice.view");
+
+    const pendingRequestsPromise = apiFetch("/cases")
+      .then((response) => (response.ok ? response.json() : { cases: [] }))
+      .catch(() => ({ cases: [] }));
+    const invoicesPromise = canReadInvoices
+      ? apiFetch("/invoices")
+          .then((response) => (response.ok ? response.json() : { invoices: [] }))
+          .catch(() => ({ invoices: [] }))
+      : Promise.resolve({ invoices: [] });
+
+    Promise.all([pendingRequestsPromise, invoicesPromise])
       .then(([caseResult, invoiceResult]) => {
         if (!active) return;
         const cases = Array.isArray(caseResult.cases)
@@ -94,9 +100,7 @@ export const Sidebar: React.FC = () => {
     return () => {
       active = false;
     };
-  }, []);
-
-  const permissions = new Set(currentUser?.permissions || []);
+  }, [currentUser?.id, permissions.has("finance.invoice.view")]);
 
   /**
    * Items are filtered against the session user's granted

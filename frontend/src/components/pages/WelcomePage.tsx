@@ -81,31 +81,13 @@ const NAV_LINKS = [
 
 const PROGRAMS = [
   {
-    code: "BCA",
-    name: "Bachelor of Computer Applications",
-    duration: "3 Years",
+    code: "BScIT",
+    name: "Bachelor of Science in Information Technology",
+    duration: "4 Years",
     description:
       "Comprehensive training in software development, databases, networking, and modern computing principles.",
     icon: "💻",
-    sem: "6 Semesters",
-  },
-  {
-    code: "CS",
-    name: "Computer Science & IT",
-    duration: "4 Years",
-    description:
-      "Deep-dive into algorithms, systems architecture, AI, and enterprise software engineering.",
-    icon: "🧠",
     sem: "8 Semesters",
-  },
-  {
-    code: "NET",
-    name: "Networking & Cybersecurity",
-    duration: "3 Years",
-    description:
-      "Hands-on preparation for network administration, security operations, and digital forensics.",
-    icon: "🔒",
-    sem: "6 Semesters",
   },
 ];
 
@@ -154,10 +136,10 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
         className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
         style={{
           background: scrolled
-            ? "rgba(10,15,30,0.96)"
-            : "rgba(10,15,30,0.0)",
+            ? "rgba(255,255,255,0.96)"
+            : "rgba(255,255,255,0.0)",
           backdropFilter: scrolled ? "blur(16px)" : "none",
-          borderBottom: scrolled ? "1px solid rgba(255,255,255,0.08)" : "none",
+          borderBottom: scrolled ? "1px solid rgba(0,0,0,0.06)" : "none",
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -180,7 +162,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
                 />
               </div>
               <span
-                className="font-bold text-white hidden sm:block"
+                className="font-bold text-slate-900 hidden sm:block"
                 style={{ fontSize: "0.9rem", letterSpacing: "0.01em" }}
               >
                 Techspire College
@@ -193,7 +175,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
                 <button
                   key={link.label}
                   onClick={() => scrollToSection(link.href)}
-                  className="relative px-4 py-2 text-sm font-medium text-white/70 hover:text-white transition-colors duration-150 group focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded-md"
+                  className="relative px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors duration-150 group focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded-md"
                 >
                   {link.label}
                   <span
@@ -217,7 +199,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
 
             {/* Mobile hamburger */}
             <button
-              className="md:hidden p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors focus:outline-none"
+              className="md:hidden p-2 rounded-lg text-slate-700 hover:text-slate-900 hover:bg-white/10 transition-colors focus:outline-none"
               onClick={() => setMobileOpen((o) => !o)}
               aria-expanded={mobileOpen}
               aria-controls="mobile-nav"
@@ -263,7 +245,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
                   <button
                     key={link.label}
                     onClick={() => scrollToSection(link.href)}
-                    className="text-left py-2 text-sm font-medium text-white/70 hover:text-white transition-colors"
+                    className="text-left py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
                   >
                     {link.label}
                   </button>
@@ -287,7 +269,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
       <section
         id="home"
         className="relative min-h-screen flex items-center justify-center overflow-hidden"
-        style={{ background: `linear-gradient(160deg, ${NAVY} 0%, ${NAVY_LIGHT} 60%, #111827 100%)` }}
+        style={{ background: "linear-gradient(160deg, #FFFFFF 0%, #F8FAFC 60%, #F1F5F9 100%)" }}
       >
         {/* Background decorative elements */}
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
@@ -353,7 +335,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
             transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
           >
             <h1
-              className="font-bold text-white mb-4"
+              className="font-bold text-slate-900 mb-4"
               style={{
                 fontSize: "clamp(2.4rem, 6vw, 4.5rem)",
                 letterSpacing: "-0.02em",
@@ -395,7 +377,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
               className="mx-auto mb-10 leading-relaxed"
               style={{
                 maxWidth: 540,
-                color: "rgba(255,255,255,0.65)",
+                color: "#000000",
                 fontSize: "clamp(0.9rem, 2vw, 1.05rem)",
               }}
             >
@@ -445,7 +427,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
               style={{
                 background: "rgba(255,255,255,0.08)",
                 border: "1px solid rgba(255,255,255,0.2)",
-                color: "rgba(255,255,255,0.85)",
+                color: "#0f172a",
                 minWidth: 180,
               }}
             >
@@ -461,10 +443,10 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
               animate={{ opacity: 0.5 }}
               transition={{ delay: 1.2, duration: 0.6 }}
             >
-              <span className="text-xs text-white/40 uppercase tracking-widest">Scroll</span>
+              <span className="text-xs text-slate-400 uppercase tracking-widest">Scroll</span>
               <motion.div
                 className="w-px h-10 rounded-full"
-                style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.4), transparent)" }}
+                style={{ background: "linear-gradient(to bottom, #64748b, transparent)" }}
                 animate={{ scaleY: [1, 0.4, 1] }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
               />
@@ -570,7 +552,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
                   >
                     {h.icon}
                   </div>
-                  <p className="font-bold text-white text-sm mb-1">{h.label}</p>
+                  <p className="font-bold text-slate-900 text-sm mb-1">{h.label}</p>
                   <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
                     {h.value}
                   </p>
@@ -671,7 +653,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
       ════════════════════════════════════════════════════════════════ */}
       <section
         className="py-20 px-6 relative overflow-hidden"
-        style={{ background: `linear-gradient(135deg, ${CRIMSON} 0%, #6b1210 100%)` }}
+        style={{ background: "#FFFFFF" }}
       >
         <div className="absolute inset-0 pointer-events-none opacity-10" aria-hidden="true">
           <svg viewBox="0 0 1200 400" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
@@ -692,19 +674,19 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
             />
           </div>
           <h2
-            className="font-bold text-white mb-4"
+            className="font-bold text-slate-900 mb-4"
             style={{ fontSize: "clamp(1.6rem, 4vw, 2.6rem)", letterSpacing: "-0.02em" }}
           >
             Ready to access your workspace?
           </h2>
-          <p className="mb-8 text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>
+          <p className="mb-8 text-sm leading-relaxed" style={{ color: "#0f172a" }}>
             Students, faculty, and staff can log in to CollegeOS to access
             courses, assignments, grades, timetables, and all institutional services.
           </p>
           <button
             onClick={onEnterPortal}
-            className="group inline-flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-sm bg-white transition-all duration-200 hover:scale-105 active:scale-95 shadow-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
-            style={{ color: CRIMSON }}
+            className="group inline-flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 hover:scale-105 active:scale-95 shadow-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
+            style={{ background: "#AF231B", color: "#FFFFFF" }}
           >
             Enter CollegeOS Portal
             <svg className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -784,7 +766,7 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
           FOOTER
       ════════════════════════════════════════════════════════════════ */}
       <footer
-        style={{ background: NAVY, borderTop: "1px solid rgba(255,255,255,0.08)" }}
+        style={{ background: "#F8FAFC", borderTop: "1px solid rgba(0,0,0,0.06)" }}
         className="py-10 px-6"
       >
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
@@ -801,8 +783,8 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
               />
             </div>
             <div>
-              <p className="text-sm font-bold text-white">Techspire College</p>
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+              <p className="text-sm font-bold text-slate-900">Techspire College</p>
+              <p className="text-xs" style={{ color: "#64748b" }}>
                 Empowering Minds. Building Futures.
               </p>
             </div>
@@ -813,8 +795,8 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
               <button
                 key={link.label}
                 onClick={() => scrollToSection(link.href)}
-                className="text-xs transition-colors hover:text-white focus:outline-none"
-                style={{ color: "rgba(255,255,255,0.4)" }}
+                className="text-xs transition-colors hover:text-slate-900 focus:outline-none"
+                style={{ color: "#64748b" }}
               >
                 {link.label}
               </button>
@@ -833,8 +815,8 @@ export const WelcomePage: React.FC<Props> = ({ onEnterPortal }) => {
         <div
           className="mt-8 pt-6 text-center text-xs"
           style={{
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.25)",
+            borderTop: "1px solid rgba(0,0,0,0.06)",
+            color: "#64748b",
           }}
         >
           © {new Date().getFullYear()} Techspire College. Powered by CollegeOS.

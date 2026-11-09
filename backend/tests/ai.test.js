@@ -13,10 +13,16 @@ let baseUrl = "";
 let server = null;
 let mongooseRef = null;
 const ctx = {};
+const csrfTokens = new Map();
 
 async function api(path, { method = "GET", token, body } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   let payload;
   if (body !== undefined) {
@@ -34,12 +40,22 @@ async function api(path, { method = "GET", token, body } = {}) {
       data = text;
     }
   }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
+  }
   return { status: response.status, data, text, headers: response.headers };
 }
 
 async function login(email, password) {
   const res = await api("/api/auth/login", { method: "POST", body: { email, password } });
   assert.equal(res.status, 200, `login failed for ${email}: ${res.text}`);
+  assert.ok(res.data.csrfToken, "login did not issue a CSRF token");
+  csrfTokens.set(res.data.token, res.data.csrfToken);
   return res.data.token;
 }
 
@@ -95,7 +111,7 @@ before(async () => {
   await api("/api/sections", {
     method: "POST",
     token: ctx.adminToken,
-    body: { code: "A1", program: "BCA", semester: 2, batch: "2025", room: "Hall 101" },
+    body: { code: "A1", program: "BScIT", semester: 2, batch: "2025", room: "Hall 101" },
   });
 
   // Provision an Exam Officer
@@ -133,7 +149,7 @@ before(async () => {
     lastName: "Sharma",
     role: "student",
     studentId: "BCA25011",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 2,
     section: "A1",
@@ -148,7 +164,7 @@ before(async () => {
       code: "CS101",
       name: "Computer Programming",
       department: "Computer Science",
-      program: "BCA",
+      program: "BScIT",
       semester: 2,
       credits: 3,
       courseType: "CORE",

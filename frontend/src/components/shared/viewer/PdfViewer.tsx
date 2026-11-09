@@ -34,6 +34,10 @@ export interface PdfViewerProps {
   fileId: string;
   fileName?: string;
   onDownload?: (fileId: string, fileName?: string) => void;
+  /** Controlled current page (1-based). */
+  page?: number;
+  /** Called when the user navigates pages. */
+  onPageChange?: (page: number) => void;
 }
 
 type LoadState =
@@ -80,6 +84,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   fileId,
   fileName,
   onDownload,
+  page: controlledPage,
+  onPageChange,
 }) => {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [page, setPage] = useState(1);
@@ -215,10 +221,18 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   const goToPage = useCallback(
     (value: number) => {
       if (!Number.isFinite(value) || pageCount === 0) return;
-      setPage(Math.min(Math.max(Math.round(value), 1), pageCount));
+      const next = Math.min(Math.max(Math.round(value), 1), pageCount);
+      setPage(next);
+      onPageChange?.(next);
     },
-    [pageCount],
+    [pageCount, onPageChange],
   );
+
+  useEffect(() => {
+    if (controlledPage && controlledPage !== page) {
+      setPage(Math.min(Math.max(controlledPage, 1), pageCount || controlledPage));
+    }
+  }, [controlledPage, pageCount]);
 
   const zoomIn = useCallback(() => {
     setFitWidth(false);

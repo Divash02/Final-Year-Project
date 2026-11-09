@@ -872,7 +872,7 @@ export const OfficialMarksheetView: React.FC<OfficialMarksheetViewProps> = ({
                     Program / Semester
                   </span>
                   <span className="font-bold text-slate-900">
-                    {examMeta?.program || "BCA"} · Semester {examMeta?.semester || "IV"} · Sec {examMeta?.sectionCode || "A"}
+                    {examMeta?.program || "BScIT"} · Semester {examMeta?.semester || "IV"} · Sec {examMeta?.sectionCode || "A"}
                   </span>
                 </div>
                 <div>

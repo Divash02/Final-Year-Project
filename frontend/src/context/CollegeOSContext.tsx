@@ -258,6 +258,7 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const setActiveView = (view: string) => {
     setActiveViewState(view);
+    sessionStorage.setItem("collegeos_active_view", view);
     const route = viewToRoute[view];
     if (route && window.location.pathname !== route) {
       window.history.pushState({}, "", route);
@@ -285,8 +286,15 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     const syncRoute = () => {
       const resolved = resolveRoute(window.location.pathname);
-      setActiveViewState(resolved.view);
+      let view = resolved.view;
+      // If URL doesn't resolve to a specific route, fall back to persisted session view
+      if (view === "dashboard" && window.location.pathname !== "/") {
+        const persisted = sessionStorage.getItem("collegeos_active_view");
+        if (persisted) view = persisted;
+      }
+      setActiveViewState(view);
       setCodingLabRoute(resolved.codingLab);
+      sessionStorage.setItem("collegeos_active_view", view);
     };
     syncRoute();
     window.addEventListener("popstate", syncRoute);
@@ -433,6 +441,7 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
       };
 
       localStorage.setItem("collegeos_token", data.token);
+      if (data.csrfToken) localStorage.setItem("collegeos_csrf_token", data.csrfToken);
       setCurrentUser(nextUser);
       setCurrentRoleState(userRole);
       setIsAuthenticated(true);
@@ -466,6 +475,7 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     }
     localStorage.removeItem("collegeos_token");
+    localStorage.removeItem("collegeos_csrf_token");
     setIsAuthenticated(false);
     setCurrentUser(null);
     setMustChangePassword(false);
@@ -587,6 +597,7 @@ export const CollegeOSProvider: React.FC<{ children: React.ReactNode }> = ({
       : currentUser;
 
     localStorage.setItem("collegeos_token", data.token);
+    if (data.csrfToken) localStorage.setItem("collegeos_csrf_token", data.csrfToken);
     setCurrentUser(nextUser);
     setMustChangePassword(false);
     completeLoginTransition();

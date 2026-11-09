@@ -13,10 +13,17 @@ let baseUrl = "";
 let server = null;
 let mongooseRef = null;
 let adminToken = "";
+let adminCsrfToken = "";
+const csrfTokens = new Map();
 
 async function api(path, { method = "GET", token, body } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   let payload;
   if (body !== undefined) {
@@ -33,6 +40,14 @@ async function api(path, { method = "GET", token, body } = {}) {
     } catch {
       data = text;
     }
+  }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
   }
   return { status: response.status, data, text };
 }
@@ -60,6 +75,8 @@ before(async () => {
   });
   assert.equal(res.status, 200, `login failed: ${res.text}`);
   adminToken = res.data.token;
+  adminCsrfToken = res.data.csrfToken;
+  csrfTokens.set(adminToken, adminCsrfToken);
 });
 
 after(async () => {

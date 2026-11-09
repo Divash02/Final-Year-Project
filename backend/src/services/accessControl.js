@@ -83,7 +83,7 @@ export async function getAudienceContext(user) {
  * Mongo filter selecting the targeted documents an audience context may read.
  *
  * Dimension semantics (mirrored by `audienceMatchesStudent`): a dimension with
- * no values imposes no constraint, so "BCA 2025 Semester 4, all sections" is
+ * no values imposes no constraint, so "BSc IT 2025 Semester 4, all sections" is
  * reachable by a matching student even though `sectionCodes` is empty. Each
  * dimension therefore matches when it is absent, empty, or equal to the actor's
  * own value.

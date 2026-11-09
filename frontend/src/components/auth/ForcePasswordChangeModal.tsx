@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { useCollegeOS } from "../../context/CollegeOSContext";
+import { useToast } from "../ui/ToastContainer";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -49,6 +50,7 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
   mandatory = true,
 }) => {
   const { changePassword, currentUser, logout } = useCollegeOS();
+  const { toast } = useToast();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -96,6 +98,20 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
     setIsSubmitting(true);
     try {
       await changePassword(currentPassword, newPassword);
+      // Success: clear any previous inline error and blank the form so the
+      // user cannot resubmit stale values. The mandatory first-login flow
+      // stays open (the context redirects the user itself); the optional
+      // Change Password flow closes and returns to Security & Sessions.
+      setError("");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({
+        variant: "success",
+        message: "Password changed successfully.",
+        duration: 3000,
+      });
+      if (!mandatory && onClose) onClose();
     } catch (err) {
       const apiError = err as ApiError;
       const message = apiError?.message || "Failed to update password.";
@@ -112,6 +128,11 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
           )}
         </div>,
       );
+      toast({
+        variant: "error",
+        message,
+        duration: 5000,
+      });
     } finally {
       setIsSubmitting(false);
     }

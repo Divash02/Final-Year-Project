@@ -6,9 +6,11 @@ import {
   faArchive,
   faBan,
   faCalendarDays,
+  faChevronLeft,
+  faChevronRight,
   faEdit,
-  faEllipsisV,
   faEye,
+  faLocationDot,
   faPlay,
   faRefresh,
   faSearch,
@@ -61,6 +63,9 @@ const DAY_LABEL_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const TIME_SLOT_INTERVAL = 30;
 const WEEK_START_HOUR = 7;
 const WEEK_END_HOUR = 20;
+const SLOT_HEIGHT_PX = 30;
+const TIME_AXIS_WIDTH_PX = 72;
+const DAY_COL_MIN_WIDTH_PX = 148;
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -73,9 +78,117 @@ function formatDate(value: string | null | undefined): string {
   });
 }
 
+function formatTimeLabel(value: string): string {
+  const [h, m] = value.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return value;
+  const suffix = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
 function toMinutes(value: string): number {
   const [hours, minutes] = value.split(":").map(Number);
-  return hours * 60 + minutes;
+  return hours * 60 + (minutes || 0);
+}
+
+type TimetableCardTone = {
+  background: string;
+  border: string;
+  accent: string;
+  text: string;
+  muted: string;
+};
+
+function timetableCardTone(session: TimetableSession): TimetableCardTone {
+  if (session.status === "IN_PROGRESS") {
+    return {
+      background: "rgba(180, 83, 9, 0.08)",
+      border: "#FCD34D",
+      accent: "#D97706",
+      text: "#92400E",
+      muted: "#78350F",
+    };
+  }
+  if (session.status === "COMPLETED") {
+    return {
+      background: "rgba(21, 128, 61, 0.07)",
+      border: "#86EFAC",
+      accent: "#15803D",
+      text: "#166534",
+      muted: "#14532D",
+    };
+  }
+  if (session.status === "CANCELLED") {
+    return {
+      background: "rgba(185, 28, 28, 0.06)",
+      border: "#FECACA",
+      accent: "#B91C1C",
+      text: "#991B1B",
+      muted: "#7F1D1D",
+    };
+  }
+  if (session.sessionType === "LAB") {
+    return {
+      background: "rgba(29, 78, 216, 0.07)",
+      border: "#BFDBFE",
+      accent: "#1D4ED8",
+      text: "#1E3A8A",
+      muted: "#1E40AF",
+    };
+  }
+  if (session.sessionType === "EXAM") {
+    return {
+      background: "rgba(185, 28, 28, 0.06)",
+      border: "#FECACA",
+      accent: "#DC2626",
+      text: "#991B1B",
+      muted: "#7F1D1D",
+    };
+  }
+  return {
+    background: "rgba(15, 118, 110, 0.08)",
+    border: "#99F6E4",
+    accent: "var(--color-primary, #0F766E)",
+    text: "var(--color-primary-strong, #115E59)",
+    muted: "#334155",
+  };
+}
+
+function layoutTimedSessions<T extends { id: string; startTime: string; endTime: string }>(
+  sessions: T[],
+): Array<T & { lane: number; laneCount: number }> {
+  const sorted = [...sessions].sort((a, b) => {
+    const start = toMinutes(a.startTime) - toMinutes(b.startTime);
+    if (start !== 0) return start;
+    return toMinutes(b.endTime) - toMinutes(a.endTime);
+  });
+  const positioned: Array<T & { lane: number; laneCount: number }> = [];
+  let cluster: Array<T & { lane: number; laneCount: number }> = [];
+  let clusterEnd = -Infinity;
+
+  const flush = () => {
+    if (!cluster.length) return;
+    const laneCount = cluster.reduce((max, item) => Math.max(max, item.lane + 1), 1);
+    cluster.forEach((item) => {
+      item.laneCount = laneCount;
+      positioned.push(item);
+    });
+    cluster = [];
+    clusterEnd = -Infinity;
+  };
+
+  sorted.forEach((session) => {
+    const start = toMinutes(session.startTime);
+    const end = Math.max(toMinutes(session.endTime), start + 15);
+    if (cluster.length && start >= clusterEnd) flush();
+    const laneEnds = cluster.map((item) => toMinutes(item.endTime));
+    let lane = laneEnds.findIndex((laneEnd) => laneEnd <= start);
+    if (lane === -1) lane = cluster.length;
+    cluster.push({ ...session, lane, laneCount: 1 });
+    clusterEnd = Math.max(clusterEnd, end);
+  });
+  flush();
+  return positioned;
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -366,6 +479,7 @@ export const TimetableWorkspaceView: React.FC = () => {
         filters={filters}
         active={activeFilters}
         onFilterChange={updateFilter}
+        onReset={resetFilters}
       />
 
       {loading ? (
@@ -435,7 +549,8 @@ const TimetableFilterBar: React.FC<{
   filters: TimetableFilters | null;
   active: Record<string, string>;
   onFilterChange: (key: string, value: string) => void;
-}> = ({ filters, active, onFilterChange }) => {
+  onReset: () => void;
+}> = ({ filters, active, onFilterChange, onReset }) => {
   if (!filters) return null;
 
   const courses = filters.courses;
@@ -453,8 +568,8 @@ const TimetableFilterBar: React.FC<{
         {Object.keys(active).length > 0 && (
           <button
             type="button"
-            onClick={() => {}}
-            className="text-xs text-slate-500 underline"
+            onClick={onReset}
+            className="text-xs font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
           >
             Clear all
           </button>
@@ -555,28 +670,34 @@ const SelectFilter: React.FC<{
   </label>
 );
 
-const TimetableWeekView: React.FC<{
+﻿const TimetableWeekView: React.FC<{
   sessions: TimetableSession[];
   weekAnchor: string;
   onSetAnchor: (value: string) => void;
   onSelect: (session: TimetableSession) => void;
   onEdit: (session: TimetableSession) => void;
-}> = ({ sessions, weekAnchor, onSetAnchor, onSelect, onEdit }) => {
-  const start = new Date(weekAnchor);
-  start.setDate(start.getDate() - start.getDay());
-  const weekDates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    return d.toISOString().slice(0, 10);
-  });
-
+}> = ({ sessions, weekAnchor, onSetAnchor, onSelect }) => {
   const today = new Date().toISOString().slice(0, 10);
+  const weekDates = useMemo(() => {
+    const start = new Date(`${weekAnchor}T00:00:00`);
+    start.setDate(start.getDate() - start.getDay());
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      return d.toISOString().slice(0, 10);
+    });
+  }, [weekAnchor]);
+
   const timeSlots = useMemo(() => {
-    const slots = [];
+    const slots: Array<{ minutes: number; label: string; hour: boolean }> = [];
     for (let h = WEEK_START_HOUR; h <= WEEK_END_HOUR; h += 1) {
       for (let m = 0; m < 60; m += TIME_SLOT_INTERVAL) {
         if (h === WEEK_END_HOUR && m > 0) break;
-        slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+        slots.push({
+          minutes: h * 60 + m,
+          label: formatTimeLabel(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`),
+          hour: m === 0,
+        });
       }
     }
     return slots;
@@ -589,126 +710,182 @@ const TimetableWeekView: React.FC<{
     });
     sessions.forEach((s) => {
       if (s.date) {
-        const idx = weekDates.indexOf(s.date);
-        if (idx >= 0) {
-          map[weekDates[idx]] = [...(map[weekDates[idx]] || []), s];
-        }
-      } else if (s.dayIndex !== null && DAYS[s.dayIndex]) {
-        const date = new Date(weekAnchor);
-        const dayOffset = date.getDay() - s.dayIndex;
-        date.setDate(date.getDate() - dayOffset);
+        if (map[s.date]) map[s.date].push(s);
+        return;
+      }
+      if (s.dayIndex !== null && s.dayIndex >= 0 && s.dayIndex <= 6) {
+        const date = new Date(`${weekAnchor}T00:00:00`);
+        const offset = date.getDay() - s.dayIndex;
+        date.setDate(date.getDate() - offset);
         const dateStr = date.toISOString().slice(0, 10);
-        if (weekDates.includes(dateStr)) {
-          map[dateStr] = [...(map[dateStr] || []), s];
-        }
+        if (map[dateStr]) map[dateStr].push(s);
       }
     });
     return map;
   }, [sessions, weekDates, weekAnchor]);
 
+  const bodyHeight = timeSlots.length * SLOT_HEIGHT_PX;
+  const gridMinWidth = TIME_AXIS_WIDTH_PX + DAY_COL_MIN_WIDTH_PX * 7;
+  const windowStart = WEEK_START_HOUR * 60;
+
+  const shiftWeek = (days: number) => {
+    const d = new Date(`${weekAnchor}T00:00:00`);
+    d.setDate(d.getDate() + days);
+    onSetAnchor(d.toISOString().slice(0, 10));
+  };
+
   return (
-    <Card className="min-w-0 overflow-x-auto">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-        <h3 className="text-sm font-semibold text-slate-900">
-          Week of {formatDate(weekDates[0])} – {formatDate(weekDates[6])}
-        </h3>
-        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-          <button
-            onClick={() => {
-              const d = new Date(weekAnchor);
-              d.setDate(d.getDate() - 7);
-              onSetAnchor(d.toISOString().slice(0, 10));
-            }}
-            className="cos-icon-btn"
-            aria-label="Previous week"
-          >
-            <FontAwesomeIcon icon={faEllipsisV} className="rotate-90" />
-          </button>
-          <button
-            onClick={() => onSetAnchor(today)}
-            className="cos-icon-btn"
-            aria-label="This week"
-          >
+    <Card padding={false} className="min-w-0 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+        <div className="min-w-0">
+          <p className="cos-eyebrow">Weekly schedule</p>
+          <h3 className="truncate text-base font-semibold text-slate-900 sm:text-lg">
+            Week of {formatDate(weekDates[0])} – {formatDate(weekDates[6])}
+          </h3>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" variant="ghost" icon={faChevronLeft} onClick={() => shiftWeek(-7)} aria-label="Previous week" />
+          <Button size="sm" variant="secondary" onClick={() => onSetAnchor(today)} aria-label="Jump to current week">
             Today
-          </button>
-          <button
-            onClick={() => {
-              const d = new Date(weekAnchor);
-              d.setDate(d.getDate() + 7);
-              onSetAnchor(d.toISOString().slice(0, 10));
-            }}
-            className="cos-icon-btn"
-            aria-label="Next week"
-          >
-            <FontAwesomeIcon icon={faEllipsisV} className="-rotate-90" />
-          </button>
+          </Button>
+          <Button size="sm" variant="ghost" icon={faChevronRight} onClick={() => shiftWeek(7)} aria-label="Next week" />
         </div>
       </div>
-      <div className="grid" style={{ gridTemplateColumns: "100px 1fr" }}>
-        <div className="border-r border-slate-200 bg-slate-50">
-          {timeSlots.map((slot) => (
-            <div
-              key={slot}
-              className="border-b border-slate-100 px-2 py-1 text-[10px] font-medium text-slate-400"
-            >
-              {slot}
+
+      <div className="overflow-auto bg-slate-50/40" style={{ maxHeight: "min(68vh, 860px)" }}>
+        <div style={{ minWidth: gridMinWidth }}>
+          <div
+            className="sticky top-0 z-20 grid border-b border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)]"
+            style={{ gridTemplateColumns: `${TIME_AXIS_WIDTH_PX}px repeat(7, minmax(${DAY_COL_MIN_WIDTH_PX}px, 1fr))` }}
+          >
+            <div className="sticky left-0 z-30 border-r border-slate-200 bg-white px-2 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Time
             </div>
-          ))}
-        </div>
-        <div className="grid" style={{ gridTemplateColumns: "repeat(7, 1fr)" }}>
-          {weekDates.map((date) => {
-            const isToday = date === today;
-            const dayName = DAY_LABEL_SHORT[new Date(date).getDay()] || "";
-            const daySessions = sessionsByDay[date] || [];
-            return (
-              <div key={date} className="border-b border-slate-200 last:border-b-0">
+            {weekDates.map((date) => {
+              const isToday = date === today;
+              const dateObj = new Date(`${date}T00:00:00`);
+              return (
                 <div
-                  className={`flex items-center justify-center gap-1 py-2 text-xs font-medium ${
-                    isToday ? "text-[var(--color-primary)]" : "text-slate-500"
-                  }`}
+                  key={date}
+                  className={`border-r border-slate-200 px-2 py-2.5 text-center last:border-r-0 ${isToday ? "bg-teal-50/70" : "bg-white"}`}
                 >
-                  <span>{dayName}</span>
-                  <span>{new Date(date).getDate()}</span>
+                  <p className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${isToday ? "text-[var(--color-primary-strong,#115E59)]" : "text-slate-500"}`}>
+                    {DAY_LABEL_SHORT[dateObj.getDay()]}
+                  </p>
+                  <div className="mt-0.5 flex items-center justify-center gap-1.5">
+                    <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${isToday ? "bg-[var(--color-primary)] text-white" : "text-slate-800"}`}>
+                      {dateObj.getDate()}
+                    </span>
+                    {isToday && <span className="text-[11px] font-medium text-[var(--color-primary-strong,#115E59)]">Today</span>}
+                  </div>
                 </div>
-                <div className="relative min-h-[200px]">
-                  {daySessions.map((session) => {
-                    const start = toMinutes(session.startTime);
-                    const end = toMinutes(session.endTime);
-                    const span = end - start;
-                    const topOffset = start - toMinutes(`${WEEK_START_HOUR}:00`);
-                    const marginTop = (topOffset / TIME_SLOT_INTERVAL) * 0.5;
-                    const height = Math.max(1, span / TIME_SLOT_INTERVAL) * 0.5;
+              );
+            })}
+          </div>
+
+          <div
+            className="relative grid"
+            style={{
+              gridTemplateColumns: `${TIME_AXIS_WIDTH_PX}px repeat(7, minmax(${DAY_COL_MIN_WIDTH_PX}px, 1fr))`,
+              height: bodyHeight,
+            }}
+          >
+            <div className="sticky left-0 z-10 border-r border-slate-200 bg-slate-50/95">
+              {timeSlots.map((slot) => (
+                <div
+                  key={slot.minutes}
+                  className={`relative border-b ${slot.hour ? "border-slate-200" : "border-slate-100"}`}
+                  style={{ height: SLOT_HEIGHT_PX }}
+                >
+                  {slot.hour && (
+                    <span className="absolute -top-2 right-2 bg-slate-50/95 px-1 text-[11px] font-medium text-slate-500">
+                      {slot.label}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {weekDates.map((date) => {
+              const isToday = date === today;
+              const positioned = layoutTimedSessions(sessionsByDay[date] || []);
+              return (
+                <div
+                  key={date}
+                  className={`relative border-r border-slate-200 last:border-r-0 ${isToday ? "bg-teal-50/20" : "bg-white"}`}
+                  style={{ height: bodyHeight }}
+                >
+                  {timeSlots.map((slot) => (
+                    <div
+                      key={`${date}-${slot.minutes}`}
+                      className={`border-b ${slot.hour ? "border-slate-200/90" : "border-slate-100"}`}
+                      style={{ height: SLOT_HEIGHT_PX }}
+                      aria-hidden="true"
+                    />
+                  ))}
+
+                  {positioned.map((session) => {
+                    const start = Math.max(toMinutes(session.startTime), windowStart);
+                    const end = Math.min(toMinutes(session.endTime), WEEK_END_HOUR * 60);
+                    const top = Math.max(0, ((start - windowStart) / TIME_SLOT_INTERVAL) * SLOT_HEIGHT_PX);
+                    const height = Math.max(SLOT_HEIGHT_PX * 1.35, ((Math.max(end, start + 15) - start) / TIME_SLOT_INTERVAL) * SLOT_HEIGHT_PX);
+                    const tone = timetableCardTone(session);
                     const statusInfo = STATUS_BADGE[session.status];
+                    const laneWidth = 100 / session.laneCount;
+                    const compact = height < 82;
+                    const location = roomLabel(session.room, session.building);
                     return (
-                      <div
+                      <button
                         key={session.id}
-                        className="absolute inset-x-1 cursor-pointer rounded-md border border-slate-200 bg-white p-1.5 text-xs shadow-sm transition hover:border-slate-300"
-                        style={{ marginTop: `${marginTop}rem`, height: `auto`, minHeight: `${height}rem` }}
+                        type="button"
                         onClick={() => onSelect(session)}
+                        className="absolute overflow-hidden rounded-xl border text-left shadow-[0_1px_2px_rgba(15,23,42,0.08)] transition hover:z-20 hover:shadow-md focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+                        style={{
+                          top: top + 2,
+                          height: Math.max(34, height - 4),
+                          left: `calc(${session.lane * laneWidth}% + 4px)`,
+                          width: `calc(${laneWidth}% - 8px)`,
+                          background: tone.background,
+                          borderColor: tone.border,
+                          borderLeftWidth: 4,
+                          borderLeftColor: tone.accent,
+                          color: tone.text,
+                        }}
+                        aria-label={`${session.courseCode || "Session"}, ${formatTimeLabel(session.startTime)} to ${formatTimeLabel(session.endTime)}, ${location}, ${statusInfo.label}`}
+                        title={`${session.courseCode || "Session"}\n${formatTimeLabel(session.startTime)} – ${formatTimeLabel(session.endTime)}\n${location}\n${statusInfo.label}`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-slate-900">
-                            {session.courseCode}
-                          </span>
-                          <Badge variant={statusInfo.variant} size="sm" hideDot>
-                            {statusInfo.label}
-                          </Badge>
+                        <div className={`flex h-full flex-col ${compact ? "gap-0.5 p-1.5" : "gap-1 p-2"}`}>
+                          <div className="flex items-start justify-between gap-1.5">
+                            <span className="min-w-0 truncate text-[13px] font-semibold leading-4 text-slate-900">
+                              {session.courseCode || "Session"}
+                            </span>
+                            <Badge variant={statusInfo.variant} size="sm" hideDot className="shrink-0 !px-1.5 !py-0 !text-[10px]">
+                              {compact ? statusInfo.label.replace("In Progress", "Live") : statusInfo.label}
+                            </Badge>
+                          </div>
+                          <div className="min-w-0 text-[11px] font-medium leading-4" style={{ color: tone.muted }}>
+                            {formatTimeLabel(session.startTime)} – {formatTimeLabel(session.endTime)}
+                          </div>
+                          {!compact && (
+                            <div className="mt-auto flex min-w-0 items-start gap-1 text-[11px] leading-4 text-slate-600">
+                              <FontAwesomeIcon icon={faLocationDot} className="mt-0.5 shrink-0 text-[10px] text-slate-400" aria-hidden="true" />
+                              <span className="min-w-0 truncate">{location}</span>
+                            </div>
+                          )}
                         </div>
-                        <p className="mt-0.5 truncate text-slate-600">
-                          {session.startTime}–{session.endTime}
-                        </p>
-                        {session.room && (
-                          <p className="truncate text-slate-500">
-                            {roomLabel(session.room, session.building)}
-                          </p>
-                        )}
-                      </div>
+                      </button>
                     );
                   })}
+
+                  {!positioned.length && (
+                    <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] text-slate-300"> </span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </Card>
@@ -721,117 +898,132 @@ const TimetableDayView: React.FC<{
   onSetAnchor: (value: string) => void;
   onSelect: (session: TimetableSession) => void;
   onEdit: (session: TimetableSession) => void;
-}> = ({ sessions, dayAnchor, onSetAnchor, onSelect, onEdit }) => {
-  const [hour, minute] = [
-    Number(dayAnchor.slice(8, 10)),
-    Number(dayAnchor.slice(10, 12)) || 0,
-  ];
-  const display = new Date(dayAnchor);
-  if (Number.isNaN(display.getTime())) {
-    display.setTime(new Date().getTime());
-  }
-
+}> = ({ sessions, dayAnchor, onSetAnchor, onSelect }) => {
+  const today = new Date().toISOString().slice(0, 10);
   const timeSlots = useMemo(() => {
-    const slots = [];
+    const slots: Array<{ minutes: number; label: string; hour: boolean }> = [];
     for (let h = WEEK_START_HOUR; h <= WEEK_END_HOUR; h += 1) {
       for (let m = 0; m < 60; m += TIME_SLOT_INTERVAL) {
         if (h === WEEK_END_HOUR && m > 0) break;
-        slots.push(h * 60 + m);
+        slots.push({
+          minutes: h * 60 + m,
+          label: formatTimeLabel(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`),
+          hour: m === 0,
+        });
       }
     }
     return slots;
   }, []);
 
-  const sorted = useMemo(() => {
-    return [...sessions].sort(
-      (a, b) => toMinutes(a.startTime) - toMinutes(b.startTime),
-    );
-  }, [sessions]);
+  const positioned = useMemo(() => layoutTimedSessions(sessions), [sessions]);
+  const bodyHeight = timeSlots.length * SLOT_HEIGHT_PX;
+  const windowStart = WEEK_START_HOUR * 60;
+  const isToday = dayAnchor === today;
+  const shiftDay = (days: number) => {
+    const d = new Date(`${dayAnchor}T00:00:00`);
+    d.setDate(d.getDate() + days);
+    onSetAnchor(d.toISOString().slice(0, 10));
+  };
 
   return (
-    <Card className="min-w-0 overflow-x-auto">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-        <h3 className="text-sm font-semibold text-slate-900">
-          {new Date(dayAnchor).toLocaleDateString(undefined, {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
-        </h3>
-        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-          <button
-            onClick={() => {
-              const d = new Date(dayAnchor);
-              d.setDate(d.getDate() - 1);
-              onSetAnchor(d.toISOString().slice(0, 10));
-            }}
-            className="cos-icon-btn"
-            aria-label="Previous day"
-          >
-            <FontAwesomeIcon icon={faEllipsisV} className="rotate-90" />
-          </button>
-          <button
-            onClick={() => onSetAnchor(new Date().toISOString().slice(0, 10))}
-            className="cos-icon-btn text-xs"
-          >
-            Today
-          </button>
-          <button
-            onClick={() => {
-              const d = new Date(dayAnchor);
-              d.setDate(d.getDate() + 1);
-              onSetAnchor(d.toISOString().slice(0, 10));
-            }}
-            className="cos-icon-btn"
-            aria-label="Next day"
-          >
-            <FontAwesomeIcon icon={faEllipsisV} className="-rotate-90" />
-          </button>
+    <Card padding={false} className="min-w-0 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+        <div className="min-w-0">
+          <p className="cos-eyebrow">Daily schedule</p>
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-base font-semibold text-slate-900 sm:text-lg">
+              {new Date(`${dayAnchor}T00:00:00`).toLocaleDateString(undefined, {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </h3>
+            {isToday && <Badge variant="primary" size="sm">Today</Badge>}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" variant="ghost" icon={faChevronLeft} onClick={() => shiftDay(-1)} aria-label="Previous day" />
+          <Button size="sm" variant="secondary" onClick={() => onSetAnchor(today)}>Today</Button>
+          <Button size="sm" variant="ghost" icon={faChevronRight} onClick={() => shiftDay(1)} aria-label="Next day" />
         </div>
       </div>
-      <div className="grid" style={{ gridTemplateColumns: "100px 1fr" }}>
-        <div className="border-r border-slate-200 bg-slate-50">
-          {timeSlots.map((minutes) => (
-            <div
-              key={minutes}
-              className="border-b border-slate-100 px-2 py-1 text-[10px] font-medium text-slate-400"
-            >
-              {`${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`}
+
+      <div className="overflow-auto bg-slate-50/40" style={{ maxHeight: "min(68vh, 860px)" }}>
+        <div style={{ minWidth: 520 }}>
+          <div
+            className="sticky top-0 z-20 grid border-b border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)]"
+            style={{ gridTemplateColumns: `${TIME_AXIS_WIDTH_PX}px minmax(420px, 1fr)` }}
+          >
+            <div className="sticky left-0 z-30 border-r border-slate-200 bg-white px-2 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Time</div>
+            <div className={`px-4 py-2.5 ${isToday ? "bg-teal-50/70" : "bg-white"}`}>
+              <p className="text-sm font-semibold text-slate-900">{sessions.length} class{sessions.length === 1 ? "" : "es"}</p>
+              <p className="text-xs text-slate-500">Scheduled for this day</p>
             </div>
-          ))}
-        </div>
-        <div className="relative min-h-[400px]">
-          {sorted.map((session) => {
-            const start = toMinutes(session.startTime);
-            const end = toMinutes(session.endTime);
-            const top = ((start - toMinutes(`${WEEK_START_HOUR}:00`)) / TIME_SLOT_INTERVAL) * 0.5;
-            const height = Math.max(1, ((end - start) / TIME_SLOT_INTERVAL)) * 0.5;
-            const statusInfo = STATUS_BADGE[session.status];
-            return (
-              <div
-                key={session.id}
-                className="absolute inset-x-2 cursor-pointer rounded-md border border-slate-200 bg-white p-2 text-xs shadow-sm transition hover:border-slate-300"
-                style={{ marginTop: `${top}rem`, height: `auto`, minHeight: `${height}rem` }}
-                onClick={() => onSelect(session)}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-900">
-                    {session.courseCode}
-                  </span>
-                  <Badge variant={statusInfo.variant} size="sm" hideDot>
-                    {statusInfo.label}
-                  </Badge>
+          </div>
+
+          <div className="relative grid" style={{ gridTemplateColumns: `${TIME_AXIS_WIDTH_PX}px minmax(420px, 1fr)`, height: bodyHeight }}>
+            <div className="sticky left-0 z-10 border-r border-slate-200 bg-slate-50/95">
+              {timeSlots.map((slot) => (
+                <div key={slot.minutes} className={`relative border-b ${slot.hour ? "border-slate-200" : "border-slate-100"}`} style={{ height: SLOT_HEIGHT_PX }}>
+                  {slot.hour && <span className="absolute -top-2 right-2 bg-slate-50/95 px-1 text-[11px] font-medium text-slate-500">{slot.label}</span>}
                 </div>
-                <p className="mt-0.5 truncate text-slate-600">
-                  {session.startTime}–{session.endTime} · {roomLabel(session.room, session.building)}
-                </p>
-                <p className="truncate text-slate-500">
-                  Section {session.sectionCode} · {sessionTypeLabel(session.sessionType)}
-                </p>
-              </div>
-            );
-          })}
+              ))}
+            </div>
+
+            <div className={`relative ${isToday ? "bg-teal-50/20" : "bg-white"}`} style={{ height: bodyHeight }}>
+              {timeSlots.map((slot) => (
+                <div key={`day-${slot.minutes}`} className={`border-b ${slot.hour ? "border-slate-200/90" : "border-slate-100"}`} style={{ height: SLOT_HEIGHT_PX }} aria-hidden="true" />
+              ))}
+
+              {positioned.map((session) => {
+                const start = Math.max(toMinutes(session.startTime), windowStart);
+                const end = Math.min(toMinutes(session.endTime), WEEK_END_HOUR * 60);
+                const top = Math.max(0, ((start - windowStart) / TIME_SLOT_INTERVAL) * SLOT_HEIGHT_PX);
+                const height = Math.max(SLOT_HEIGHT_PX * 1.8, ((Math.max(end, start + 15) - start) / TIME_SLOT_INTERVAL) * SLOT_HEIGHT_PX);
+                const tone = timetableCardTone(session);
+                const statusInfo = STATUS_BADGE[session.status];
+                const laneWidth = 100 / session.laneCount;
+                const location = roomLabel(session.room, session.building);
+                return (
+                  <button
+                    key={session.id}
+                    type="button"
+                    onClick={() => onSelect(session)}
+                    className="absolute overflow-hidden rounded-xl border p-3 text-left shadow-[0_1px_2px_rgba(15,23,42,0.08)] transition hover:z-20 hover:shadow-md focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+                    style={{
+                      top: top + 3,
+                      height: Math.max(56, height - 6),
+                      left: `calc(${session.lane * laneWidth}% + 8px)`,
+                      width: `calc(${laneWidth}% - 16px)`,
+                      background: tone.background,
+                      borderColor: tone.border,
+                      borderLeftWidth: 4,
+                      borderLeftColor: tone.accent,
+                      color: tone.text,
+                    }}
+                    aria-label={`${session.courseCode || "Session"}, ${formatTimeLabel(session.startTime)} to ${formatTimeLabel(session.endTime)}, ${location}, ${statusInfo.label}`}
+                  >
+                    <div className="flex h-full min-w-0 flex-col gap-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="truncate text-sm font-semibold text-slate-900">{session.courseCode || "Session"}</span>
+                        <Badge variant={statusInfo.variant} size="sm" hideDot className="shrink-0">{statusInfo.label}</Badge>
+                      </div>
+                      <div className="text-xs font-medium" style={{ color: tone.muted }}>
+                        {formatTimeLabel(session.startTime)} – {formatTimeLabel(session.endTime)}
+                      </div>
+                      <div className="mt-auto flex min-w-0 items-center gap-1.5 text-xs text-slate-600">
+                        <FontAwesomeIcon icon={faLocationDot} className="shrink-0 text-[11px] text-slate-400" aria-hidden="true" />
+                        <span className="truncate">{location}</span>
+                        <span className="text-slate-300">·</span>
+                        <span className="truncate">Section {session.sectionCode} · {sessionTypeLabel(session.sessionType)}</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </Card>

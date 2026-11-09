@@ -23,7 +23,7 @@ import {
  * Resolves candidate audience based on candidateScope and real institutional records
  */
 export async function resolveCandidateAudience({
-  program = "BCA",
+  program = "BScIT",
   semester = 1,
   courseId,
   candidateScope = "COURSE_SPECIFIC",

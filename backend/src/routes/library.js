@@ -1,3 +1,4 @@
+import { createAndEmitNotification } from "../services/notificationService.js";
 import { randomUUID } from "node:crypto";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import {
@@ -9,7 +10,6 @@ import {
   LibraryLoan,
   LibraryPolicy,
   LibraryReservation,
-  Notification,
   Student,
   User,
 } from "../models/index.js";
@@ -116,13 +116,19 @@ async function assignNextReservation(bookId, copyId, actor) {
     );
     throw conflict("The available copy changed while assigning the next reservation.");
   }
-  await Notification.create({
+  await createAndEmitNotification({
     user: next.member,
+    sender: actor || null,
+    senderType: actor ? "user" : "system",
+    senderLabel: actor ? null : "CollegeOS Library",
+    senderDepartment: "Library",
     title: "Reserved Library Book Available",
     message: "A book on your reservation list is ready for collection. Please collect it within two days.",
     category: "library",
     priority: "normal",
     actionUrl: "/library",
+    relatedEntityType: "library_reservation",
+    relatedEntityId: next._id,
     idempotencyKey: `library-reservation:${next._id}:ready`,
     metadata: { reservationId: String(next._id), bookId: String(bookId) },
   });

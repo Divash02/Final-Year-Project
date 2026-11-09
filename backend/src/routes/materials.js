@@ -50,7 +50,7 @@ const uploader = createUploader("learning_material", { field: "file" });
  *
  * Teachers and administrators upload lecture notes, handouts and slides for the
  * courses they are authorised to teach. Each material carries its own audience,
- * and the audience decision happens on the server: a BCA 2025 Semester 4
+ * and the audience decision happens on the server: a BSc IT 2025 Semester 4
  * handout is not retrievable by a Semester 2 student, whether the request is a
  * list query or a direct id lookup.
  */

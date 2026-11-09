@@ -7,6 +7,7 @@ import {
   Department,
   Enrollment,
   CourseTeachingAssignment,
+  FacultySubjectAssignment,
   Assignment,
   Submission,
   LearningMaterial,
@@ -22,11 +23,18 @@ import {
   optionalEnum,
   toNumber,
   toInt,
+  toIntList,
   toStringList,
   readPagination,
   requireObjectId,
 } from "../utils/validate.js";
 import { canManageCurriculum } from "../services/accessControl.js";
+import {
+  DEFAULT_PROGRAM,
+  DEFAULT_SECTION,
+  requireValidProgram,
+  requireValidSection,
+} from "../config/academic.js";
 import { buildMyCourses } from "../services/lms/myCourses.js";
 
 const DEFAULT_ACADEMIC_YEAR =
@@ -104,11 +112,11 @@ export function registerAcademicsRoutes(app) {
         courses = result.courses;
         pagination = result.pagination;
       } else if (roles.includes("faculty") && scope !== "enrolled") {
-        const teaching = await CourseTeachingAssignment.find({ facultyUser: userId })
+        const assignments = await FacultySubjectAssignment.find({ facultyUser: userId, isActive: true })
           .populate("course")
           .lean();
         courses = dedupeById(
-          teaching.map((row) => row.course).filter((course) => course && course.status === "ACTIVE"),
+          assignments.map((row) => row.course).filter((course) => course && course.status === "ACTIVE"),
         );
       } else {
         const student = await Student.findOne({ user: userId }).select("_id");
@@ -134,14 +142,22 @@ export function registerAcademicsRoutes(app) {
     }),
   );
 
-  /** Distinct values used by the curriculum filter controls, from real records. */
+  /**
+   * Distinct values used by curriculum/filter controls.
+   * Semesters are program-aware: if a program (and its totalSemesters) is known,
+   * return the full valid range 1..totalSemesters; otherwise derive from actual
+   * curriculum/section/course records for the selected program context.
+   */
   app.get(
     "/api/courses/filters",
     requireAuth,
     route(async (req, res) => {
+      const programQuery = optionalString(req.query.program, "Programme", { max: 40 });
+      const normalizedProgram = programQuery ? programQuery.toUpperCase() : null;
+
       const [courses, programs, departments, sections] = await Promise.all([
         Course.find().select("department program semester academicYear courseType status").lean(),
-        Program.find().select("code name department").sort({ code: 1 }).lean(),
+        Program.find().select("code name department totalSemesters durationYears").sort({ code: 1 }).lean(),
         Department.find().select("code name").sort({ name: 1 }).lean(),
         Section.find().select("code program semester batch").sort({ code: 1 }).lean(),
       ]);
@@ -151,6 +167,43 @@ export function registerAcademicsRoutes(app) {
           String(a).localeCompare(String(b), undefined, { numeric: true }),
         );
 
+      const selectedProgram = normalizedProgram
+        ? programs.find((p) => String(p.code || "").toUpperCase() === normalizedProgram)
+        : null;
+
+      let semesters = [];
+      if (selectedProgram?.totalSemesters && Number(selectedProgram.totalSemesters) > 0) {
+        const maxSem = Math.min(Math.max(Number(selectedProgram.totalSemesters), 1), 20);
+        semesters = Array.from({ length: maxSem }, (_, i) => i + 1);
+      } else {
+        const matchesProgram = (rowProgram) => {
+          if (!normalizedProgram) return true;
+          const rp = String(rowProgram || "").trim().toUpperCase();
+          return !rp || rp === normalizedProgram; // include legacy untagged curriculum rows
+        };
+        const programCourseSemesters = courses
+          .filter((row) => matchesProgram(row.program))
+          .map((row) => row.semester)
+          .filter((s) => Number.isInteger(s) && s >= 1);
+        const programSectionSemesters = sections
+          .filter((row) => matchesProgram(row.program))
+          .map((row) => row.semester)
+          .filter((s) => Number.isInteger(s) && s >= 1);
+        const inferred = [...new Set([...programCourseSemesters, ...programSectionSemesters])].sort((a, b) => a - b);
+        if (inferred.length > 0) {
+          semesters = inferred;
+        } else if (normalizedProgram) {
+          // Program selected but no records found — derive from global records as fallback.
+          semesters = [...new Set(courses.map((row) => row.semester).filter((s) => Number.isInteger(s) && s >= 1))].sort(
+            (a, b) => a - b,
+          );
+        } else {
+          semesters = [...new Set(courses.map((row) => row.semester).filter((s) => Number.isInteger(s) && s >= 1))].sort(
+            (a, b) => a - b,
+          );
+        }
+      }
+
       res.json({
         filters: {
           departments: uniqueSorted(courses.map((row) => row.department)),
@@ -158,7 +211,7 @@ export function registerAcademicsRoutes(app) {
             ...courses.map((row) => row.program),
             ...programs.map((row) => row.code),
           ]),
-          semesters: uniqueSorted(courses.map((row) => row.semester)).sort((a, b) => a - b),
+          semesters,
           academicYears: uniqueSorted(courses.map((row) => row.academicYear)),
           courseTypes: uniqueSorted(courses.map((row) => row.courseType)),
           statuses: ["ACTIVE", "ARCHIVED"],
@@ -167,9 +220,12 @@ export function registerAcademicsRoutes(app) {
             code: row.code,
             name: row.name,
             department: row.department,
+            totalSemesters: row.totalSemesters ?? null,
+            durationYears: row.durationYears ?? null,
           })),
           departmentsList: departments.map((row) => ({ code: row.code, name: row.name })),
           defaultAcademicYear: DEFAULT_ACADEMIC_YEAR,
+          selectedProgram: normalizedProgram,
         },
       });
     }),
@@ -473,9 +529,10 @@ export function registerAcademicsRoutes(app) {
     route(async (req, res) => {
       const body = req.body || {};
       const code = requireString(body.code, "Section code", { max: 10 }).toUpperCase();
-      const program = requireString(body.program, "Programme", { max: 40 }).toUpperCase();
+      const program = requireValidProgram(requireString(body.program, "Programme", { max: 40 }), "program");
       const semester = toInt(body.semester, "Semester", { min: 1, max: 12 });
       const batch = optionalString(body.batch, "Batch", { max: 20 }) || "2025";
+      requireValidSection(code, "section");
 
       const existing = await Section.findOne({
         code,
@@ -519,8 +576,8 @@ export function registerAcademicsRoutes(app) {
 
       const body = req.body || {};
       const before = { code: section.code, capacity: section.capacity, room: section.room };
-      if (body.code !== undefined) section.code = requireString(body.code, "Section code", { max: 10 }).toUpperCase();
-      if (body.program !== undefined) section.program = requireString(body.program, "Programme", { max: 40 }).toUpperCase();
+      if (body.code !== undefined) section.code = requireValidSection(requireString(body.code, "Section code", { max: 10 }).toUpperCase(), "section");
+      if (body.program !== undefined) section.program = requireValidProgram(requireString(body.program, "Programme", { max: 40 }), "program");
       if (body.semester !== undefined) section.semester = toInt(body.semester, "Semester", { min: 1, max: 12 });
       if (body.batch !== undefined) section.batch = optionalString(body.batch, "Batch", { max: 20 });
       if (body.capacity !== undefined) section.capacity = toInt(body.capacity, "Capacity", { min: 0, max: 2000 });
@@ -898,7 +955,8 @@ async function queryCourses(query) {
   const search = optionalString(query.q, "Search", { max: 120 });
   const department = optionalString(query.department, "Department", { max: 120 });
   const program = optionalString(query.program, "Programme", { max: 40 });
-  const semester = query.semester ? toInt(query.semester, "Semester", { min: 1, max: 12 }) : null;
+  const semesters = toIntList(query.semester, "Semester", { min: 1, max: 20, maxItems: 20 });
+  const semester = semesters.length === 1 ? semesters[0] : null;
   const academicYear = optionalString(query.academicYear, "Academic year", { max: 20 });
   const courseType = optionalEnum(query.courseType, "Course type", [
     "CORE",
@@ -911,8 +969,24 @@ async function queryCourses(query) {
   const { limit, page, skip } = readPagination(query, { defaultLimit: 50 });
 
   if (department) filter.department = new RegExp(`^${escapeRegExp(department)}$`, "i");
-  if (program) filter.program = program.toUpperCase();
-  if (semester) filter.semester = semester;
+  if (program) {
+    // Include legacy curriculum rows that were not tagged with a program.
+    filter.$or = filter.$or || [];
+    // preserve search $or if present by combining carefully
+  }
+  if (program) {
+    const prog = program.toUpperCase();
+    const programMatch = [{ program: prog }, { program: null }, { program: { $exists: false } }, { program: "" }];
+    if (filter.$or) {
+      // search already set $or; combine with $and
+      filter.$and = [...(filter.$and || []), { $or: filter.$or }, { $or: programMatch }];
+      delete filter.$or;
+    } else {
+      filter.$or = programMatch;
+    }
+  }
+  if (semesters.length > 1) filter.semester = { $in: semesters };
+  else if (semester) filter.semester = semester;
   if (academicYear) filter.academicYear = academicYear;
   if (courseType) filter.courseType = courseType;
   // Archived courses stay retrievable by asking for them, but they are not part
@@ -920,11 +994,14 @@ async function queryCourses(query) {
   filter.status = status || "ACTIVE";
   if (search) {
     const pattern = new RegExp(escapeRegExp(search), "i");
-    filter.$or = [{ code: pattern }, { name: pattern }, { description: pattern }];
+    const searchOr = [{ code: pattern }, { name: pattern }, { description: pattern }];
+    if (filter.$and) filter.$and.push({ $or: searchOr });
+    else if (filter.$or) filter.$and = [{ $or: filter.$or }, { $or: searchOr }], delete filter.$or;
+    else filter.$or = searchOr;
   }
 
   const [courses, total] = await Promise.all([
-    Course.find(filter).sort({ code: 1 }).skip(skip).limit(limit).lean(),
+    Course.find(filter).sort({ semester: 1, code: 1 }).skip(skip).limit(limit).lean(),
     Course.countDocuments(filter),
   ]);
 
@@ -960,10 +1037,11 @@ export function readCoursePayload(body, { partial = false } = {}) {
     payload.name = requireString(body.name, "Course name", { max: 180 });
   }
   assign("department", optionalString(body.department, "Department", { max: 120 }));
-  assign("program", optionalString(body.program, "Programme", { max: 40 })?.toUpperCase());
+  const programRaw = optionalString(body.program, "Programme", { max: 40 });
+  assign("program", programRaw ? requireValidProgram(programRaw, "program") : undefined);
   assign("programCode", optionalString(body.programCode, "Programme", { max: 40 })?.toUpperCase());
   if (body.credits !== undefined) assign("credits", toNumber(body.credits, "Credits", { min: 0, max: 60 }));
-  if (body.semester !== undefined) assign("semester", toInt(body.semester, "Semester", { min: 1, max: 12 }));
+  if (body.semester !== undefined) assign("semester", toInt(body.semester, "Semester", { min: 1, max: 20 }));
   assign("academicYear", optionalString(body.academicYear, "Academic year", { max: 20 }));
   if (body.courseType !== undefined) {
     assign("courseType", requireEnum(body.courseType, "Course type", ["CORE", "ELECTIVE", "LAB", "PROJECT", "INTERNSHIP"], { upper: true }));

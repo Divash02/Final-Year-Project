@@ -30,10 +30,16 @@ const ctx = {};
 let baseUrl = "";
 let server = null;
 let mongooseRef = null;
+const csrfTokens = new Map();
 
 async function api(path, { method = "GET", token, body } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const response = await fetch(baseUrl + path, {
     method,
@@ -49,12 +55,22 @@ async function api(path, { method = "GET", token, body } = {}) {
       data = text;
     }
   }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
+  }
   return { status: response.status, data, text };
 }
 
 async function login(email, password) {
   const res = await api("/api/auth/login", { method: "POST", body: { email, password } });
   assert.equal(res.status, 200, `login failed for ${email}: ${res.text}`);
+  assert.ok(res.data.csrfToken, "login did not issue a CSRF token");
+  csrfTokens.set(res.data.token, res.data.csrfToken);
   return res.data.token;
 }
 
@@ -134,7 +150,7 @@ before(async () => {
     code: "CS401",
     name: "Software Engineering",
     department: "Computer Science",
-    program: "BCA",
+    program: "BScIT",
     semester: 4,
     credits: 4,
     courseType: "CORE",
@@ -143,7 +159,7 @@ before(async () => {
     code: "CS201",
     name: "Data Structures",
     department: "Computer Science",
-    program: "BCA",
+    program: "BScIT",
     semester: 2,
     credits: 4,
     courseType: "CORE",
@@ -153,7 +169,7 @@ before(async () => {
     const section = await api("/api/sections", {
       method: "POST",
       token: adminToken,
-      body: { code: "A1", program: "BCA", semester, batch: "2025", room: "Hall 101" },
+      body: { code: "A1", program: "BScIT", semester, batch: "2025", room: "Hall 101" },
     });
     assert.equal(section.status, 201, `section creation failed: ${section.text}`);
   }
@@ -163,7 +179,7 @@ before(async () => {
     lastName: "Tamang",
     role: "student",
     studentId: "BCA25001",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 4,
     section: "A1",
@@ -173,7 +189,7 @@ before(async () => {
     lastName: "Thapa",
     role: "student",
     studentId: "BCA25002",
-    program: "BCA",
+    program: "BScIT",
     batch: "2025",
     semester: 2,
     section: "A1",

@@ -3,8 +3,15 @@ export interface CodingLabRoute {
   assignmentId: string | null;
 }
 
+export interface ResolvedRoute {
+  view: string;
+  codingLab: CodingLabRoute;
+  classSession: string | null;
+}
+
 export const routeToView: Record<string, string> = {
   "/": "dashboard",
+  "/connect": "connect",
   "/mail": "communication",
   "/messages": "messages",
   "/notices": "notices",
@@ -31,6 +38,7 @@ export const routeToView: Record<string, string> = {
   "/user-management": "user_management",
   "/admissions": "admissions",
   "/profile": "profile",
+  "/notifications": "notifications",
   "/facilities": "facilities_library",
   "/account/activate": "profile",
   "/student/coding-lab": "student_coding_lab",
@@ -69,14 +77,14 @@ viewToRoute.student_clubs = "/clubs";
 viewToRoute.workflow_automation = "/workflows";
 viewToRoute.smart_documents = "/smart-documents";
 viewToRoute.student_lifecycle = "/student-lifecycle";
+viewToRoute.notifications = "/notifications";
 
 const CODING_LAB_PATH =
   /^\/(student|teacher)\/coding-lab(?:\/projects\/([A-Za-z0-9]+))?(?:\/assignments\/([A-Za-z0-9]+))?$/;
 
-export function resolveRoute(pathname: string): {
-  view: string;
-  codingLab: CodingLabRoute;
-} {
+const ONLINE_CLASS_PATH = /^\/online-classes\/([A-Za-z0-9]{24})\/(join|pre-join|room|waiting|classroom)(\/?)$/;
+
+export function resolveRoute(pathname: string): ResolvedRoute {
   const match = CODING_LAB_PATH.exec(pathname);
   if (match) {
     return {
@@ -85,11 +93,22 @@ export function resolveRoute(pathname: string): {
         projectId: match[2] || null,
         assignmentId: match[3] || null,
       },
+      classSession: null,
+    };
+  }
+
+  const classMatch = ONLINE_CLASS_PATH.exec(pathname);
+  if (classMatch) {
+    return {
+      view: `online_class_${classMatch[2]}`,
+      codingLab: { projectId: null, assignmentId: null },
+      classSession: classMatch[1],
     };
   }
 
   return {
     view: routeToView[pathname] || "dashboard",
     codingLab: { projectId: null, assignmentId: null },
+    classSession: null,
   };
 }

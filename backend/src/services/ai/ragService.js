@@ -21,7 +21,7 @@ export const INSTITUTIONAL_POLICY_COLLECTION = [
       {
         section: "Section 2.1: Credit Requirements for Graduation",
         content:
-          "To be eligible for the award of the Bachelor's degree (BCA/BIT), a candidate must successfully complete 126 credit hours across 8 semesters with a cumulative grade point average (CGPA) of at least 2.0 on a 4.0 scale.",
+          "To be eligible for the award of the Bachelor's degree (BScIT), a candidate must successfully complete 126 credit hours across 8 semesters with a cumulative grade point average (CGPA) of at least 2.0 on a 4.0 scale.",
       },
       {
         section: "Section 3.4: Course Add/Drop Period",

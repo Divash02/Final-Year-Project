@@ -39,9 +39,16 @@ test("session policy supports role-specific overrides", () => {
   }
 });
 
+const csrfTokens = new Map();
+
 async function api(path, { method = "GET", token, body, headers: requestHeaders = {} } = {}) {
   const headers = { ...requestHeaders };
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   let payload;
   if (body !== undefined) {
@@ -63,6 +70,14 @@ async function api(path, { method = "GET", token, body, headers: requestHeaders 
       data = text;
     }
   }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
+  }
   return { status: response.status, data, text, headers: response.headers };
 }
 
@@ -73,6 +88,8 @@ async function login(email, password) {
   });
   assert.equal(res.status, 200, `login failed for ${email}: ${res.text}`);
   assert.ok(res.data.token);
+  assert.ok(res.data.csrfToken, "login did not issue a CSRF token");
+  csrfTokens.set(res.data.token, res.data.csrfToken);
   return res.data.token;
 }
 

@@ -106,7 +106,7 @@ export const ExamSeatingWorkspace: React.FC = () => {
   const [formTitle, setFormTitle] = useState("");
   const [formType, setFormType] = useState("FINAL");
   const [formAcademicYear, setFormAcademicYear] = useState("2083/84");
-  const [formProgram, setFormProgram] = useState("BCA");
+  const [formProgram, setFormProgram] = useState("BScIT");
   const [formSemester, setFormSemester] = useState("2");
   const [formExamDate, setFormExamDate] = useState("");
   const [formStartTime, setFormStartTime] = useState("10:00");
@@ -785,7 +785,7 @@ export const ExamSeatingWorkspace: React.FC = () => {
                     type="text"
                     value={formTitle}
                     onChange={(e) => setFormTitle(e.target.value)}
-                    placeholder="e.g. BCA Semester 4 Final Examination"
+                    placeholder="e.g. BScIT Semester 4 Final Examination"
                     className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
                   />
                 </div>

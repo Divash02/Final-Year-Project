@@ -21,6 +21,10 @@ import {
 } from "../utils/validate.js";
 import { hasPermission } from "../permissions/catalog.js";
 import {
+  requireValidProgram,
+  requireValidSection,
+} from "../config/academic.js";
+import {
   detectSessionConflicts,
   hasAnyConflict,
   describeConflicts,
@@ -130,7 +134,7 @@ export function registerTimetableRoutes(app) {
     "/api/timetable/filters",
     requireAuth,
     route(async (req, res) => {
-      const [courses, sections, rooms, teachers, years] = await Promise.all([
+      const [courses, sections, rooms, teachers, timetableYears, enrollmentYears] = await Promise.all([
         Course.find({ status: "ACTIVE" }).select("code name program semester").sort({ code: 1 }).lean(),
         Section.find().select("code program semester batch").sort({ code: 1 }).lean(),
         Room.find({ isActive: { $ne: false } }).select("building roomNumber name capacity").sort({ building: 1, roomNumber: 1 }).lean(),
@@ -139,11 +143,19 @@ export function registerTimetableRoutes(app) {
           .sort({ firstName: 1 })
           .lean(),
         Timetable.distinct("academicYear"),
+        Enrollment.distinct("academicYear"),
       ]);
+
+      // Academic years are derived from real academic records (timetable sessions and enrolments),
+      // never fabricated, so the audience picker reflects actual institutional data.
+      const years = Array.from(new Set([...(timetableYears || []), ...(enrollmentYears || [])]))
+        .filter(Boolean)
+        .sort()
+        .reverse();
 
       res.json({
         filters: {
-          academicYears: years.filter(Boolean).sort().reverse(),
+          academicYears: years,
           programs: Array.from(new Set(sections.map((row) => row.program).filter(Boolean))).sort(),
           batchYears: Array.from(new Set(sections.map((row) => row.batch).filter(Boolean))).sort(),
           semesters: Array.from(new Set(sections.map((row) => row.semester).filter(Boolean))).sort((a, b) => a - b),
@@ -813,10 +825,13 @@ export function readSessionPayload(body) {
   return {
     course: requireObjectId(body.course, "Course"),
     facultyUser: requireObjectId(body.facultyUser, "Teacher"),
-    program: optionalString(body.program, "Programme", { max: 40 })?.toUpperCase() || null,
+    program: (() => {
+      const raw = optionalString(body.program, "Programme", { max: 40 });
+      return raw ? requireValidProgram(raw, "program") : null;
+    })(),
     batch: optionalString(body.batch, "Batch", { max: 20 }),
     semester: toInt(body.semester, "Semester", { min: 1, max: 12 }),
-    sectionCode: requireString(body.sectionCode, "Section", { max: 10 }).toUpperCase(),
+    sectionCode: requireValidSection(requireString(body.sectionCode, "Section", { max: 10 }), "section"),
     room: optionalString(body.room, "Room", { max: 80 }),
     building: optionalString(body.building, "Building", { max: 80 }),
     date,

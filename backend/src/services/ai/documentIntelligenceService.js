@@ -52,9 +52,9 @@ export async function extractTranscriptData({ user, role, rawText, fileName = "t
 
   const extracted = {
     fileName,
-    studentId: studentIdMatch ? studentIdMatch[1] : "BCA25011",
+    studentId: studentIdMatch ? studentIdMatch[1] : "BScIT25011",
     studentIdSource: studentIdMatch ? "Header Section, Line 2" : "Inferred from Document Header",
-    program: programMatch ? programMatch[1] : "BCA",
+    program: programMatch ? programMatch[1] : "BScIT",
     programSource: "Header Section, Line 3",
     semester: semesterMatch ? Number(semesterMatch[1]) : 1,
     semesterSource: "Academic Year Banner",

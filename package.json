@@ -58,6 +58,8 @@
     "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "livekit-client": "^2.15.5",
+    "livekit-server-sdk": "^2.13.3",
     "socket.io": "^4.8.4",
     "socket.io-client": "^4.8.4",
     "three": "^0.186.1",

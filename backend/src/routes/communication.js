@@ -13,11 +13,23 @@ import {
   Notification,
 } from "../models/index.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
+import mongoose from "mongoose";
+import {
+  formatNotification,
+  getUnreadCount,
+  listNotificationsForUser,
+  emitUnread,
+  createAndEmitNotification,
+} from "../services/notificationService.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function senderNameFromUser(u) {
+  return [u?.firstName, u?.middleName, u?.lastName].filter(Boolean).join(" ").trim() || "CollegeOS User";
 }
 
 export function registerCommunicationRoutes(app) {
@@ -420,12 +432,17 @@ export function registerCommunicationRoutes(app) {
 
           // Create notification for recipient
           if (!isDraft) {
-            await Notification.create({
+            await createAndEmitNotification({
               user: recUser._id,
+              sender: currentUserId,
+              senderType: "user",
               title: "New College Mail",
               message: `${senderName}: ${subject}`,
               category: "mail",
               actionUrl: "/communication",
+              relatedEntityType: "mail",
+              relatedEntityId: null,
+              metadata: { module: "communication" },
             });
           }
         }
@@ -723,12 +740,17 @@ export function registerCommunicationRoutes(app) {
         body: String(body).trim(),
       });
 
-      await Notification.create({
+      await createAndEmitNotification({
         user: otherUserId,
+        sender: currentUserId,
+        senderType: "user",
         title: "New Message",
-        message: `${req.user.firstName} sent you a message.`,
+        message: `${senderNameFromUser(req.user)} sent you a message.`,
         category: "message",
         actionUrl: "/messages",
+        relatedEntityType: "message",
+        relatedEntityId: msg._id,
+        metadata: { fromUserId: String(currentUserId) },
       });
 
       res.status(201).json({ success: true, messageId: msg._id.toString() });
@@ -741,44 +763,69 @@ export function registerCommunicationRoutes(app) {
   app.get("/api/notifications", requireAuth, async (req, res) => {
     try {
       const currentUserId = req.user._id || req.user.id;
-      const notifications = await Notification.find({ user: currentUserId })
-        .sort({ createdAt: -1 })
-        .limit(100);
-
-      const unreadCount = await Notification.countDocuments({
-        user: currentUserId,
-        read: false,
+      const cursor = req.query.cursor ? String(req.query.cursor) : null;
+      const limit = req.query.limit ? Number(req.query.limit) : 20;
+      const readParam = req.query.read;
+      const read =
+        readParam === "true" ? true : readParam === "false" ? false : undefined;
+      const category = req.query.category ? String(req.query.category) : null;
+      const search = req.query.q ? String(req.query.q) : null;
+      const result = await listNotificationsForUser(currentUserId, {
+        cursor,
+        limit,
+        read,
+        category,
+        search,
       });
-
-      const formatted = notifications.map((n) => ({
-        id: n._id.toString(),
-        _id: n._id.toString(),
-        title: n.title,
-        message: n.message,
-        category: n.category,
-        priority: n.priority,
-        read: Boolean(n.read),
-        actionUrl: n.actionUrl,
-        examId: n.examId ? n.examId.toString() : null,
-        created_at: n.createdAt.toISOString(),
-      }));
-
-      res.json({ notifications: formatted, unreadCount });
+      res.json(result);
     } catch (err) {
+      console.error("Load notifications error:", err);
       res.status(500).json({ error: "Failed to load notifications." });
+    }
+  });
+
+  app.get("/api/notifications/unread-count", requireAuth, async (req, res) => {
+    try {
+      const currentUserId = req.user._id || req.user.id;
+      const unreadCount = await getUnreadCount(currentUserId);
+      res.json({ unreadCount });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to load unread count." });
+    }
+  });
+
+  app.get("/api/notifications/:id", requireAuth, async (req, res) => {
+    try {
+      const currentUserId = req.user._id || req.user.id;
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(404).json({ error: "Notification not found." });
+      }
+      const notif = await Notification.findOne({ _id: req.params.id, user: currentUserId })
+        .populate("sender", "firstName middleName lastName avatarUrl roles")
+        .lean();
+      if (!notif) return res.status(404).json({ error: "Notification not found." });
+      res.json({ notification: formatNotification(notif) });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to load notification." });
     }
   });
 
   app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
     try {
       const currentUserId = req.user._id || req.user.id;
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(404).json({ error: "Notification not found." });
+      }
       const notif = await Notification.findOneAndUpdate(
         { _id: req.params.id, user: currentUserId },
         { read: true, readAt: new Date() },
-        { returnDocument: 'after' }
-      );
+        { returnDocument: "after" },
+      )
+        .populate("sender", "firstName middleName lastName avatarUrl roles")
+        .lean();
       if (!notif) return res.status(404).json({ error: "Notification not found." });
-      res.json({ success: true, read: true });
+      await emitUnread(currentUserId);
+      res.json({ success: true, read: true, notification: formatNotification(notif) });
     } catch (err) {
       res.status(500).json({ error: "Failed to update notification." });
     }
@@ -787,11 +834,12 @@ export function registerCommunicationRoutes(app) {
   app.post("/api/notifications/read-all", requireAuth, async (req, res) => {
     try {
       const currentUserId = req.user._id || req.user.id;
-      await Notification.updateMany(
+      const result = await Notification.updateMany(
         { user: currentUserId, read: false },
-        { read: true, readAt: new Date() }
+        { read: true, readAt: new Date() },
       );
-      res.json({ success: true });
+      await emitUnread(currentUserId);
+      res.json({ success: true, updated: result.modifiedCount || 0 });
     } catch (err) {
       res.status(500).json({ error: "Failed to mark all as read." });
     }
@@ -801,13 +849,19 @@ export function registerCommunicationRoutes(app) {
   app.patch("/api/notifications/:id/unread", requireAuth, async (req, res) => {
     try {
       const currentUserId = req.user._id || req.user.id;
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(404).json({ error: "Notification not found." });
+      }
       const notif = await Notification.findOneAndUpdate(
         { _id: req.params.id, user: currentUserId },
         { read: false, readAt: null },
-        { returnDocument: 'after' }
-      );
+        { returnDocument: "after" },
+      )
+        .populate("sender", "firstName middleName lastName avatarUrl roles")
+        .lean();
       if (!notif) return res.status(404).json({ error: "Notification not found." });
-      res.json({ success: true, read: false });
+      await emitUnread(currentUserId);
+      res.json({ success: true, read: false, notification: formatNotification(notif) });
     } catch (err) {
       res.status(500).json({ error: "Failed to update notification." });
     }
@@ -817,11 +871,15 @@ export function registerCommunicationRoutes(app) {
   app.delete("/api/notifications/:id", requireAuth, async (req, res) => {
     try {
       const currentUserId = req.user._id || req.user.id;
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(404).json({ error: "Notification not found." });
+      }
       const notif = await Notification.findOneAndDelete({
         _id: req.params.id,
         user: currentUserId,
       });
       if (!notif) return res.status(404).json({ error: "Notification not found." });
+      await emitUnread(currentUserId);
       res.json({ success: true, deleted: true });
     } catch (err) {
       res.status(500).json({ error: "Failed to dismiss notification." });

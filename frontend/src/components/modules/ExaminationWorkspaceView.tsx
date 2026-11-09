@@ -256,7 +256,7 @@ export const ExaminationWorkspaceView: React.FC = () => {
   const [formName, setFormName] = useState("");
   const [formType, setFormType] = useState<"MID_TERM" | "FINAL" | "PRACTICAL" | "UNIT_TEST" | "SUPPLEMENTARY">("FINAL");
   const [formAcademicYear, setFormAcademicYear] = useState("2083/84");
-  const [formProgram, setFormProgram] = useState("BCA");
+  const [formProgram, setFormProgram] = useState("BScIT");
   const [formSemester, setFormSemester] = useState("4");
   const [formCourseId, setFormCourseId] = useState("");
   const [formExamDate, setFormExamDate] = useState("2026-10-15");
@@ -950,10 +950,8 @@ export const ExaminationWorkspaceView: React.FC = () => {
               onChange={(e) => setFilterProgram(e.target.value)}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700"
             >
-              <option value="ALL">All Programs</option>
-              <option value="BCA">BCA</option>
-              <option value="BSc.CSIT">BSc.CSIT</option>
-              <option value="BBA">BBA</option>
+<option value="ALL">All Programs</option>
+            <option value="BScIT">BScIT</option>
             </select>
 
             <select
@@ -1228,9 +1226,7 @@ export const ExaminationWorkspaceView: React.FC = () => {
                     onChange={(e) => setFormProgram(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
                   >
-                    <option value="BCA">BCA (Bachelor of Computer Application)</option>
-                    <option value="BSc.CSIT">BSc.CSIT (Computer Science &amp; IT)</option>
-                    <option value="BBA">BBA (Business Administration)</option>
+                    <option value="BScIT">BScIT (Bachelor of Science in Information Technology)</option>
                   </select>
                 </div>
 

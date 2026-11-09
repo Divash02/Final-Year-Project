@@ -180,19 +180,30 @@ async function resolveStepApprovers(definition, step, requesterId) {
   return definition.approvalMode === "parallel" ? users : users.slice(0, 1);
 }
 
-async function createNotifications(users, title, message, idempotencyKey) {
+import { emitForNotificationUsers } from "./notificationService.js";
+
+async function createNotifications(users, title, message, idempotencyKey, extra = {}) {
   if (!users.length) return;
-  await Notification.insertMany(
-    users.map((user) => ({
-      user: user._id,
-      title,
-      message,
-      category: "workflow",
-      priority: "normal",
-      idempotencyKey: `${idempotencyKey}:${user._id}`,
-    })),
-    { ordered: false },
-  );
+  const docs = users.map((user) => ({
+    user: user._id,
+    senderType: "automated",
+    senderLabel: "CollegeOS Workflow",
+    title,
+    message,
+    category: "workflow",
+    priority: "normal",
+    idempotencyKey: `${idempotencyKey}:${user._id}`,
+    metadata: extra.metadata || null,
+    actionUrl: extra.actionUrl || null,
+    relatedEntityType: extra.relatedEntityType || null,
+    relatedEntityId: extra.relatedEntityId || null,
+  }));
+  try {
+    await Notification.insertMany(docs, { ordered: false });
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+  }
+  await emitForNotificationUsers(users.map((u) => u._id)).catch(() => {});
 }
 
 async function syncCase(instance, definition, request, status, actor, note) {

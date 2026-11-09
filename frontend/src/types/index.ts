@@ -380,7 +380,7 @@ export interface Student {
   id: string;
   tenantId: string;
   campusId: string;
-  studentId: string; // e.g. "TU-2081-BCA-001"
+  studentId: string; // e.g. "TU-2081-BScIT-001"
   userId: string;
   firstName: string;
   firstNameNe: string;

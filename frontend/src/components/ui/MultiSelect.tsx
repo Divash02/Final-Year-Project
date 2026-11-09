@@ -40,21 +40,30 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(-1);
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number; maxHeight: number; openUp: boolean } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const buttonRef = useRef<HTMLDivElement>(null);
 
   const updateDropdownPosition = useCallback(() => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const viewportPadding = 8;
+      const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+      const spaceAbove = rect.top - viewportPadding;
+      const desired = Math.max(120, maxHeight);
+      const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+      const available = openUp ? spaceAbove : spaceBelow;
+      const resolvedMaxHeight = Math.min(desired, Math.max(120, available));
       setDropdownPosition({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
-        width: rect.width,
+        top: openUp ? rect.top - resolvedMaxHeight : rect.bottom,
+        left: Math.min(rect.left, Math.max(viewportPadding, window.innerWidth - rect.width - viewportPadding)),
+        width: Math.min(rect.width, window.innerWidth - viewportPadding * 2),
+        maxHeight: resolvedMaxHeight,
+        openUp,
       });
     }
-  }, []);
+  }, [maxHeight]);
 
   useEffect(() => {
     if (isOpen) {
@@ -201,12 +210,13 @@ return (
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
-      <button
+      <div
         ref={buttonRef}
-        type="button"
+        role="button"
+        tabIndex={disabled ? -1 : 0}
         onClick={() => !disabled && setIsOpen((open) => !open)}
         onKeyDown={handleKeyDown}
-        disabled={disabled}
+        aria-disabled={disabled || undefined}
         className={`w-full flex flex-wrap items-center gap-1.5 rounded border px-3 py-2 text-left text-sm ${
           disabled
             ? "bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed"
@@ -223,17 +233,20 @@ return (
             {selectedOptions.map((opt) => (
               <span
                 key={opt.id}
-                className="inline-flex items-center gap-1 rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800"
+                className="inline-flex max-w-full items-start gap-1 rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800"
+                title={opt.label}
               >
-                {opt.label}
-                <button
-                  type="button"
+                <span className="whitespace-normal break-words">{opt.label}</span>
+                <span
+                  role="button"
+                  tabIndex={0}
                   onClick={(e) => removeSelection(e, opt.id)}
-                  className="p-0.5 rounded hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onChange(value.filter((id) => id !== opt.id)); } }}
+                  className="mt-0.5 shrink-0 cursor-pointer rounded p-0.5 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   aria-label={`Remove ${opt.label}`}
                 >
-                  <FontAwesomeIcon icon={faTimes} className="w-3 h-3" />
-                </button>
+                  <FontAwesomeIcon icon={faTimes} className="h-3 w-3" />
+                </span>
               </span>
             ))}
             {selectedOptions.length > 3 && (
@@ -251,19 +264,19 @@ return (
             isOpen ? "rotate-180" : ""
           }`}
         />
-      </button>
+      </div>
       {error && <p className="mt-1 text-xs text-red-600" role="alert">{error}</p>}
 
       {isOpen && dropdownPosition && createPortal(
         <div
           ref={dropdownRef}
-          className="z-[1400] max-h-[300px] overflow-auto rounded border border-slate-300 bg-white shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="z-[1400] overflow-y-auto overflow-x-hidden rounded border border-slate-300 bg-white shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           style={{
             position: "fixed",
             top: dropdownPosition.top,
             left: dropdownPosition.left,
             width: dropdownPosition.width,
-            maxHeight: maxHeight,
+            maxHeight: dropdownPosition.maxHeight,
             zIndex: 1400,
           }}
           role="listbox"
@@ -297,7 +310,7 @@ return (
               {filteredGroups.map(({ group, options }, groupIndex) => (
                 <React.Fragment key={groupIndex}>
                   {group && (
-                    <li className="px-3 py-1.5 text-xs font-semibold uppercase text-slate-500 bg-slate-50 border-b border-slate-100 sticky top-0">
+                    <li className="sticky top-0 z-[1] border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase text-slate-500">
                       {group}
                     </li>
                   )}
@@ -327,7 +340,7 @@ return (
                             isSelected ? "text-blue-600" : "text-slate-300"
                           }`}
                         />
-                        <span className="truncate">{option.label}</span>
+                        <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug" title={option.label}>{option.label}</span>
                       </li>
                     );
                   })}

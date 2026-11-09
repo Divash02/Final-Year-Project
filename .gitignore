@@ -1,15 +1,55 @@
+```gitignore
+# ==========================================
+# DEPENDENCIES
+# ==========================================
 node_modules/
+
+# ==========================================
+# BUILD OUTPUT
+# ==========================================
 build/
 dist/
 frontend/dist/
 coverage/
-.DS_Store
-*.log
-.env*
+
+# ==========================================
+# ENVIRONMENT FILES & SECRETS
+# ==========================================
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Allow safe example templates only
 !.env.example
+!**/.env.example
+
+# ==========================================
+# SECURITY & CREDENTIALS
+# ==========================================
+*.pem
+*.key
+*.p12
+*.pfx
+**/secrets/
+**/credentials/
+
+# ==========================================
+# DATABASE
+# ==========================================
 database/data/
 database/backups/
-backend/uploads/*
-!backend/uploads/.gitkeep
 *.db-wal
 *.db-shm
+
+# ==========================================
+# UPLOADS
+# ==========================================
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# ==========================================
+# LOGS & SYSTEM FILES
+# ==========================================
+*.log
+.DS_Store

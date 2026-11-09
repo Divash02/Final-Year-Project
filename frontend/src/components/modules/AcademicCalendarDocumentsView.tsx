@@ -920,7 +920,7 @@ const DocumentCreateModal: React.FC<DocumentCreateModalProps> = ({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Input
                   label="Program codes"
-                  placeholder="e.g. BCA, MCA"
+                  placeholder="e.g. BScIT"
                   value={programCodes}
                   onChange={(e) => setProgramCodes(e.target.value)}
                   helperText="Comma-separated"

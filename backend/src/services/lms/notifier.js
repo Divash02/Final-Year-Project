@@ -11,6 +11,15 @@ import { Notification, Mail, User } from "../../models/index.js";
  * retry or a double click cannot produce a duplicate message.
  */
 
+import { emitNotificationToUser, emitUnreadCountToUser } from "../notificationRealtime.js";
+
+async function pushRealtime(userId) {
+  try {
+    const count = await Notification.countDocuments({ user: userId, read: false });
+    emitUnreadCountToUser(userId, count);
+  } catch {}
+}
+
 /** Creates one in-app notification, at most once per key. */
 export async function notifyOnce({
   userId,
@@ -21,6 +30,12 @@ export async function notifyOnce({
   actionUrl = null,
   idempotencyKey,
   metadata = null,
+  sender = null,
+  senderType = "system",
+  senderLabel = null,
+  senderDepartment = null,
+  relatedEntityType = null,
+  relatedEntityId = null,
 }) {
   if (!userId) return null;
   try {
@@ -30,15 +45,42 @@ export async function notifyOnce({
     }
     const created = await Notification.create({
       user: userId,
+      sender: sender || null,
+      senderType: senderType || "system",
+      senderLabel: senderLabel || null,
+      senderDepartment: senderDepartment || null,
       title,
       message,
       category,
       priority,
       actionUrl,
+      relatedEntityType: relatedEntityType || null,
+      relatedEntityId: relatedEntityId || null,
       idempotencyKey: idempotencyKey || null,
       metadata,
     });
-    return created.toObject();
+    const obj = created.toObject();
+    const payload = {
+      id: String(obj._id),
+      _id: String(obj._id),
+      title: obj.title,
+      message: obj.message,
+      category: obj.category,
+      priority: obj.priority,
+      read: Boolean(obj.read),
+      actionUrl: obj.actionUrl || null,
+      senderType: obj.senderType || "system",
+      senderLabel: obj.senderLabel || null,
+      senderDepartment: obj.senderDepartment || null,
+      sender: obj.sender ? String(obj.sender) : null,
+      relatedEntityType: obj.relatedEntityType || null,
+      relatedEntityId: obj.relatedEntityId ? String(obj.relatedEntityId) : null,
+      metadata: obj.metadata || null,
+      created_at: obj.createdAt ? new Date(obj.createdAt).toISOString() : new Date().toISOString(),
+    };
+    emitNotificationToUser(userId, payload);
+    void pushRealtime(userId);
+    return obj;
   } catch (error) {
     // A concurrent sweep won the race; treat it as delivered.
     if (error?.code === 11000 && idempotencyKey) {

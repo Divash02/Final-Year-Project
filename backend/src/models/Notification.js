@@ -8,6 +8,26 @@ const NotificationSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    senderType: {
+      type: String,
+      enum: ["user", "system", "department", "automated"],
+      default: "system",
+    },
+    senderLabel: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    senderDepartment: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     title: {
       type: String,
       required: true,
@@ -41,6 +61,15 @@ const NotificationSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    relatedEntityType: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    relatedEntityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
     examId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Exam",
@@ -60,6 +89,8 @@ const NotificationSchema = new mongoose.Schema(
 );
 
 NotificationSchema.index({ user: 1, read: 1, createdAt: -1 });
+NotificationSchema.index({ user: 1, createdAt: -1, _id: -1 });
+NotificationSchema.index({ user: 1, category: 1, createdAt: -1 });
 NotificationSchema.index(
   { user: 1, idempotencyKey: 1 },
   { unique: true, partialFilterExpression: { idempotencyKey: { $type: "string" } } },

@@ -36,10 +36,16 @@ const ctx = {};
 let baseUrl = "";
 let server = null;
 let mongooseRef = null;
+const csrfTokens = new Map();
 
 async function api(path, { method = "GET", token, body } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
   let payload;
   if (body !== undefined) {
     if (body instanceof FormData) {
@@ -60,6 +66,14 @@ async function api(path, { method = "GET", token, body } = {}) {
     } catch {
       data = text;
     }
+  }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
   }
   return { status: response.status, data, text };
 }

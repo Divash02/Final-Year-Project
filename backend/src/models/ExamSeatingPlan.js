@@ -60,7 +60,7 @@ const ExamSeatingPlanSchema = new mongoose.Schema(
     examCode: { type: String, trim: true, index: true },
     title: { type: String, required: true, trim: true },
     academicYear: { type: String, default: "2083/84", trim: true },
-    program: { type: String, default: "BCA", trim: true },
+    program: { type: String, default: "BScIT", trim: true },
     semester: { type: Number, required: true },
     course: { type: mongoose.Schema.Types.ObjectId, ref: "Course", required: true },
     candidateScope: {

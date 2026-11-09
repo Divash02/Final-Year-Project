@@ -85,10 +85,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
           >
             <option value="ALL">All Programs</option>
-            <option value="BCA">BCA</option>
-            <option value="BIT">BIT</option>
-            <option value="BIM">BIM</option>
-            <option value="BBA">BBA</option>
+            <option value="BScIT">BScIT</option>
           </select>
 
           {/* Semester */}

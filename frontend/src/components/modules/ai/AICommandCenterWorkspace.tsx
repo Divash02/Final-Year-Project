@@ -1534,7 +1534,7 @@ export const AICommandCenterWorkspace: React.FC = () => {
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="Enter Credential Number (e.g., CRED-BCA25011-...)"
+                placeholder="Enter Credential Number (e.g., CRED-BScIT25011-...)"
                 value={verifyCertNumber}
                 onChange={(e) => setVerifyCertNumber(e.target.value)}
                 className="flex-1 border border-slate-300 rounded-md p-2 text-xs"

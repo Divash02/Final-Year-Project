@@ -137,6 +137,34 @@ export function formatMinutesAsTime(totalMinutes: number): string {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
+/** Formats a stored schedule time ("HH:mm" 24h) as 12-hour time (e.g. 3:34 PM). */
+export function formatScheduleTime12h(value?: string | null): string {
+  const raw = String(value || "").trim();
+  const m = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (!m) return raw;
+  let h = Number(m[1]);
+  const min = m[2];
+  if (!Number.isFinite(h) || h < 0 || h > 23) return raw;
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${min} ${ampm}`;
+}
+
+/** Formats a timestamp for credential/session metadata in 12-hour time. */
+export function formatDateTime12h(value?: string | Date | null): string {
+  if (!value) return "—";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 /**
  * Builds the seven local date keys for the week (Sunday-first) containing the
  * given institution-local day.

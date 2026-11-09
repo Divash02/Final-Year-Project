@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import {
   hashPassword,
   verifyPassword,
@@ -201,12 +202,13 @@ export function registerAuthRoutes(app) {
       await user.save();
 
       const token = signToken({ userId: user._id.toString() });
+      const csrfToken = randomBytes(24).toString("hex");
       const policy = getSessionPolicy(effectiveRoles[0] || "student");
       const sessionExpiry = new Date(Date.now() + policy.absoluteLifetimeMs).toISOString();
       await createSession(user._id, token, sessionExpiry, {
         userAgent: req.get("user-agent"),
         ipAddress: req.ip,
-      });
+      }, csrfToken);
 
       const publicUser = userToPublic(user);
 
@@ -240,6 +242,7 @@ export function registerAuthRoutes(app) {
 
       res.json({
         token,
+        csrfToken,
         user: {
           ...publicUser,
           activeRole,
@@ -305,13 +308,14 @@ export function registerAuthRoutes(app) {
 
       await revokeUserSessions(user._id);
 
+      const replacementCsrfToken = randomBytes(24).toString("hex");
       const replacementToken = signToken({ userId: user._id.toString() });
       const expiryPolicy = getSessionPolicy(getUserRoles(user)[0] || "student");
       const expiresAt = new Date(Date.now() + expiryPolicy.absoluteLifetimeMs).toISOString();
       await createSession(user._id, replacementToken, expiresAt, {
         userAgent: req.get("user-agent"),
         ipAddress: req.ip,
-      });
+      }, replacementCsrfToken);
 
       await logAudit({
         userId: user._id,
@@ -339,6 +343,7 @@ export function registerAuthRoutes(app) {
       res.json({
         success: true,
         token: replacementToken,
+        csrfToken: replacementCsrfToken,
         user: {
           ...refreshedUser,
           activeRole,

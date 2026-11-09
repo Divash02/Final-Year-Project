@@ -10,7 +10,7 @@ const API_BASE = /\/api$/i.test(normalizedApiBase)
  * API-relative paths (`/uploads/avatars/...`) so the value stays valid when the
  * host or port changes; this turns one back into a URL the browser can load.
  */
-const API_ORIGIN = API_BASE.replace(/\/api\/?$/, "");
+export const API_ORIGIN = API_BASE.replace(/\/api\/?$/, "");
 
 /** Resolves an API-relative asset path (or a data/absolute URL) for display. */
 export function resolveAssetUrl(value?: string | null): string | undefined {
@@ -125,6 +125,7 @@ export async function apiFetch(
 ): Promise<Response> {
   const { skipSessionCheck, ...fetchOptions } = options;
   const token = localStorage.getItem("collegeos_token");
+  const csrfToken = localStorage.getItem("collegeos_csrf_token");
   const isLoginRoute = /\/auth\/login\/?$/i.test(route);
   const headers = new Headers(fetchOptions.headers);
   // FormData bodies must keep the browser-generated multipart boundary, so the
@@ -135,9 +136,16 @@ export async function apiFetch(
   if (token && !isLoginRoute && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
+  // Present the per-session CSRF token on state-changing requests so the
+  // backend can validate it against the session issued at login.
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(fetchOptions.method || "GET"));
+  if (csrfToken && isMutating && !headers.has("X-CSRF-Token")) {
+    headers.set("X-CSRF-Token", csrfToken);
+  }
 
   try {
-    const response = await fetch(`${API_BASE}${route}`, {
+    const normalizedRoute = route.startsWith("/api/") ? route.slice(4) : route;
+  const response = await fetch(`${API_BASE}${normalizedRoute}`, {
       ...fetchOptions,
       headers,
     });
@@ -184,7 +192,8 @@ export function apiUpload<T>(
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open("POST", `${API_BASE}${route}`);
+    const normalizedRoute = route.startsWith("/api/") ? route.slice(4) : route;
+    request.open("POST", `${API_BASE}${normalizedRoute}`);
 
     const token = localStorage.getItem("collegeos_token");
     if (token) request.setRequestHeader("Authorization", `Bearer ${token}`);

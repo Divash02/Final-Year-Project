@@ -106,8 +106,10 @@ export function uploadWithProgress(
     });
 
     const token = localStorage.getItem("collegeos_token");
+    const csrfToken = localStorage.getItem("collegeos_csrf_token");
     xhr.open("POST", `${API_BASE}${route}`, true);
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    if (csrfToken) xhr.setRequestHeader("X-CSRF-Token", csrfToken);
     xhr.send(form);
   });
 

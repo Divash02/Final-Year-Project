@@ -7,9 +7,11 @@ import {
   faBookOpen,
   faCalendarDays,
   faChevronLeft,
+  faChevronRight,
   faClock,
   faDoorOpen,
   faHistory,
+  faLocationDot,
   faTriangleExclamation,
   faUserCheck,
   faUsers,
@@ -23,6 +25,7 @@ import { CardSkeleton } from "../ui/Skeleton";
 import { WorkspaceLayout } from "../layout/WorkspaceLayout";
 import { useCollegeOS } from "../../context/CollegeOSContext";
 import { useToast } from "../ui/ToastContainer";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 import {
   fetchMyTimetable,
   fetchTimetableNotices,
@@ -49,6 +52,28 @@ import { roomLabel } from "../modules/timetableTypes";
  * see the published timetable, the attendance status of each class, and any
  * notices the academic office has sent about changes.
  */
+
+
+const TT_START_HOUR = 7;
+const TT_END_HOUR = 20;
+const TT_SLOT_PX = 28;
+const TT_AXIS_PX = 68;
+const TT_COL_MIN_PX = 140;
+function ttMinutes(v?: string | null){ if(!v) return null; const [h,m]=String(v).split(':').map(Number); if(Number.isNaN(h)||Number.isNaN(m)) return null; return h*60+m; }
+function ttTime(v?: string | null){ const n=ttMinutes(v); if(n==null) return '—'; const h=Math.floor(n/60), m=n%60; const ap=h>=12?'PM':'AM'; const hh=h%12===0?12:h%12; return `${hh}:${String(m).padStart(2,'0')} ${ap}`; }
+function ttTone(status?: MyClassEntry['status']){
+  if(status==='IN_PROGRESS') return {bg:'rgba(180,83,9,.08)',b:'#FCD34D',a:'#D97706',m:'#78350F'};
+  if(status==='COMPLETED') return {bg:'rgba(21,128,61,.07)',b:'#86EFAC',a:'#15803D',m:'#14532D'};
+  if(status==='CANCELLED') return {bg:'rgba(185,28,28,.06)',b:'#FECACA',a:'#B91C1C',m:'#7F1D1D'};
+  return {bg:'rgba(15,118,110,.08)',b:'#99F6E4',a:'var(--color-primary,#0F766E)',m:'#334155'};
+}
+function ttLayout(entries: MyClassEntry[]){
+  const items = entries.map(e=>({e,s:ttMinutes(e.startTime),en:ttMinutes(e.endTime)})).filter((x):x is {e:MyClassEntry;s:number;en:number}=>x.s!=null&&x.en!=null).sort((a,b)=>a.s-b.s || b.en-a.en);
+  const out: Array<{e:MyClassEntry;s:number;en:number;lane:number;lanes:number}>=[];
+  let cluster: typeof out=[]; let end=-1; const flush=()=>{ if(!cluster.length) return; const lanes=cluster.reduce((m,i)=>Math.max(m,i.lane+1),1); cluster.forEach(i=>out.push({...i,lanes})); cluster=[]; end=-1; };
+  for(const it of items){ const e=Math.max(it.en,it.s+15); if(cluster.length && it.s>=end) flush(); const ends=cluster.map(i=>Math.max(i.en,i.s+15)); let lane=ends.findIndex(v=>v<=it.s); if(lane<0) lane=cluster.length; cluster.push({...it,e, lane, lanes:1} as any); end=Math.max(end,e); }
+  flush(); return out;
+}
 
 const VIEWS: { id: MyTimetableView; label: string }[] = [
   { id: "today", label: "Today" },
@@ -387,43 +412,83 @@ const StudentWeekView: React.FC<{
   days: MyTimetableResponse["days"];
   today: string;
   onSelect: (entry: MyClassEntry) => void;
-}> = ({ days, today, onSelect }) => (
-  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-    {days.map((day) => {
-      const heading = formatDateKeyHeading(day.date);
-      return (
-        <Card
-          key={day.date}
-          title={heading.weekday}
-          subtitle={`${heading.day} ${heading.month}`}
-          icon={day.isToday ? faCalendarDays : faCalendarDays}
-          headerAction={
-            day.isToday ? (
-              <Badge variant="primary" size="sm">
-                Today
-              </Badge>
-            ) : undefined
-          }
-        >
-          {day.entries.length === 0 ? (
-            <p className="text-xs text-slate-400">No class</p>
-          ) : (
-            <div className="space-y-2.5">
-              {day.entries.map((entry) => (
-                <StudentClassCard
-                  key={entry.id}
-                  entry={entry}
-                  onSelect={onSelect}
-                  compact
-                />
+}> = ({ days, today, onSelect }) => {
+  const compact = useMediaQuery("(max-width: 767px)");
+  if (compact) {
+    return (
+      <div className="space-y-3">
+        {days.map((day) => {
+          const heading = formatDateKeyHeading(day.date);
+          return (
+            <Card key={day.date} padding={false} className="overflow-hidden">
+              <div className={`flex items-center justify-between border-b border-slate-200 px-4 py-3 ${day.isToday ? "bg-teal-50/70" : "bg-white"}`}>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{heading.weekday}, {heading.day} {heading.month}</p>
+                  <p className="text-xs text-slate-500">{day.entries.length} class{day.entries.length===1?"":"es"}</p>
+                </div>
+                {day.isToday && <Badge variant="primary" size="sm">Today</Badge>}
+              </div>
+              <div className="space-y-2 p-3">
+                {day.entries.length===0 ? <p className="text-xs text-slate-400">No classes scheduled.</p> : day.entries.map((entry)=><StudentClassCard key={entry.id} entry={entry} onSelect={onSelect} compact={false} />)}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }
+  const slots: Array<{m:number;label:string;hour:boolean}>=[];
+  for(let h=TT_START_HOUR; h<=TT_END_HOUR; h++){ for(let m=0;m<60;m+=30){ if(h===TT_END_HOUR&&m>0) break; const mm=h*60+m; const ap=h>=12?'PM':'AM'; const hh=h%12===0?12:h%12; slots.push({m:mm,label:`${hh}:${String(m).padStart(2,'0')} ${ap}`,hour:m===0}); } }
+  const bodyH = slots.length*TT_SLOT_PX;
+  const minW = TT_AXIS_PX + TT_COL_MIN_PX*7;
+  const ws = TT_START_HOUR*60;
+  return (
+    <Card padding={false} className="min-w-0 overflow-hidden">
+      <div className="overflow-auto bg-slate-50/40" style={{maxHeight:'min(68vh,860px)'}}>
+        <div style={{minWidth:minW}}>
+          <div className="sticky top-0 z-20 grid border-b border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)]" style={{gridTemplateColumns:`${TT_AXIS_PX}px repeat(7,minmax(${TT_COL_MIN_PX}px,1fr))`}}>
+            <div className="sticky left-0 z-30 border-r border-slate-200 bg-white px-2 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Time</div>
+            {days.map((day)=>{ const h=formatDateKeyHeading(day.date); return (
+              <div key={day.date} className={`border-r border-slate-200 px-2 py-2.5 text-center last:border-r-0 ${day.isToday?'bg-teal-50/70':'bg-white'}`}>
+                <p className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${day.isToday?'text-[var(--color-primary-strong,#115E59)]':'text-slate-500'}`}>{h.weekday}</p>
+                <div className="mt-0.5 flex items-center justify-center gap-1.5">
+                  <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${day.isToday?'bg-[var(--color-primary)] text-white':'text-slate-800'}`}>{h.day}</span>
+                  {day.isToday && <span className="text-[11px] font-medium text-[var(--color-primary-strong,#115E59)]">Today</span>}
+                </div>
+              </div>
+            );})}
+          </div>
+          <div className="relative grid" style={{gridTemplateColumns:`${TT_AXIS_PX}px repeat(7,minmax(${TT_COL_MIN_PX}px,1fr))`, height:bodyH}}>
+            <div className="sticky left-0 z-10 border-r border-slate-200 bg-slate-50/95">
+              {slots.map(slot=>(
+                <div key={slot.m} className={`relative border-b ${slot.hour?'border-slate-200':'border-slate-100'}`} style={{height:TT_SLOT_PX}}>
+                  {slot.hour && <span className="absolute -top-2 right-2 bg-slate-50/95 px-1 text-[11px] font-medium text-slate-500">{slot.label}</span>}
+                </div>
               ))}
             </div>
-          )}
-        </Card>
-      );
-    })}
-  </div>
-);
+            {days.map(day=>{ const pos=ttLayout(day.entries); return (
+              <div key={day.date} className={`relative border-r border-slate-200 last:border-r-0 ${day.isToday?'bg-teal-50/20':'bg-white'}`} style={{height:bodyH}}>
+                {slots.map(slot=> <div key={`${day.date}-${slot.m}`} className={`border-b ${slot.hour?'border-slate-200/90':'border-slate-100'}`} style={{height:TT_SLOT_PX}} aria-hidden="true" />)}
+                {pos.map(({e,s:st,en,lane,lanes})=>{ const top=Math.max(0,((Math.max(st,ws)-ws)/30)*TT_SLOT_PX); const height=Math.max(TT_SLOT_PX*1.4,((Math.max(en,st+15)-st)/30)*TT_SLOT_PX); const tone=ttTone(e.status); const badge=STATUS_BADGE[e.status]; const w=100/lanes; const compactCard=height<78; const loc=roomLabel(e.room,e.building); return (
+                  <button key={e.id} type="button" onClick={()=>onSelect(e)} className="absolute overflow-hidden rounded-xl border text-left shadow-[0_1px_2px_rgba(15,23,42,0.08)] transition hover:z-20 hover:shadow-md focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]" style={{top:top+2,height:Math.max(34,height-4),left:`calc(${lane*w}% + 4px)`,width:`calc(${w}% - 8px)`,background:tone.bg,borderColor:tone.b,borderLeftWidth:4,borderLeftColor:tone.a}} aria-label={`${e.courseCode||'Class'}, ${ttTime(e.startTime)} to ${ttTime(e.endTime)}, ${loc}, ${badge?.label||e.status}`} title={`${e.courseCode||'Class'}
+${ttTime(e.startTime)} – ${ttTime(e.endTime)}
+${loc}
+${badge?.label||''}`}>
+                    <div className={`flex h-full flex-col ${compactCard?'gap-0.5 p-1.5':'gap-1 p-2'}`}>
+                      <div className="flex items-start justify-between gap-1.5"><span className="min-w-0 truncate text-[13px] font-semibold leading-4 text-slate-900">{e.courseCode||'Class'}</span>{badge && <Badge variant={badge.variant} size="sm" hideDot className="shrink-0 !px-1.5 !py-0 !text-[10px]">{compactCard && badge.label==='In Progress'?'Live':badge.label}</Badge>}</div>
+                      <div className="min-w-0 text-[11px] font-medium leading-4" style={{color:tone.m}}>{ttTime(e.startTime)} – {ttTime(e.endTime)}</div>
+                      {!compactCard && <div className="mt-auto flex min-w-0 items-start gap-1 text-[11px] leading-4 text-slate-600"><FontAwesomeIcon icon={faLocationDot} className="mt-0.5 shrink-0 text-[10px] text-slate-400" aria-hidden="true" /><span className="min-w-0 truncate">{loc}</span></div>}
+                    </div>
+                  </button>
+                );})}
+              </div>
+            );})}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+};
 
 const StudentMonthView: React.FC<{
   data: MyTimetableResponse;
@@ -519,55 +584,25 @@ const StudentClassCard: React.FC<{
   entry: MyClassEntry;
   onSelect: (entry: MyClassEntry) => void;
   compact?: boolean;
-}> = ({ entry, onSelect, compact }) => (
-  <div
-    className={`rounded-lg border p-2.5 text-left transition ${
-      entry.status === "COMPLETED"
-        ? "border-slate-200 bg-slate-50"
-        : "border-slate-200 bg-white hover:border-slate-300"
-    }`}
-  >
-    <button
-      type="button"
-      onClick={() => onSelect(entry)}
-      className="w-full text-left"
-      aria-label={`Open ${entry.courseCode || "Class"} section ${entry.sectionCode}`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-slate-700">
-          {entry.startTime}–{entry.endTime}
-        </span>
-        {STATUS_BADGE[entry.status]?.variant && (
-          <Badge variant={STATUS_BADGE[entry.status]?.variant} size="sm">
-            {STATUS_BADGE[entry.status]?.label}
-          </Badge>
-        )}
-      </div>
-      <p className="mt-1 truncate text-sm font-medium text-slate-900">
-        {entry.courseCode || "Class"}
-      </p>
-      {!compact && entry.courseName && (
-        <p className="truncate text-xs text-slate-500">{entry.courseName}</p>
-      )}
-      <p className="mt-0.5 truncate text-xs text-slate-500">
-        Section {entry.sectionCode}
-        {entry.room ? ` · ${roomLabel(entry.room, entry.building)}` : ""}
-      </p>
-      {entry.attendanceRecorded && (
-        <div className="mt-1.5 flex items-center gap-1.5 text-xs">
-          <FontAwesomeIcon
-            icon={faUserCheck}
-            className="text-[var(--color-attendance-late)]"
-            aria-hidden="true"
-          />
-          <span className="text-slate-600">
-            {entry.attendanceStatus === "OPEN" ? "Register open" : "Attendance taken"}
-          </span>
+}> = ({ entry, onSelect, compact }) => {
+  const tone = ttTone(entry.status);
+  const badge = STATUS_BADGE[entry.status];
+  const loc = roomLabel(entry.room, entry.building);
+  return (
+    <button type="button" onClick={() => onSelect(entry)} className="w-full overflow-hidden rounded-xl border text-left shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]" style={{background:tone.bg,borderColor:tone.b,borderLeftWidth:4,borderLeftColor:tone.a}} aria-label={`Open ${entry.courseCode || "Class"} section ${entry.sectionCode}`}>
+      <div className={`flex flex-col ${compact ? 'gap-1 p-2' : 'gap-1.5 p-3'}`}>
+        <div className="flex items-start justify-between gap-2">
+          <span className="truncate text-sm font-semibold text-slate-900">{entry.courseCode || "Class"}</span>
+          {badge && <Badge variant={badge.variant} size="sm" hideDot>{badge.label}</Badge>}
         </div>
-      )}
+        {!compact && entry.courseName && <p className="truncate text-xs text-slate-600">{entry.courseName}</p>}
+        <p className="text-xs font-medium" style={{color:tone.m}}>{ttTime(entry.startTime)} – {ttTime(entry.endTime)}</p>
+        <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-600"><FontAwesomeIcon icon={faLocationDot} className="shrink-0 text-[11px] text-slate-400" aria-hidden="true" /><span className="truncate">{loc}</span><span className="text-slate-300">·</span><span className="truncate">Section {entry.sectionCode}</span></p>
+        {entry.attendanceRecorded && <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-600"><FontAwesomeIcon icon={faUserCheck} className="text-[var(--color-attendance-late)]" aria-hidden="true" /><span>{entry.attendanceStatus === "OPEN" ? "Register open" : "Attendance taken"}</span></div>}
+      </div>
     </button>
-  </div>
-);
+  );
+};
 
 const StudentClassDetailModal: React.FC<{
   entry: MyClassEntry;

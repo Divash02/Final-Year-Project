@@ -4,6 +4,7 @@ import { getMinimumPasswordLength } from "./passwordPolicy.js";
 import { generateInstitutionalEmail } from "./institutionalEmail.js";
 import { conflict, validationError } from "../utils/apiError.js";
 import { createTemporaryPassword } from "../utils/temporaryPassword.js";
+import { requireValidAcademicYear } from "../config/academic.js";
 
 /**
  * One place where a student identity comes into existence.
@@ -28,8 +29,10 @@ export async function provisionStudentAccount({
   semester,
   section,
   campus,
+  academicYear,
   createdBy,
 }) {
+  const normalizedAcademicYear = academicYear ? requireValidAcademicYear(academicYear, "academicYear") : null;
   const normalizedStudentId = String(studentId || "").trim();
   if (!normalizedStudentId) {
     throw validationError("A student ID is required.", [
@@ -84,6 +87,7 @@ export async function provisionStudentAccount({
     batch: batch || null,
     section: sectionCode,
     semester: semesterNumber,
+    academicYear: normalizedAcademicYear || null,
     campus: campus || null,
     status: "ACTIVE",
   });
@@ -120,6 +124,7 @@ export async function provisionStudentAccount({
           sectionCode,
           semester: semesterNumber,
           status: "ENROLLED",
+          academicYear: normalizedAcademicYear || undefined,
         })),
         { ordered: false },
       ).catch((error) => {
@@ -137,7 +142,7 @@ export async function provisionStudentAccount({
     resource: "student",
     resourceId: student._id.toString(),
     details: `Student ${normalizedStudentId} enrolled in ${program || "unspecified programme"}, semester ${semesterNumber}, section ${sectionCode || "n/a"}.`,
-    metadata: { email, sectionCode, semester: semesterNumber, batch: batch || null },
+    metadata: { email, sectionCode, semester: semesterNumber, batch: batch || null, academicYear: normalizedAcademicYear || null },
   });
 
   return { user, student, email, temporaryPassword, credentialExpiresAt: expiresAt };

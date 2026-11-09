@@ -59,7 +59,7 @@ const StudentAssessmentMarkSchema = new mongoose.Schema(
     academicYear: { type: String, required: true, trim: true, index: true },
     semester: { type: Number, required: true, index: true },
     sectionCode: { type: String, default: "A", uppercase: true, trim: true, index: true },
-    program: { type: String, default: "BCA", uppercase: true, trim: true, index: true },
+    program: { type: String, default: "BScIT", uppercase: true, trim: true, index: true },
 
     components: [StudentComponentMarkSchema],
 

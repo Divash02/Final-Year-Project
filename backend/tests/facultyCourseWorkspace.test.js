@@ -42,6 +42,7 @@ const ctx = {};
 let baseUrl = "";
 let server = null;
 let mongooseRef = null;
+const csrfTokens = new Map();
 
 /**
  * One request helper for both payload shapes.
@@ -52,6 +53,11 @@ let mongooseRef = null;
 async function api(path, { method = "GET", token, body } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const isMutating = /^(POST|PUT|PATCH|DELETE)$/i.test(String(method));
+  if (token && isMutating) {
+    const csrf = csrfTokens.get(token);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   let payload;
   if (body instanceof FormData) {
@@ -71,12 +77,22 @@ async function api(path, { method = "GET", token, body } = {}) {
       data = text;
     }
   }
+  if (
+    /^\/api\/auth\/(login|change-password)\/?$/i.test(path) &&
+    response.status === 200 &&
+    data &&
+    data.csrfToken
+  ) {
+    csrfTokens.set(data.token, data.csrfToken);
+  }
   return { status: response.status, data, text };
 }
 
 async function login(email, password) {
   const res = await api("/api/auth/login", { method: "POST", body: { email, password } });
   assert.equal(res.status, 200, `login failed for ${email}: ${res.text}`);
+  assert.ok(res.data.csrfToken, "login did not issue a CSRF token");
+  csrfTokens.set(res.data.token, res.data.csrfToken);
   return res.data.token;
 }
 
@@ -147,7 +163,7 @@ before(async () => {
     const section = await api("/api/sections", {
       method: "POST",
       token: ctx.adminToken,
-      body: { code, program: "BCA", semester: 4, batch: "2025" },
+      body: { code, program: "BScIT", semester: 4, batch: "2025" },
     });
     assert.ok(section.status === 201 || section.status === 409, section.text);
   }

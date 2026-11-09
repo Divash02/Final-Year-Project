@@ -646,7 +646,7 @@ export function registerDocumentRoutes(app) {
         const updated = await Document.findOneAndUpdate(
           { _id: req.params.id, version: expectedVersion },
           { $push: { versions: entry }, $set: { version: nextVersion, fileName: reference.originalName, fileUrl: `/api/files/${reference.fileId}`, file: reference, fileSize: reference.sizeBytes } },
-          { new: true }
+          { returnDocument: "after" }
         );
         if (!updated) {
           return res.status(409).json({ error: "Version conflict. Please retry." });
@@ -674,7 +674,7 @@ export function registerDocumentRoutes(app) {
     const updated = await Document.findOneAndUpdate(
       { _id: req.params.id, version: expectedVersion },
       { $push: { versions: entry }, $set: { version: nextVersion, fileName: target.fileName, fileUrl: target.fileUrl, file: target.file, fileSize: target.fileSize } },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!updated) return res.status(409).json({ error: "Version conflict. Please retry." });
     await logAudit({ userId: req.user._id || req.user.id, action: "DOCUMENT_VERSION_RESTORED", module: "documents", resource: "document", resourceId: updated._id, metadata: { restoredFrom: target.version, newVersion: nextVersion }, details: `Restored from version ${target.version}` });

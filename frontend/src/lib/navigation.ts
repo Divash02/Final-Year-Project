@@ -40,6 +40,7 @@ import {
   faClipboardCheck,
   faCalendarCheck,
   faSchool,
+  faVideo,
 } from "@fortawesome/free-solid-svg-icons";
 import { UserRoleType } from "../types";
 
@@ -145,6 +146,14 @@ const intelligenceItem: NavItem = {
   permission: "ai.view",
 };
 
+const connectItem: NavItem = {
+  id: "connect",
+  labelEn: "Techspire Meet",
+  labelNe: "टेक्स्पायर मीट",
+  icon: faVideo,
+  permission: "connect.view",
+};
+
 const accountSection = (): NavSection => {
   return defineSection("account-personal", [profileItem]);
 };
@@ -205,6 +214,7 @@ const STUDENT_NAV: NavSection[] = [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
     { id: "messages", labelEn: "Messages", labelNe: "सन्देश", icon: faComments, permission: "messages.view" },
     { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
+    connectItem,
   ]),
   accountSection(),
 ];
@@ -247,6 +257,7 @@ const FACULTY_NAV: NavSection[] = [
       badge: "pendingRequests",
       badgeTone: "warning",
     },
+    connectItem,
   ]),
   accountSection(),
 ];
@@ -269,9 +280,10 @@ const EXAM_OFFICER_NAV: NavSection[] = [
     intelligenceItem,
   ]),
   defineSection("communication-engagement", [
-    { id: "notices", labelEn: "Exam Notices", labelNe: "परीक्षा सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
     { id: "messages", labelEn: "Messages", labelNe: "सन्देश", icon: faComments, permission: "messages.view" },
+    { id: "notices", labelEn: "Exam Notices", labelNe: "परीक्षा सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
+    connectItem,
   ]),
   accountSection(),
 ];
@@ -294,6 +306,8 @@ const DEPARTMENT_NAV: NavSection[] = [
     intelligenceItem,
   ]),
   defineSection("communication-engagement", [
+    { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
+    { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
     {
       id: "requests",
       labelEn: "Department Requests",
@@ -303,8 +317,7 @@ const DEPARTMENT_NAV: NavSection[] = [
       badge: "pendingRequests",
       badgeTone: "warning",
     },
-    { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
-    { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
+    connectItem,
   ]),
   accountSection(),
 ];
@@ -328,6 +341,8 @@ const REGISTRAR_NAV: NavSection[] = [
     intelligenceItem,
   ]),
   defineSection("communication-engagement", [
+    { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
+    { id: "notices", labelEn: "Official Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
     {
       id: "requests",
       labelEn: "Academic Requests",
@@ -337,8 +352,7 @@ const REGISTRAR_NAV: NavSection[] = [
       badge: "pendingRequests",
       badgeTone: "warning",
     },
-    { id: "notices", labelEn: "Official Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
-    { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
+    connectItem,
   ]),
   accountSection(),
 ];
@@ -364,9 +378,10 @@ const FINANCE_NAV: NavSection[] = [
     intelligenceItem,
   ]),
   defineSection("communication-engagement", [
-    { id: "requests", labelEn: "Finance Requests", labelNe: "वित्तीय निवेदन", icon: faInbox, permission: "workflow.view" },
-    { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
+    { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
+    { id: "requests", labelEn: "Finance Requests", labelNe: "वित्तीय निवेदन", icon: faInbox, permission: "workflow.view" },
+    connectItem,
   ]),
   accountSection(),
 ];
@@ -394,6 +409,8 @@ const CAMPUS_ADMIN_NAV: NavSection[] = [
     { id: "campus_transport", labelEn: "Transport Management", labelNe: "यातायात व्यवस्थापन", icon: faCar, permission: "facilities.view" },
   ]),
   defineSection("communication-engagement", [
+    { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
+    { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
     {
       id: "requests",
       labelEn: "Facility Requests",
@@ -403,8 +420,7 @@ const CAMPUS_ADMIN_NAV: NavSection[] = [
       badge: "pendingRequests",
       badgeTone: "warning",
     },
-    { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
-    { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
+    connectItem,
   ]),
   accountSection(),
 ];
@@ -426,6 +442,8 @@ const DEAN_NAV: NavSection[] = [
     intelligenceItem,
   ]),
   defineSection("communication-engagement", [
+    { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
+    { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
     {
       id: "requests",
       labelEn: "Faculty Requests",
@@ -435,8 +453,7 @@ const DEAN_NAV: NavSection[] = [
       badge: "pendingRequests",
       badgeTone: "warning",
     },
-    { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
-    { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
+    connectItem,
   ]),
   accountSection(),
 ];
@@ -525,6 +542,7 @@ const SUPER_ADMIN_NAV: NavSection[] = [
       badge: "pendingRequests",
       badgeTone: "warning",
     },
+    connectItem,
   ]),
   defineSection("account-personal", [
     { id: "profile", labelEn: "My Profile", labelNe: "मेरो प्रोफाइल", icon: faUser },

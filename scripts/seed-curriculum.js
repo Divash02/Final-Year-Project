@@ -1,7 +1,7 @@
 /**
  * CollegeOS Curriculum Seed Script
  *
- * Populates the expected semester-wise curriculum for BCA program.
+ * Populates the expected semester-wise curriculum for BSc IT program.
  * Run with: node scripts/seed-curriculum.js
  *
  * This script is idempotent - it will only create missing courses.
@@ -13,7 +13,7 @@ import { connectDatabase } from "../backend/src/config/database.js";
 import { Course } from "../backend/src/models/index.js";
 
 const ACADEMIC_YEAR = "2025/2026";
-const PROGRAM = "BCA";
+const PROGRAM = "BScIT";
 const DEPARTMENT = "Computer Science and IT";
 
 const CURRICULUM = [

@@ -74,17 +74,26 @@ export function hashToken(token) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export async function createSession(userId, token, expiresAt, metadata = {}) {
+export async function createSession(userId, token, expiresAt, metadata = {}, csrfToken = null) {
   const tokenHash = hashToken(token);
-  return await Session.create({
+  const existingSession = await Session.findOne({ tokenHash });
+  const payload = {
     user: userId,
     tokenHash,
+    csrfToken: csrfToken || null,
     expiresAt: new Date(expiresAt),
     userAgent: String(metadata.userAgent || "").slice(0, 512),
     ipAddress: metadata.ipAddress || null,
     location: metadata.location || null,
     lastActiveAt: new Date(),
-  });
+    revokedAt: null,
+  };
+  if (existingSession) {
+    Object.assign(existingSession, payload);
+    await existingSession.save();
+    return existingSession;
+  }
+  return await Session.create(payload);
 }
 
 /**
@@ -205,7 +214,7 @@ export async function recordLoginFailure(attemptKey) {
     { $inc: { failures: 1 } },
     {
       upsert: true,
-      new: true,
+      returnDocument: "after",
       setDefaultsOnInsert: true,
     }
   );
