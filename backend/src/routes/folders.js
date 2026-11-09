@@ -2,7 +2,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { Folder, Document } from "../models/index.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { route, notFound, forbidden } from "../utils/apiError.js";
-import { canAccessDocument } from "./documents.js";
+import { canAccessDocument } from "../services/documentService.js";
 import { getUserRoles } from "../db.js";
 import { hasPermission } from "../permissions/catalog.js";
 

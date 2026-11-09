@@ -1,4 +1,6 @@
-import { requireAuth, requirePermission, requireRole } from "../middleware/auth.js";
+import { requireAuth } from "../middleware/authentication.js";
+import { requirePermission, requireRole } from "../middleware/authorization.js";
+import { aiTelemetryMiddleware } from "../middleware/aiTelemetry.js";
 import { getUserRoles } from "../db.js";
 import { processOperationsAgentQuery } from "../services/ai/operationsAgentService.js";
 import {
@@ -39,7 +41,6 @@ import {
 import {
   getSystemHealthMetrics,
   triggerSimulatedSystemIncident,
-  recordApiMetric,
 } from "../services/ai/systemHealthService.js";
 import { queryKnowledgeAssistant } from "../services/ai/ragService.js";
 import { extractTranscriptData } from "../services/ai/documentIntelligenceService.js";
@@ -65,20 +66,7 @@ import {
 } from "../services/ai/smartAttendanceService.js";
 
 export function registerAIRoutes(app) {
-  // Telemetry middleware to capture real API latency and status for System Health
-  app.use((req, res, next) => {
-    const start = Date.now();
-    res.on("finish", () => {
-      const durationMs = Date.now() - start;
-      recordApiMetric({
-        method: req.method,
-        path: req.baseUrl + req.path,
-        status: res.statusCode,
-        durationMs,
-      });
-    });
-    next();
-  });
+  app.use(aiTelemetryMiddleware);
 
   /* ------------------------------------------------------------- */
   /* 1. AI Operations Agent                                        */

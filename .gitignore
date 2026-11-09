@@ -1,4 +1,3 @@
-```gitignore
 # ==========================================
 # DEPENDENCIES
 # ==========================================
@@ -11,6 +10,8 @@ build/
 dist/
 frontend/dist/
 coverage/
+.next/
+.vite/
 
 # ==========================================
 # ENVIRONMENT FILES & SECRETS
@@ -19,10 +20,14 @@ coverage/
 .env.*
 **/.env
 **/.env.*
-
-# Allow safe example templates only
-!.env.example
-!**/.env.example
+.env.example
+**/.env.example
+.env.local
+.env.development
+.env.production
+.env.test
+.env.staging
+.env.*.local
 
 # ==========================================
 # SECURITY & CREDENTIALS
@@ -31,8 +36,14 @@ coverage/
 *.key
 *.p12
 *.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
 **/secrets/
 **/credentials/
+*.pem
+*.key
 
 # ==========================================
 # DATABASE
@@ -41,9 +52,14 @@ database/data/
 database/backups/
 *.db-wal
 *.db-shm
+*.sqlite
+*.db
+*.bson
+*.dump
+.mongodb-data/
 
 # ==========================================
-# UPLOADS
+# UPLOADS & PRIVATE STORAGE
 # ==========================================
 backend/uploads/*
 !backend/uploads/.gitkeep
@@ -52,4 +68,40 @@ backend/uploads/*
 # LOGS & SYSTEM FILES
 # ==========================================
 *.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
 .DS_Store
+Thumbs.db
+
+# ==========================================
+# IDE & EDITOR
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ==========================================
+# TEST & COVERAGE ARTIFACTS
+# ==========================================
+.nyc_output/
+*.lcov
+
+# ==========================================
+# DOCKER
+# ==========================================
+.dockerignore
+docker-compose.override.yml
+
+# ==========================================
+# TEMPORARY & CACHE FILES
+# ==========================================
+*.tmp
+*.temp
+.tmp/
+.temp/
+cache/
+.eslintcache
