@@ -140,6 +140,12 @@ export interface SaveRegisterResponse {
     status: string;
   }>;
   rejected: Array<{ studentId: string; error: string }>;
+  sessionClosed?: boolean;
+  session?: {
+    id: string;
+    status: string;
+    closedAt: string;
+  };
 }
 
 export interface CorrectionResponse {

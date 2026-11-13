@@ -156,6 +156,43 @@ export const FILE_POLICIES = {
       "image/webp",
     ],
   },
+  /**
+   * Incident evidence and supporting documents submitted by students and
+   * uploaded by staff during an investigation. Stored outside the web root and
+   * served only through the entitlement-checked `/api/files/:id` route.
+   */
+  campus_incident: {
+    dir: "campus-incident",
+    maxBytes: 25 * MB,
+    extensions: [
+      "pdf", "doc", "docx", "ppt", "pptx",
+      "png", "jpg", "jpeg", "webp", "gif",
+      "mp4", "webm", "mov", "mp3", "wav",
+      "zip", "txt", "md", "csv",
+    ],
+    mimeTypes: [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-powerpoint",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+      "image/gif",
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+      "audio/mpeg",
+      "audio/mp3",
+      "audio/wav",
+      "application/zip",
+      "application/x-zip-compressed",
+      "text/plain",
+      "text/markdown",
+      "text/csv",
+    ],
+  },
 };
 
 /** MIME types that are safe to render inline in the browser. */

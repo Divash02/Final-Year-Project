@@ -1,0 +1,22 @@
+{
+  "thresholds": {
+    "http_req_duration": ["p(95)<2000", "p(99)<5000"],
+    "http_req_failed": ["rate<0.05"],
+    "login_duration": ["p(95)<1000"],
+    "dashboard_duration": ["p(95)<1500"],
+    "mail_inbox_duration": ["p(95)<1000"],
+    "attendance_duration": ["p(95)<1500"],
+    "timetable_duration": ["p(95)<1000"],
+    "assignments_duration": ["p(95)<1500"],
+    "exams_duration": ["p(95)<1500"],
+    "fees_duration": ["p(95)<1000"],
+    "notices_duration": ["p(95)<1000"],
+    "profile_duration": ["p(95)<800"],
+    "faculty_dashboard_duration": ["p(95)<2000"],
+    "admin_dashboard_duration": ["p(95)<3000"]
+  },
+  "summaryTrendStats": ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)", "count"],
+  "discardResponseBodies": true,
+  "noConnectionReuse": false,
+  "userAgent": "CollegeOS-LoadTest/1.0 (k6)"
+}

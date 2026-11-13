@@ -16,6 +16,7 @@ import {
   faItalic,
   faUnderline,
   faPalette,
+  faEnvelope,
 } from "@fortawesome/free-solid-svg-icons";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
@@ -167,7 +168,7 @@ const RecipientField: React.FC<{
   return (
     <div>
       <div
-        className="relative flex min-h-11 flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus-within:border-[var(--color-primary)] focus-within:ring-2 focus-within:ring-[var(--color-primary)]/15"
+        className="relative flex min-h-11 flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface px-3 py-2 focus-within:border-[var(--color-mail-primary)] focus-within:ring-2 focus-within:ring-[var(--color-mail-primary)]/20"
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
             setOpen(false);
@@ -177,7 +178,7 @@ const RecipientField: React.FC<{
         {contacts.map((contact) => (
           <span
             key={contact.email}
-            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-1.5 text-xs text-slate-700"
+            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface-muted px-2.5 py-1 text-xs text-slate-700 dark:text-dark-text-secondary"
           >
             <span className="max-w-[16rem] truncate">
               {contact.source === "directory" && contact.name !== contact.email
@@ -186,7 +187,7 @@ const RecipientField: React.FC<{
               {contact.email}
             </span>
             {contact.source === "manual" && (
-              <span className="shrink-0 rounded bg-slate-200 px-1 text-[10px] text-slate-600">
+              <span className="shrink-0 rounded bg-slate-200 dark:bg-dark-border px-1.5 text-[10px] text-slate-600 dark:text-dark-text-muted">
                 Manual
               </span>
             )}
@@ -194,7 +195,7 @@ const RecipientField: React.FC<{
               type="button"
               onClick={() => onRemove(contact.email)}
               aria-label={`Remove ${contact.email} from ${label}`}
-              className="ml-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+              className="ml-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-500 dark:text-dark-text-muted hover:bg-slate-200 dark:hover:bg-dark-border hover:text-slate-800 dark:hover:text-dark-text-primary"
             >
               <FontAwesomeIcon icon={faTimes} className="h-2.5 w-2.5" />
             </button>
@@ -222,27 +223,26 @@ const RecipientField: React.FC<{
           aria-activedescendant={
             activeIndex >= 0 ? `${id}-suggestion-${activeIndex}` : undefined
           }
-          className="min-w-[12rem] flex-1 border-0 bg-transparent py-1 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+          className="min-w-[12rem] flex-1 border-0 bg-transparent py-1 text-sm text-slate-900 dark:text-dark-text-primary outline-none placeholder:text-slate-400 dark:placeholder:text-dark-text-muted"
         />
         {open && query.trim().length >= 2 && (
           <div
             id={`${id}-suggestions`}
             role="listbox"
             aria-label={`${label} contact suggestions`}
-            className="absolute left-0 right-0 top-full z-50 mt-2 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+            className="absolute left-0 right-0 top-full z-50 mt-2 max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg"
           >
             {loading ? (
-              <div className="px-3 py-4 text-center text-sm text-slate-500" role="status">
+              <div className="px-3 py-4 text-center text-sm text-slate-500 dark:text-dark-text-muted" role="status">
                 Searching CollegeOS contacts…
               </div>
             ) : searchError ? (
-              <div className="px-3 py-4 text-center text-sm text-rose-600" role="status">
+              <div className="px-3 py-4 text-center text-sm text-rose-600 dark:text-rose-400" role="status">
                 {searchError}
               </div>
             ) : suggestions.length === 0 ? (
-              <div className="px-3 py-4 text-center text-sm text-slate-500">
-                No matching registered contacts. You can still add a valid email
-                address by pressing Enter.
+              <div className="px-3 py-4 text-center text-sm text-slate-500 dark:text-dark-text-muted" role="status">
+                No matching registered contacts. You can still add a valid email address by pressing Enter.
               </div>
             ) : (
               suggestions.map((contact, index) => (
@@ -256,11 +256,11 @@ const RecipientField: React.FC<{
                   onClick={() => selectContact(contact)}
                   className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition ${
                     index === activeIndex
-                      ? "bg-blue-50"
-                      : "hover:bg-slate-50"
+                      ? "bg-[var(--color-mail-primary-soft)]"
+                      : "hover:bg-slate-50 dark:hover:bg-dark-surface-muted"
                   }`}
                 >
-                  <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-sm font-semibold text-blue-800">
+                  <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 dark:bg-dark-surface-muted text-sm font-semibold text-blue-800 dark:text-dark-primary">
                     {initialsFor(contact.name, contact.email)}
                     {contact.avatarUrl && (
                       <img
@@ -274,21 +274,21 @@ const RecipientField: React.FC<{
                     )}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900">
+                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-dark-text-primary">
                       {contact.name}
                     </span>
-                    <span className="block truncate text-xs text-slate-600">
+                    <span className="block truncate text-xs text-slate-600 dark:text-dark-text-muted">
                       {contact.email}
                     </span>
                     {(contact.department || contact.designation || contact.role) && (
-                      <span className="block truncate text-[11px] text-slate-500">
+                      <span className="block truncate text-[11px] text-slate-500 dark:text-dark-text-muted">
                         {[contact.department, contact.designation || contact.role]
                           .filter(Boolean)
                           .join(" · ")}
                       </span>
                     )}
                   </span>
-                  <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                  <span className="shrink-0 rounded-full bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
                     CollegeOS
                   </span>
                 </button>
@@ -298,12 +298,12 @@ const RecipientField: React.FC<{
         )}
       </div>
       {(inputError || (query.trim().length > 0 && query.trim().length < 2)) && (
-        <p className="mt-1 text-xs text-rose-600" role="status">
+        <p className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="status">
           {inputError || "Type at least 2 characters to search contacts."}
         </p>
       )}
       {!inputError && (
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-500 dark:text-dark-text-muted">
           Type a name or email, then press Enter to add a manual address.
         </p>
       )}
@@ -328,7 +328,14 @@ export interface MailComposerProps {
   initialBody?: string;
 }
 
-export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onSend, initialRecipient = "", initialSubject = "", initialBody = "" }) => {
+export const MailComposer: React.FC<MailComposerProps> = ({
+  isOpen,
+  onClose,
+  onSend,
+  initialRecipient = "",
+  initialSubject = "",
+  initialBody = "",
+}) => {
   const [toRecipients, setToRecipients] = useState<RecipientContact[]>([]);
   const [ccRecipients, setCcRecipients] = useState<RecipientContact[]>([]);
   const [bccRecipients, setBccRecipients] = useState<RecipientContact[]>([]);
@@ -344,7 +351,7 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
   const [busy, setBusy] = useState(false);
   const [includeHandwritten, setIncludeHandwritten] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [drawing, setDrawing] = useState(false);
@@ -671,12 +678,29 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Compose College Mail" subtitle="Formal institutional correspondence" maxWidth="lg" footer={
-      <>
-        <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button type="submit" form="mail-composer-form" icon={faPaperPlane} isLoading={busy} loadingLabel="Sending...">Send mail</Button>
-      </>
-    }>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Compose College Mail"
+      icon={faEnvelope}
+      maxWidth="xl"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="mail-composer-form"
+            icon={faPaperPlane}
+            isLoading={busy}
+            loadingLabel="Sending..."
+          >
+            Send mail
+          </Button>
+        </>
+      }
+    >
       <form id="mail-composer-form" onSubmit={submit} noValidate className="space-y-5">
         {error && <Alert variant="error">{error}</Alert>}
         <FormField label="To" required>
@@ -691,12 +715,12 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
             />
           )}
         </FormField>
-        <div className="-mt-3 flex gap-3 text-xs">
+        <div className="-mt-3 flex items-center gap-3 text-xs">
           <button
             type="button"
             onClick={() => setShowCc((visible) => !visible)}
             aria-expanded={showCc}
-            className="font-medium text-[var(--color-primary)] hover:underline"
+            className="font-medium text-[var(--color-mail-primary)] hover:underline hover:text-[var(--color-mail-primary-strong)] transition"
           >
             {showCc ? "Hide Cc" : "Add Cc"}
           </button>
@@ -704,7 +728,7 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
             type="button"
             onClick={() => setShowBcc((visible) => !visible)}
             aria-expanded={showBcc}
-            className="font-medium text-[var(--color-primary)] hover:underline"
+            className="font-medium text-[var(--color-mail-primary)] hover:underline hover:text-[var(--color-mail-primary-strong)] transition"
           >
             {showBcc ? "Hide Bcc" : "Add Bcc"}
           </button>
@@ -739,57 +763,85 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
         )}
         <FormField label="Subject" required>
           {({ id, describedBy, invalid }) => (
-            <input id={id} name="subject" type="text" required maxLength={180} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-describedby={describedBy} aria-invalid={invalid || undefined} className="cos-input" />
+            <input
+              id={id}
+              name="subject"
+              type="text"
+              required
+              maxLength={180}
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Subject"
+              aria-describedby={describedBy}
+              aria-invalid={invalid || undefined}
+              className="cos-input"
+            />
           )}
         </FormField>
-        <div className="cos-input min-h-[12rem] resize-y leading-relaxed" ref={editorRef} contentEditable onInput={() => setBody(editorRef.current?.innerHTML || "")} />
+        <div className="cos-input min-h-[20rem] resize-y leading-relaxed mail-composer-editor dark:bg-dark-surface dark:text-dark-text-primary" ref={editorRef} contentEditable onInput={() => setBody(editorRef.current?.innerHTML || "")} data-placeholder="Write your message here…" />
 
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2 cursor-pointer select-none" onClick={() => setExpanded(!expanded)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(!expanded); } }}>
-            <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <FontAwesomeIcon icon={faPen} className="text-[var(--color-primary)]" /> Handwritten Signature
+        <div className="border border-slate-200 dark:border-dark-border rounded-xl overflow-hidden">
+          <div
+            className="flex items-center justify-between border-b border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface-muted px-3 py-2 cursor-pointer select-none"
+            onClick={() => setExpanded(!expanded)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setExpanded(!expanded);
+              }
+            }}
+          >
+            <h3 className="text-sm font-semibold text-[var(--color-mail-text-primary)] flex items-center gap-2">
+              <FontAwesomeIcon icon={faPen} className="text-[var(--color-mail-primary)]" /> Handwritten Signature
             </h3>
-            <FontAwesomeIcon icon={expanded ? faChevronUp : faChevronDown} className="text-slate-400" />
+            <FontAwesomeIcon
+              icon={expanded ? faChevronUp : faChevronDown}
+              className="text-slate-400 dark:text-dark-text-muted"
+            />
           </div>
           {expanded && (
             <div className="px-3 py-3 space-y-3">
-              <p className="text-xs text-slate-500">Draw, upload, or reuse your saved handwritten signature.</p>
+              <p className="text-xs text-slate-500 dark:text-dark-text-muted">
+                Draw, upload, or reuse your saved handwritten signature.
+              </p>
 
-              <div className="border border-slate-200 rounded p-2">
-                <p className="text-xs text-slate-500 mb-1">Preview</p>
+              <div className="border border-slate-200 dark:border-dark-border rounded-lg p-2">
+                <p className="text-xs text-slate-500 dark:text-dark-text-muted mb-1">Preview</p>
                 {signatureImageUrl ? (
-                  <img src={signatureImageUrl} alt="Saved handwritten signature" className="max-h-24 block bg-white border border-slate-200 rounded p-1" />
+                  <img src={signatureImageUrl} alt="Saved handwritten signature" className="max-h-24 block bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded p-1" />
                 ) : (
-                  <p className="text-xs text-slate-400">No handwritten signature saved.</p>
+                  <p className="text-xs text-slate-400 dark:text-dark-text-muted">No handwritten signature saved.</p>
                 )}
                 <div className="mt-3 flex items-center gap-3">
                   <input id="include-handwritten" type="checkbox" checked={includeHandwritten} onChange={(e) => setIncludeHandwritten(e.target.checked)} className="mt-0.5" />
-                  <label htmlFor="include-handwritten" className="text-sm text-slate-700 cursor-pointer">Include handwritten signature in outgoing mail</label>
+                  <label htmlFor="include-handwritten" className="text-sm text-slate-700 dark:text-dark-text-secondary cursor-pointer">Include handwritten signature in outgoing mail</label>
                 </div>
               </div>
 
-              <div className="border border-slate-200 rounded p-2">
-                <p className="text-xs text-slate-500 mb-2">Draw your signature</p>
-                <canvas ref={canvasRef} width={400} height={150} className="border border-slate-300 rounded bg-white w-full" style={{ touchAction: "none" }}
+              <div className="border border-slate-200 dark:border-dark-border rounded-lg p-2">
+                <p className="text-xs text-slate-500 dark:text-dark-text-muted mb-2">Draw your signature</p>
+                <canvas ref={canvasRef} width={400} height={150} className="border border-slate-300 dark:border-dark-border rounded bg-white dark:bg-dark-surface w-full" style={{ touchAction: "none" }}
                   onPointerDown={startDraw} onPointerMove={draw} onPointerUp={endDraw} onPointerLeave={endDraw} />
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <label className="text-xs text-slate-600">Stroke</label>
+                  <label className="text-xs text-slate-600 dark:text-dark-text-muted">Stroke</label>
                   <input type="range" min={1} max={6} value={strokeWidth} onChange={(e) => setStrokeWidth(Number(e.target.value))} className="w-20" />
-                  <button type="button" onClick={clearCanvas} disabled={strokes.length === 0} className="rounded bg-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed">Clear</button>
-                  <button type="button" onClick={undo} disabled={strokes.length === 0} className="rounded bg-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <button type="button" onClick={clearCanvas} disabled={strokes.length === 0} className="rounded bg-slate-200 dark:bg-dark-border px-2 py-1 text-xs text-slate-600 dark:text-dark-text-muted hover:bg-slate-300 dark:hover:bg-dark-border disabled:opacity-50 disabled:cursor-not-allowed">Clear</button>
+                  <button type="button" onClick={undo} disabled={strokes.length === 0} className="rounded bg-slate-200 dark:bg-dark-border px-2 py-1 text-xs text-slate-600 dark:text-dark-text-muted hover:bg-slate-300 dark:hover:bg-dark-border disabled:opacity-50 disabled:cursor-not-allowed">
                     <FontAwesomeIcon icon={faUndo} className="w-3 h-3" /> Undo
                   </button>
-                  <button type="button" onClick={redo} disabled={redoStack.length === 0} className="rounded bg-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <button type="button" onClick={redo} disabled={redoStack.length === 0} className="rounded bg-slate-200 dark:bg-dark-border px-2 py-1 text-xs text-slate-600 dark:text-dark-text-muted hover:bg-slate-300 dark:hover:bg-dark-border disabled:opacity-50 disabled:cursor-not-allowed">
                     <FontAwesomeIcon icon={faRedo} className="w-3 h-3" /> Redo
                   </button>
                 </div>
               </div>
 
-              <div className="border border-dashed border-slate-300 rounded p-3 bg-slate-50/50">
-                <p className="text-xs text-slate-500 mb-2">Or upload an image of your signature</p>
-                <button type="button" onClick={() => signatureImageInputRef.current?.click()} disabled={uploading} className="inline-flex items-center gap-2 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1">
+              <div className="border border-dashed border-slate-300 dark:border-dark-border rounded-lg p-3 bg-slate-50/50 dark:bg-dark-surface-muted/50">
+                <p className="text-xs text-slate-500 dark:text-dark-text-muted mb-2">Or upload an image of your signature</p>
+                <button type="button" onClick={() => signatureImageInputRef.current?.click()} disabled={uploading} className="inline-flex items-center gap-2 rounded bg-[var(--color-mail-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-mail-primary-strong)] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-mail-primary)]/20 focus-visible:ring-offset-1">
                   <FontAwesomeIcon icon={faUpload} className="w-3 h-3" />
-                  {uploading ? "Uploading..." : "Upload Signature Image"}
+                  {uploading ? "Uploading…" : "Upload Signature Image"}
                 </button>
                 <input ref={signatureImageInputRef} type="file" accept="image/png,image/jpeg,image/jpg" className="hidden" onChange={async (e) => {
                   const file = e.target.files?.[0];
@@ -808,7 +860,9 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
                   }
                 }} />
                 {signatureImageUrl && (
-                  <button type="button" onClick={clearHandwritten} className="mt-2 rounded bg-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">Clear Signature</button>
+                  <button type="button" onClick={clearHandwritten} className="mt-2 rounded bg-slate-200 dark:bg-dark-border px-2 py-1 text-xs text-slate-600 dark:text-dark-text-muted hover:bg-slate-300 dark:hover:bg-dark-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dark-border">
+                    Clear Signature
+                  </button>
                 )}
               </div>
 
@@ -821,14 +875,14 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
           )}
         </div>
 
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
-          <div className="border-b border-slate-200 bg-slate-50 px-3 py-2">
-            <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <FontAwesomeIcon icon={faImage} className="text-[var(--color-primary)]" /> Email Signature
+        <div className="border border-slate-200 dark:border-dark-border rounded-xl overflow-hidden">
+          <div className="border-b border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-surface-muted px-3 py-2">
+            <h3 className="text-sm font-semibold text-[var(--color-mail-text-primary)] flex items-center gap-2">
+              <FontAwesomeIcon icon={faImage} className="text-[var(--color-mail-primary)]" /> Email Signature
             </h3>
           </div>
           <div className="px-3 py-3 space-y-2">
-            <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 pb-2">
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-dark-border pb-2">
               <button
                 type="button"
                 title="Bold"
@@ -836,10 +890,10 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
                 aria-pressed={signatureFormats.bold}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => execSignature("bold")}
-                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-mail-primary)] ${
                   signatureFormats.bold
-                    ? "bg-[var(--color-primary)] text-white shadow-sm"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    ? "bg-[var(--color-mail-primary)] text-white shadow-sm"
+                    : "bg-slate-100 dark:bg-dark-border text-slate-700 dark:text-dark-text-secondary hover:bg-slate-200 dark:hover:bg-dark-border"
                 }`}
               >
                 <FontAwesomeIcon icon={faBold} aria-hidden="true" />
@@ -851,10 +905,10 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
                 aria-pressed={signatureFormats.italic}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => execSignature("italic")}
-                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-mail-primary)] ${
                   signatureFormats.italic
-                    ? "bg-[var(--color-primary)] text-white shadow-sm"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    ? "bg-[var(--color-mail-primary)] text-white shadow-sm"
+                    : "bg-slate-100 dark:bg-dark-border text-slate-700 dark:text-dark-text-secondary hover:bg-slate-200 dark:hover:bg-dark-border"
                 }`}
               >
                 <FontAwesomeIcon icon={faItalic} aria-hidden="true" />
@@ -866,15 +920,15 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
                 aria-pressed={signatureFormats.underline}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => execSignature("underline")}
-                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-mail-primary)] ${
                   signatureFormats.underline
-                    ? "bg-[var(--color-primary)] text-white shadow-sm"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    ? "bg-[var(--color-mail-primary)] text-white shadow-sm"
+                    : "bg-slate-100 dark:bg-dark-border text-slate-700 dark:text-dark-text-secondary hover:bg-slate-200 dark:hover:bg-dark-border"
                 }`}
               >
                 <FontAwesomeIcon icon={faUnderline} aria-hidden="true" />
               </button>
-              <input type="color" value={signatureColor} onChange={(e) => { setSignatureColor(e.target.value); execSignature("foreColor", e.target.value); }} className="h-6 w-6 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-primary)]" title="Text color" />
+              <input type="color" value={signatureColor} onChange={(e) => { setSignatureColor(e.target.value); execSignature("foreColor", e.target.value); }} className="h-6 w-6 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-mail-primary)]" title="Text color" />
             </div>
             <div
               ref={signatureEditorRef}
@@ -884,7 +938,7 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
               aria-label="Email signature"
               aria-multiline="true"
               spellCheck
-              className="min-h-[6rem] max-h-[12rem] resize-y overflow-y-auto rounded border border-slate-300 p-2 text-left leading-relaxed [direction:ltr]"
+              className="min-h-[6rem] max-h-[12rem] resize-y overflow-y-auto rounded-lg border border-slate-300 dark:border-dark-border p-2 text-left leading-relaxed [direction:ltr] bg-white dark:bg-dark-surface text-slate-900 dark:text-dark-text-primary"
               onInput={() => {
                 setSignature(signatureEditorRef.current?.innerHTML || "");
                 updateSignatureFormats();
@@ -901,7 +955,7 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
         </div>
 
         <div className="flex items-center gap-3">
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-2 rounded bg-[var(--color-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-primary-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/20 focus-visible:ring-offset-1 active:scale-[0.98] transition">
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-mail-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-mail-primary-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-mail-primary)]/20 focus-visible:ring-offset-1 active:scale-[0.98] transition">
             <FontAwesomeIcon icon={faPaperclip} className="w-3 h-3" /> Attach files
           </button>
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
@@ -909,14 +963,14 @@ export const MailComposer: React.FC<MailComposerProps> = ({ isOpen, onClose, onS
         {attachments.length > 0 && (
           <ul className="space-y-1 text-sm">
             {attachments.map((file, index) => (
-              <li key={index} className="flex items-center justify-between rounded border border-slate-200 px-3 py-2">
-                <span className="truncate">{file.name} ({Math.round(file.size / 1024)} KB)</span>
-                <button type="button" onClick={() => removeAttachment(index)} className="text-rose-600 hover:text-rose-800"><FontAwesomeIcon icon={faTimes} className="w-3 h-3" /> Remove</button>
+              <li key={index} className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-3 py-2 bg-white dark:bg-dark-surface">
+                <span className="truncate text-slate-700 dark:text-dark-text-secondary">{file.name} ({Math.round(file.size / 1024)} KB)</span>
+                <button type="button" onClick={() => removeAttachment(index)} className="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300"><FontAwesomeIcon icon={faTimes} className="w-3 h-3" /> Remove</button>
               </li>
             ))}
           </ul>
         )}
-        {message && <p className="text-xs text-slate-500">{message}</p>}
+        {message && <p className="text-xs text-slate-500 dark:text-dark-text-muted">{message}</p>}
       </form>
     </Modal>
   );

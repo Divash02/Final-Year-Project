@@ -71,6 +71,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkHref, setLinkHref] = useState("");
   const [isEmpty, setIsEmpty] = useState(!value);
+  const [, forceRender] = useState(0);
   const colorButtonRef = useRef<HTMLButtonElement>(null);
   const linkButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -98,6 +99,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       const html = instance.getHTML();
       lastEmittedRef.current = html;
       onChange(html);
+    },
+    onSelectionUpdate: ({ editor: instance }) => {
+      // Force toolbar re-render when selection changes to update active states
+      forceRender((n) => n + 1);
     },
   });
 
@@ -373,7 +378,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         </span>
       </div>
     );
-  }, [editor, colorOpen, linkOpen, linkHref, applyColor, applyLink]);
+  }, [editor, colorOpen, linkOpen, linkHref, applyColor, applyLink, forceRender]);
 
   if (!editor) return null;
 

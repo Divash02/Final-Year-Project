@@ -128,6 +128,7 @@ export async function fetchAssessmentCandidates(params: {
   academicYear?: string;
   semester?: number;
   sectionCode?: string;
+  batch?: string;
 }): Promise<CandidatesResponse> {
   const query = new URLSearchParams({
     courseId: params.courseId,
@@ -135,6 +136,7 @@ export async function fetchAssessmentCandidates(params: {
     semester: String(params.semester || 4),
     sectionCode: params.sectionCode || "A",
   });
+  if (params.batch) query.set("batch", params.batch);
   const res = await apiFetch(`/assessments/candidates?${query.toString()}`);
   return handleResponse<CandidatesResponse>(res);
 }
@@ -273,5 +275,69 @@ export async function fetchAssessmentAuditTrail(params: {
     semester: String(params.semester || 4),
   });
   const res = await apiFetch(`/assessments/audit-trail?${query.toString()}`);
+  return handleResponse(res);
+}
+
+export function getAssessmentExportUrl(params: {
+  courseId: string;
+  academicYear?: string;
+  semester?: number;
+  sectionCode?: string;
+  batch?: string;
+}): string {
+  const query = new URLSearchParams({
+    courseId: params.courseId,
+    academicYear: params.academicYear || "2083/84",
+    semester: String(params.semester || 4),
+    sectionCode: params.sectionCode || "A",
+  });
+  if (params.batch) query.set("batch", params.batch);
+  return `/assessments/export?${query.toString()}`;
+}
+
+
+export async function fetchAssessmentStructure(params: {
+  courseId: string;
+  academicYear?: string;
+  semester?: number;
+  sectionCode?: string;
+}): Promise<{ structure: CandidatesResponse["structure"] & { id?: string; status?: string } }> {
+  const query = new URLSearchParams({
+    courseId: params.courseId,
+    academicYear: params.academicYear || "2083/84",
+    semester: String(params.semester || 4),
+    sectionCode: params.sectionCode || "ALL",
+  });
+  const res = await apiFetch(`/assessments/structure?${query.toString()}`);
+  return handleResponse(res);
+}
+
+export async function saveAssessmentStructure(payload: {
+  courseId: string;
+  academicYear?: string;
+  semester?: number;
+  sectionCode?: string;
+  components: AssessmentComponent[];
+  passingRule?: string;
+}): Promise<{ success: boolean; structure: unknown }> {
+  const res = await apiFetch("/assessments/structure", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+}
+
+export async function saveBulkAssessmentMarks(payload: {
+  courseId: string;
+  academicYear?: string;
+  semester?: number;
+  sectionCode?: string;
+  remarks?: string;
+  rows: { studentId: string; components: { name: string; marksObtained: number | null; isAbsent?: boolean; remarks?: string }[]; remarks?: string }[];
+}): Promise<{ success: boolean; saved: number; failed: number; results: any[]; errors: { studentId: string | null; error: string }[] }> {
+  const res = await apiFetch("/assessments/marks/bulk", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
   return handleResponse(res);
 }

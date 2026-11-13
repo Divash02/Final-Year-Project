@@ -212,18 +212,18 @@ export const Sidebar: React.FC = () => {
 
                     return (
                       <li key={item.id}>
-                        <button
-                          type="button"
-                          aria-current={isActive ? "page" : undefined}
-                          onClick={() => {
-                            setActiveView(item.id);
-                            setIsMobileMenuOpen(false);
-                          }}
-                          className={`cos-nav-item ${
-                            isActive
-                              ? "bg-[var(--color-selected)] text-white shadow-sm"
-                              : ""
-                          }`}
+                          <button
+                            type="button"
+                            aria-current={isActive ? "page" : undefined}
+                            onClick={() => {
+                              setActiveView(item.id);
+                              setIsMobileMenuOpen(false);
+                            }}
+                            className={`cos-nav-item ${
+                              isActive
+                                ? "bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 text-[var(--color-primary)] font-semibold rounded-full shadow-sm"
+                                : ""
+                            }`}
                         >
                           <FontAwesomeIcon
                             icon={item.icon}

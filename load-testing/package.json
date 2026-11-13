@@ -1,0 +1,40 @@
+{
+  "name": "collegeos-load-testing",
+  "version": "1.0.0",
+  "description": "Load testing infrastructure for CollegeOS using Grafana k6",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "test:smoke": "k6 run --env SCENARIO=smoke main.js",
+    "test:light": "k6 run --env SCENARIO=light main.js",
+    "test:medium": "k6 run --env SCENARIO=medium main.js",
+    "test:heavy": "k6 run --env SCENARIO=heavy main.js",
+    "test:stress-2500": "k6 run --env SCENARIO=stress-2500 main.js",
+    "test:stress-5000": "k6 run --env SCENARIO=stress-5000 main.js",
+    "test:stress-10000": "k6 run --env SCENARIO=stress-10000 main.js",
+    "test:soak": "k6 run --env SCENARIO=soak main.js",
+    "test:spike": "k6 run --env SCENARIO=spike main.js",
+    "test:custom": "k6 run main.js",
+    "test:report": "k6 run --env SCENARIO=smoke --out json=reports/result.json main.js && node scripts/generate-report.js reports/result.json",
+    "seed:data": "node scripts/seed-data.js",
+    "seed:dev": "STUDENT_COUNT=100 node scripts/seed-data.js",
+    "seed:full": "STUDENT_COUNT=5000 node scripts/seed-data.js"
+  },
+  "keywords": [
+    "k6",
+    "load-testing",
+    "performance",
+    "collegeos"
+  ],
+  "author": "CollegeOS Team",
+  "license": "MIT",
+  "dependencies": {
+    "@faker-js/faker": "^8.4.0",
+    "bcryptjs": "^2.4.3",
+    "mongoose": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+}

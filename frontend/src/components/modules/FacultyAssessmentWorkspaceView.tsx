@@ -28,10 +28,16 @@ import {
   verifyAssessmentBatch,
   finalizeAssessmentBatch,
   publishAssessmentBatch,
+  fetchAssessmentAuditTrail,
+  getAssessmentExportUrl,
+  fetchAssessmentStructure,
+  saveAssessmentStructure,
   AssessmentCandidate,
   AssessmentCourse,
+  AssessmentComponent,
   CandidatesResponse,
 } from "../../services/assessmentApi";
+import { apiFetch } from "../../services/apiClient";
 
 const SEMESTERS = [
   { value: 1, label: "Semester 1" },
@@ -63,6 +69,14 @@ export const FacultyAssessmentWorkspaceView: React.FC = () => {
 
   // Mode: "STUDENT_ENTRY" (student-by-student) or "CLASS_LIST" (table overview)
   const [viewMode, setViewMode] = useState<"STUDENT_ENTRY" | "CLASS_LIST">("STUDENT_ENTRY");
+  const [listFilter, setListFilter] = useState<"ALL" | "INCOMPLETE" | "PENDING" | "FAILED">("ALL");
+  const [batch, setBatch] = useState("");
+  const [auditTrail, setAuditTrail] = useState<{ studentId: string; symbolNumber: string; action: string; actorName: string; role: string; timestamp: string; remarks: string }[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
+  const [showStructureConfig, setShowStructureConfig] = useState(false);
+  const [structureDraft, setStructureDraft] = useState<AssessmentComponent[]>([]);
+  const [structureSaving, setStructureSaving] = useState(false);
 
   // Candidates & Assessment Data
   const [assessmentData, setAssessmentData] = useState<CandidatesResponse | null>(null);
@@ -143,7 +157,7 @@ export const FacultyAssessmentWorkspaceView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedCourseId, academicYear, selectedSemester, sectionCode, currentStudentIndex, toast]);
+  }, [selectedCourseId, academicYear, selectedSemester, sectionCode, batch, currentStudentIndex, toast]);
 
   useEffect(() => {
     void loadCandidates();
@@ -670,7 +684,7 @@ export const FacultyAssessmentWorkspaceView: React.FC = () => {
               <span>{selectedCourse.name}</span>
               <span className="text-slate-400">|</span>
               <span className="font-medium text-indigo-700">
-                Structure: Assignment (Max 100 · Pass 40) + Examination (Max 100 · Pass 40) = Total 200 Marks
+                Structure: {(assessmentData?.structure?.components || []).map((comp) => `${comp.name} (Max ${comp.maxMarks} · Pass ${comp.passMarks})`).join(' + ') || 'Default structure'} = Total {assessmentData?.structure?.totalMaxMarks || 200} Marks
               </span>
             </div>
             <div className="flex items-center gap-3">
@@ -681,6 +695,23 @@ export const FacultyAssessmentWorkspaceView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showStructureConfig && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-900">Assessment Structure Configuration</h3><span className="text-xs text-slate-500">Admin/academic roles; backend enforces authorization.</span></div>
+          <div className="mt-3 overflow-x-auto"><table className="w-full text-xs"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-2 py-2 text-left">Component</th><th className="px-2 py-2">Type</th><th className="px-2 py-2">Max</th><th className="px-2 py-2">Pass</th><th className="px-2 py-2">Weight</th></tr></thead>
+            <tbody>{structureDraft.map((comp, i) => (<tr key={i} className="border-t"><td className="px-2 py-1.5"><input className="w-full rounded border border-slate-300 px-2 py-1" value={comp.name} onChange={(e)=>setStructureDraft(d=>d.map((x,j)=>j===i?{...x,name:e.target.value}:x))} /></td><td className="px-2 py-1.5"><input className="w-28 rounded border border-slate-300 px-2 py-1" value={comp.type} onChange={(e)=>setStructureDraft(d=>d.map((x,j)=>j===i?{...x,type:e.target.value}:x))} /></td><td className="px-2 py-1.5"><input type="number" className="w-20 rounded border border-slate-300 px-2 py-1" value={comp.maxMarks} onChange={(e)=>setStructureDraft(d=>d.map((x,j)=>j===i?{...x,maxMarks:Number(e.target.value)||0}:x))} /></td><td className="px-2 py-1.5"><input type="number" className="w-20 rounded border border-slate-300 px-2 py-1" value={comp.passMarks} onChange={(e)=>setStructureDraft(d=>d.map((x,j)=>j===i?{...x,passMarks:Number(e.target.value)||0}:x))} /></td><td className="px-2 py-1.5"><input type="number" className="w-20 rounded border border-slate-300 px-2 py-1" value={comp.weightage ?? 0} onChange={(e)=>setStructureDraft(d=>d.map((x,j)=>j===i?{...x,weightage:Number(e.target.value)||0}:x))} /></td></tr>))}</tbody></table></div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><div className="text-xs text-slate-500">Total max: {structureDraft.reduce((s,c)=>s+(Number(c.maxMarks)||0),0)} · Weights must reflect intended policy. Invalid configs rejected by backend validation/rules.</div><div className="flex gap-2"><button type="button" onClick={()=>setShowStructureConfig(false)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs">Close</button><button type="button" disabled={structureSaving || !selectedCourseId} onClick={async()=>{ if(!selectedCourseId) return; setStructureSaving(true); try { await saveAssessmentStructure({ courseId:selectedCourseId, academicYear, semester:selectedSemester, sectionCode: sectionCode||"ALL", components: structureDraft }); toast({variant:"success", message:"Assessment structure saved."}); setShowStructureConfig(false); await loadCandidates(); } catch(e){ toast({variant:"error", message: e instanceof Error?e.message:"Failed to save structure"});} finally { setStructureSaving(false);} }} className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{structureSaving?"Saving...":"Save Structure"}</button></div></div>
+        </div>
+      )}
+      {showAudit && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-900">Assessment Audit / Modification History</h3>
+          {auditLoading ? <p className="mt-2 text-xs text-slate-500">Loading audit trail…</p> : auditTrail.length===0 ? <p className="mt-2 text-xs text-slate-500">No audit records found for this course/semester scope.</p> : (
+            <div className="mt-2 max-h-64 overflow-auto"><table className="w-full text-xs"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-2 py-2 text-left">Time</th><th className="px-2 py-2 text-left">Student</th><th className="px-2 py-2 text-left">Action</th><th className="px-2 py-2 text-left">Actor</th><th className="px-2 py-2 text-left">Remarks</th></tr></thead><tbody>{auditTrail.map((a,i)=><tr key={i} className="border-t"><td className="px-2 py-1.5 whitespace-nowrap">{a.timestamp ? new Date(a.timestamp).toLocaleString() : ""}</td><td className="px-2 py-1.5 font-mono">{a.symbolNumber || a.studentId}</td><td className="px-2 py-1.5">{a.action}</td><td className="px-2 py-1.5">{a.actorName} ({a.role})</td><td className="px-2 py-1.5">{a.remarks}</td></tr>)}</tbody></table></div>
+          )}
+        </div>
+      )}
 
       {/* 3. Progress and Workflow Banner */}
       {assessmentData && (

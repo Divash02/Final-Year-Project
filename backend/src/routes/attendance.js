@@ -875,9 +875,9 @@ export function registerAttendanceRoutes(app) {
   );
 
   /**
-   * Saves the register for an open session. Only students who are actually on
-   * the session's roster can be marked, and an unrecognised status is rejected
-   * rather than silently coerced.
+   * Saves the register for an open session and automatically closes it.
+   * Uses a MongoDB transaction to ensure atomicity between saving attendance
+   * records and closing the session.
    */
   app.post(
     "/api/attendance/sessions/:id/records",
@@ -1067,8 +1067,33 @@ export function registerAttendanceRoutes(app) {
           });
         }
 
-        await Attendance.bulkWrite(operations, { ordered: false });
+        // Use a MongoDB transaction to ensure atomicity between saving attendance
+        // records and closing the session
+        const mongoose = await import("mongoose");
+        const dbSession = await mongoose.default.startSession();
+        dbSession.startTransaction();
+        try {
+          await Attendance.bulkWrite(operations, { ordered: false, session: dbSession });
+          
+          // Close the session within the same transaction
+          session.status = "CLOSED";
+          session.closedAt = new Date();
+          session.qrTokens = [];
+          await session.save({ session: dbSession });
+
+          await dbSession.commitTransaction();
+        } catch (transactionError) {
+          await dbSession.abortTransaction();
+          throw transactionError;
+        } finally {
+          await dbSession.endSession();
+        }
+
         await refreshAttendancePercentages([...touchedStudents]);
+
+        const marked = await Attendance.countDocuments({
+          attendanceSession: session._id,
+        });
 
         await logAudit({
           userId: actor,
@@ -1076,10 +1101,21 @@ export function registerAttendanceRoutes(app) {
           module: "attendance",
           resource: "attendanceSession",
           resourceId: session._id.toString(),
-          details: `${saved.length} attendance mark(s) saved and ${cleared.length} cleared for ${session.date}.`,
-          metadata: { saved: saved.length, cleared: cleared.length, rejected },
+          details: `${saved.length} attendance mark(s) saved and ${cleared.length} cleared for ${session.date}. Session automatically closed.`,
+          metadata: { saved: saved.length, cleared: cleared.length, rejected, sessionClosed: true },
         });
 
+        await logAudit({
+          userId: actor,
+          action: "ATTENDANCE_SESSION_CLOSED",
+          module: "attendance",
+          resource: "attendanceSession",
+          resourceId: session._id.toString(),
+          details: `Session automatically closed after saving attendance with ${marked} recorded mark(s).`,
+        });
+
+        // Return updated session status
+        const course = await session.populate("course");
         res.json({
           success: true,
           savedCount: saved.length,
@@ -1087,6 +1123,12 @@ export function registerAttendanceRoutes(app) {
           records: saved,
           clearedRecords: cleared,
           rejected,
+          sessionClosed: true,
+          session: {
+            id: session._id.toString(),
+            status: session.status,
+            closedAt: session.closedAt,
+          },
         });
       } catch (err) {
         console.error("Save attendance register error:", err);

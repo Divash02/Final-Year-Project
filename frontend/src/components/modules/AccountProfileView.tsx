@@ -596,6 +596,10 @@ export const AccountProfileView: React.FC = () => {
                 </span>
               )}
 
+              {photoHint && !pendingPhoto && (
+                <p className="mt-3 text-xs text-red-600">{photoHint}</p>
+              )}
+
               {pendingPhoto && (
                 <div className="mt-4 w-full space-y-2">
                   <p className="text-xs text-slate-600">{photoHint}</p>

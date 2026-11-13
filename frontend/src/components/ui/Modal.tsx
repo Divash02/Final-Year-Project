@@ -13,6 +13,7 @@ export interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
+  isForm?: boolean;
 }
 
 const MAX_WIDTH_CLASSES = {
@@ -34,6 +35,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   footer,
   maxWidth = "md",
+  isForm = false,
 }) => {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -110,7 +112,7 @@ export const Modal: React.FC<ModalProps> = ({
         aria-labelledby={titleId}
         className={`relative flex max-h-[calc(100dvh-2rem)] w-full ${MAX_WIDTH_CLASSES[maxWidth]} flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_25px_50px_-12px_rgba(15,23,42,0.25)]`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 shrink-0">
           <div className="flex items-start gap-3 min-w-0">
             {icon && (
               <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
@@ -137,10 +139,14 @@ export const Modal: React.FC<ModalProps> = ({
           />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">{children}</div>
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto px-6 py-6 ${isForm ? "max-h-[calc(100dvh-12rem)]" : ""}`}
+        >
+          {children}
+        </div>
 
         {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/50 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/50 px-6 py-4 shrink-0">
             {footer}
           </div>
         )}

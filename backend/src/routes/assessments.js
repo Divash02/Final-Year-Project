@@ -1,4 +1,4 @@
-import { requireAuth, requirePermission } from "../middleware/auth.js";
+﻿import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { getUserRoles, logAudit } from "../db.js";
 import {
   getOrInitAssessmentStructure,
@@ -110,6 +110,7 @@ export function registerAssessmentRoutes(app) {
         semester = 4,
         sectionCode = "A",
         program = "BScIT",
+        batch,
       } = req.query;
 
       if (!courseId) return res.status(400).json({ error: "courseId is required" });
@@ -120,6 +121,7 @@ export function registerAssessmentRoutes(app) {
         semester: Number(semester),
         sectionCode,
         program,
+        batch: batch || null,
         userId: req.user._id,
       });
 
@@ -128,6 +130,46 @@ export function registerAssessmentRoutes(app) {
       res.status(500).json({ error: err.message });
     }
   });
+
+  /**
+   * 4b. Export assessment marks (CSV) for a course offering
+   */
+  app.get(
+    "/api/assessments/export",
+    requireAuth,
+    requirePermission(["grade.enter", "grade.view.course", "exam.manageResults", "exams.results.modify"]),
+    async (req, res) => {
+      try {
+        const { courseId, academicYear = "2083/84", semester = 4, sectionCode = "A", batch } = req.query;
+        if (!courseId) return res.status(400).json({ error: "courseId is required" });
+        const result = await getCandidatesForAssessment({
+          courseId,
+          academicYear,
+          semester: Number(semester),
+          sectionCode,
+          batch: batch || null,
+          userId: req.user._id,
+        });
+        const headers = [
+          "SN", "Student ID", "Symbol No", "Name", "Program", "Semester", "Section",
+          ...((result.structure?.components || []).flatMap((c) => [`${c.name} (${c.maxMarks})`, `${c.name} Status`])),
+          "Total", "Max", "Percentage", "Grade", "GP", "Result", "Workflow",
+        ];
+        const rows = (result.candidates || []).map((c) => [
+          c.sn, c.studentId, c.symbolNumber, c.fullName, c.program, c.semester, c.section,
+          ...((c.components || []).flatMap((comp) => [comp.marksObtained ?? "", comp.status || ""])),
+          c.totalMarksObtained ?? "", c.totalMaxMarks ?? "", c.percentage ?? "", c.grade ?? "", c.gradePoint ?? "", c.resultStatus ?? "", c.workflowStatus ?? "",
+        ]);
+        const escape = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+        const csv = [headers, ...rows].map((r) => r.map(escape).join(",")).join("\r\n");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="assessment-${result.course?.code || courseId}-${sectionCode}.csv"`);
+        res.send("\uFEFF" + csv);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    },
+  );
 
   /**
    * 5. Save student assessment mark (Single student / Autosave / Save & Next)
@@ -384,6 +426,53 @@ export function registerAssessmentRoutes(app) {
       }
     }
   );
+
+  /* 13. Bulk save marks */
+  app.post(
+    "/api/assessments/marks/bulk",
+    requireAuth,
+    requirePermission(["grade.enter", "exam.manageResults", "exams.results.modify"]),
+    async (req, res) => {
+      try {
+        const {
+          courseId,
+          academicYear = "2083/84",
+          semester = 4,
+          sectionCode = "A",
+          rows = [],
+          remarks = "",
+        } = req.body || {};
+        if (!courseId) return res.status(400).json({ error: "courseId is required" });
+        if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ error: "rows array is required" });
+        if (rows.length > 200) return res.status(400).json({ error: "Bulk save limited to 200 rows per request" });
+
+        const results = [];
+        const errors = [];
+        for (const row of rows) {
+          try {
+            if (!row?.studentId) throw new Error("studentId is required");
+            const r = await saveStudentAssessmentMark({
+              studentId: row.studentId,
+              courseId,
+              academicYear,
+              semester: Number(semester),
+              sectionCode,
+              componentsInput: Array.isArray(row.components) ? row.components : [],
+              actorUser: req.user,
+              remarks: row.remarks || remarks || "Bulk marks save",
+            });
+            results.push({ studentId: row.studentId, ok: true, candidate: r.candidate, savedAtNepalTime: r.savedAtNepalTime });
+          } catch (e) {
+            errors.push({ studentId: row?.studentId || null, error: e?.message || "Failed to save marks" });
+          }
+        }
+        res.json({ success: errors.length === 0, saved: results.length, failed: errors.length, results, errors });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    },
+  );
+
 
   /**
    * 12. Assessment Audit Trail

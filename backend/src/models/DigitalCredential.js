@@ -6,6 +6,7 @@ export const CREDENTIAL_TYPES = [
   "ENROLLMENT_BONAFIDE",
   "CHARACTER_CERTIFICATE",
   "PROVISIONAL_DEGREE",
+  "ACHIEVEMENT",
 ];
 
 export const CREDENTIAL_STATUSES = ["ACTIVE", "EXPIRED", "REVOKED", "PENDING_VERIFICATION"];
@@ -63,6 +64,12 @@ const DigitalCredentialSchema = new mongoose.Schema(
       completedCredits: { type: Number, default: null },
       admitCardExamCode: { type: String, default: null },
     },
+    attachments: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "StoredFile",
+      },
+    ],
   },
   {
     timestamps: true,

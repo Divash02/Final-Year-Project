@@ -3,7 +3,6 @@ import {
   classifySession,
   getUserById,
   touchSession,
-  forceTouchSession,
   logAudit,
 } from "../db.js";
 import { getSessionPolicy } from "../config/sessionSecurity.js";

@@ -8,17 +8,28 @@ import { Toast, type ToastItem } from "./Toast";
 
 export interface ToastApi {
   showToast: (message: string, variant?: "success" | "info" | "warning" | "error") => void;
-  toast: (options: {
-    variant?: "success" | "info" | "warning" | "error";
-    message: string;
-    detail?: string;
-    duration?: number | null;
-    action?: { label: string; onClick: () => void };
-    id?: string;
-  }) => string;
+  toast: ((
+    options: {
+      variant?: "success" | "info" | "warning" | "error";
+      message: string;
+      detail?: string;
+      duration?: number | null;
+      action?: { label: string; onClick: () => void };
+      id?: string;
+    }
+  ) => string) & {
+    success: (message: string, detail?: string, duration?: number | null) => string;
+    error: (message: string, detail?: string, duration?: number | null) => string;
+    warning: (message: string, detail?: string, duration?: number | null) => string;
+    info: (message: string, detail?: string, duration?: number | null) => string;
+  };
   dismiss: (id: string) => void;
   dismissAll: () => void;
   update: (id: string, options: Partial<Omit<ToastItem, "id" | "createdAt">>) => void;
+  success: (message: string, detail?: string, duration?: number | null) => string;
+  error: (message: string, detail?: string, duration?: number | null) => string;
+  warning: (message: string, detail?: string, duration?: number | null) => string;
+  info: (message: string, detail?: string, duration?: number | null) => string;
 }
 
 const DEFAULT_DURATIONS: Record<string, number> = {
@@ -89,9 +100,9 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({
     [clearTimer],
   );
 
-  const api = useMemo<ToastApi>(() => {
+const api = useMemo<ToastApi>(() => {
     const showToast = (message: string, variant: "success" | "info" | "warning" | "error" = "info") => { toast({ message, variant }); };
-    const toast: ToastApi["toast"] = (options) => {
+    const toast = ((options: ToastApi["toast"] extends (...args: any[]) => any ? Parameters<ToastApi["toast"]>[0] : never) => {
       const id = options.id ?? generateId();
       const variant = options.variant ?? "info";
       const duration =
@@ -116,7 +127,18 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({
       });
       scheduleDismiss(item);
       return id;
-    };
+    }) as ToastApi["toast"];
+
+    const success = (message: string, detail?: string, duration?: number | null) => toast({ variant: "success", message, detail, duration });
+    const error = (message: string, detail?: string, duration?: number | null) => toast({ variant: "error", message, detail, duration });
+    const warning = (message: string, detail?: string, duration?: number | null) => toast({ variant: "warning", message, detail, duration });
+    const info = (message: string, detail?: string, duration?: number | null) => toast({ variant: "info", message, detail, duration });
+
+    // Attach convenience methods to the toast function
+    toast.success = success;
+    toast.error = error;
+    toast.warning = warning;
+    toast.info = info;
 
     const dismiss: ToastApi["dismiss"] = (id) => {
       clearTimer(id);
@@ -140,7 +162,7 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({
       });
     };
 
-    return { showToast, toast, dismiss, dismissAll, update };
+    return { showToast, toast, dismiss, dismissAll, update, success, error, warning, info };
   }, [clearTimer, scheduleDismiss, maxToasts]);
 
   const handleMouseEnter = () => {

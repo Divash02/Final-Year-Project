@@ -192,6 +192,7 @@ export async function getCandidatesForAssessment({
   semester = 4,
   sectionCode = "A",
   program = "BScIT",
+  batch = null,
   userId = null,
 }) {
   const course = await Course.findById(courseId);
@@ -229,9 +230,13 @@ export async function getCandidatesForAssessment({
     if (sectionCode && sectionCode !== "ALL") {
       studentFilter.section = sectionCode;
     }
+    if (batch) studentFilter.batch = batch;
     students = await Student.find(studentFilter)
       .populate("user")
       .sort({ rollNumber: 1, studentId: 1 });
+  }
+  if (batch) {
+    students = students.filter((s) => String(s.batch || "").toLowerCase() === String(batch).toLowerCase());
   }
 
   // Load existing StudentAssessmentMark rows
@@ -743,6 +748,63 @@ export async function transitionAssessmentWorkflow({
       await syncAssessmentToGrade(r, actorUser);
       await syncAssessmentToExamResult(r, actorUser);
     }
+  }
+
+  // Workflow notifications (best-effort, deduped per recipient per action)
+  try {
+    const sample = records[0];
+    const courseLabel = `${sample.courseCode || ""} ${sample.courseName || ""}`.trim() || "Assessment";
+    const context = `${courseLabel} · ${sample.academicYear || academicYear} · Sem ${sample.semester || semester} · Sec ${sample.sectionCode || sectionCode}`;
+    const actorName = `${actorUser.firstName || ""} ${actorUser.lastName || ""}`.trim() || "User";
+    const recipientIds = new Set();
+    if (toStatus === "SUBMITTED") {
+      const reviewers = await User.find({ $or: [{ roles: { $in: ["hod", "program_coordinator", "exam_officer"] } }, { role: { $in: ["hod", "program_coordinator", "exam_officer"] } }] }).select("_id").limit(50).lean();
+      reviewers.forEach((u) => recipientIds.add(String(u._id)));
+    } else if (toStatus === "RETURNED_FOR_CORRECTION") {
+      // notify faculty who entered/submitted or assigned teachers for the course
+      records.forEach((r) => { if (r.enteredBy) recipientIds.add(String(r.enteredBy)); if (r.submittedBy) recipientIds.add(String(r.submittedBy)); });
+      const assigned = await CourseTeachingAssignment.find({ course: courseId }).select("facultyUser").lean();
+      assigned.forEach((a) => a.facultyUser && recipientIds.add(String(a.facultyUser)));
+    } else if (toStatus === "VERIFIED") {
+      const officers = await User.find({ $or: [{ roles: { $in: ["exam_officer", "registrar"] } }, { role: { $in: ["exam_officer", "registrar"] } }] }).select("_id").limit(50).lean();
+      officers.forEach((u) => recipientIds.add(String(u._id)));
+    } else if (toStatus === "FINALIZED") {
+      const publishers = await User.find({ $or: [{ roles: { $in: ["exam_officer", "registrar", "dean"] } }, { role: { $in: ["exam_officer", "registrar", "dean"] } }] }).select("_id").limit(50).lean();
+      publishers.forEach((u) => recipientIds.add(String(u._id)));
+    } else if (toStatus === "PUBLISHED") {
+      // notify affected students (student user accounts) and entering faculty
+      records.forEach((r) => { if (r.studentUser) recipientIds.add(String(r.studentUser)); if (r.enteredBy) recipientIds.add(String(r.enteredBy)); });
+    }
+    const titleMap = {
+      SUBMITTED: "Assessment submitted for review",
+      RETURNED_FOR_CORRECTION: "Assessment returned for correction",
+      VERIFIED: "Assessment verified",
+      FINALIZED: "Assessment finalized",
+      PUBLISHED: "Assessment results published",
+    };
+    const title = titleMap[toStatus];
+    if (title) {
+      const message = `${context} was ${toStatus.replace(/_/g, " ").toLowerCase()} by ${actorName}.${remarks ? ` Remarks: ${remarks}` : ""}`;
+      await Promise.all(
+        Array.from(recipientIds).slice(0, 120).map((uid) =>
+          createAndEmitNotification({
+            user: uid,
+            title,
+            message,
+            category: "ACADEMIC",
+            priority: toStatus === "RETURNED_FOR_CORRECTION" ? "high" : "normal",
+            actionUrl: "faculty_assessment",
+            sender: actorUser._id,
+            senderType: "user",
+            relatedEntityType: "CourseAssessmentComponent",
+            relatedEntityId: String(courseId),
+            metadata: { workflowStatus: toStatus, courseId: String(courseId), academicYear: sample.academicYear, semester: sample.semester, sectionCode: sample.sectionCode },
+          }).catch(() => null),
+        ),
+      );
+    }
+  } catch (notifyErr) {
+    console.warn("Assessment workflow notification skipped:", notifyErr?.message || notifyErr);
   }
 
   return {

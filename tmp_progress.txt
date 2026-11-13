@@ -1,0 +1,120 @@
+﻿import React, { useCallback, useEffect, useState } from "react";
+import { faChartLine, faRotateRight, faUserGraduate, faClipboardList } from "@fortawesome/free-solid-svg-icons";
+import { Alert } from "../ui/Alert";
+import { Badge } from "../ui/Badge";
+import { Button } from "../ui/Button";
+import { Card } from "../ui/Card";
+import { EmptyState } from "../ui/EmptyState";
+import { CardSkeleton } from "../ui/Skeleton";
+import { apiRequest } from "../../services/apiClient";
+import { fetchFacultyCourses } from "../../services/assessmentApi";
+import type { AssessmentCourse } from "../../services/assessmentApi";
+
+type RiskLevel = "ALL" | "HIGH" | "MEDIUM" | "LOW" | "NONE";
+
+interface ProgressStudent {
+  studentId: string; studentCode: string; rollNumber: string; name: string; program?: string; semester?: number; section?: string; batch?: string;
+  attendance: { percentage: number | null; totalSessions: number; absent: number; late: number; consecutiveAbsences: number; recent: { date: string; status: string }[] };
+  assessment: { averagePercentage: number | null; records: number; failing: number; incomplete: number; latest: { courseCode?: string; percentage?: number | null; grade?: string; resultStatus?: string } | null };
+  assignments: { submitted: number; late: number; missing: number | null; total: number | null };
+  risk: { level: "HIGH" | "MEDIUM" | "LOW" | "NONE"; score: number; evidence: { type: string; detail: string; severity: string }[]; recommendedAction: string };
+}
+interface ProgressResponse {
+  summary: { total: number; highRisk: number; mediumRisk: number; lowRisk: number; averageAttendance: number | null; averageAssessment: number | null };
+  students: ProgressStudent[];
+}
+
+const SEMESTERS = Array.from({ length: 8 }, (_, i) => i + 1);
+const riskVariant = (level: string): "danger" | "warning" | "info" | "neutral" => level === "HIGH" ? "danger" : level === "MEDIUM" ? "warning" : level === "LOW" ? "info" : "neutral";
+
+export const StudentProgressView: React.FC = () => {
+  const [courses, setCourses] = useState<AssessmentCourse[]>([]);
+  const [courseId, setCourseId] = useState("");
+  const [academicYear, setAcademicYear] = useState("2083/84");
+  const [semester, setSemester] = useState<number | "">("");
+  const [section, setSection] = useState("ALL");
+  const [batch, setBatch] = useState("");
+  const [riskLevel, setRiskLevel] = useState<RiskLevel>("ALL");
+  const [data, setData] = useState<ProgressResponse | null>(null);
+  const [selected, setSelected] = useState<ProgressStudent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => { fetchFacultyCourses({ academicYear }).then(setCourses).catch(() => {}); }, [academicYear]);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const q = new URLSearchParams({ academicYear });
+      if (courseId) q.set("courseId", courseId);
+      if (semester) q.set("semester", String(semester));
+      if (section && section !== "ALL") q.set("sectionCode", section);
+      if (batch) q.set("batch", batch);
+      if (riskLevel !== "ALL") q.set("riskLevel", riskLevel);
+      const res = await apiRequest<ProgressResponse>(`/faculty/student-progress?${q.toString()}`);
+      setData(res);
+      setSelected((cur) => (cur ? res.students.find((s) => s.studentId === cur.studentId) || null : null));
+    } catch (e) { setError(e instanceof Error ? e.message : "Failed to load student progress."); }
+    finally { setLoading(false); }
+  }, [academicYear, courseId, semester, section, batch, riskLevel]);
+
+  useEffect(() => { void load(); }, [load]);
+  const students = data?.students || [];
+
+  return (
+    <section className="cos-page">
+      <header className="cos-page-header">
+        <div className="min-w-0"><p className="cos-eyebrow">Core Academic Management</p><h1 className="cos-page-title">Student Progress &amp; At-Risk Monitoring</h1><p className="cos-page-subtitle">Attendance, assessment, assignment, and LMS evidence for assigned students. Indicators are explanatory only and never change marks or academic standing.</p></div>
+        <Button variant="secondary" icon={faRotateRight} onClick={() => void load()}>Refresh</Button>
+      </header>
+      <Card><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <label className="text-xs font-medium text-slate-600">Academic Year<select className="cos-input mt-1" value={academicYear} onChange={(e) => setAcademicYear(e.target.value)}>{["2083/84","2082/83","2081/82"].map((y) => <option key={y} value={y}>{y}</option>)}</select></label>
+        <label className="text-xs font-medium text-slate-600">Course<select className="cos-input mt-1" value={courseId} onChange={(e) => setCourseId(e.target.value)}><option value="">All assigned / filtered</option>{courses.map((c) => <option key={c.id} value={c.id}>{c.code} · {c.name}</option>)}</select></label>
+        <label className="text-xs font-medium text-slate-600">Semester<select className="cos-input mt-1" value={semester} onChange={(e) => setSemester(e.target.value ? Number(e.target.value) : "")}><option value="">All</option>{SEMESTERS.map((s) => <option key={s} value={s}>Semester {s}</option>)}</select></label>
+        <label className="text-xs font-medium text-slate-600">Section<select className="cos-input mt-1" value={section} onChange={(e) => setSection(e.target.value)}>{["ALL","A","B","C","D"].map((s) => <option key={s} value={s}>{s === "ALL" ? "All sections" : `Section ${s}`}</option>)}</select></label>
+        <label className="text-xs font-medium text-slate-600">Batch<input className="cos-input mt-1" value={batch} onChange={(e) => setBatch(e.target.value)} placeholder="e.g. 2024" /></label>
+        <label className="text-xs font-medium text-slate-600">Risk Level<select className="cos-input mt-1" value={riskLevel} onChange={(e) => setRiskLevel(e.target.value as RiskLevel)}>{(["ALL","HIGH","MEDIUM","LOW","NONE"] as RiskLevel[]).map((r) => <option key={r} value={r}>{r}</option>)}</select></label>
+      </div></Card>
+      {error && <Alert variant="error" onDismiss={() => setError("")}>{error}</Alert>}
+      {loading ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-busy="true"><CardSkeleton /><CardSkeleton /><CardSkeleton /><CardSkeleton /></div> : data ? <>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <Metric label="Students" value={String(data.summary.total)} />
+          <Metric label="High Risk" value={String(data.summary.highRisk)} detail="Needs review" tone="danger" />
+          <Metric label="Medium Risk" value={String(data.summary.mediumRisk)} detail="Monitor" tone="warning" />
+          <Metric label="Avg Attendance" value={data.summary.averageAttendance != null ? `${data.summary.averageAttendance.toFixed(1)}%` : "—"} />
+          <Metric label="Avg Assessment" value={data.summary.averageAssessment != null ? `${data.summary.averageAssessment.toFixed(1)}%` : "—"} />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,1fr)]">
+          <Card title="Student Monitoring" icon={faChartLine} padding={false}>
+            {students.length === 0 ? <div className="p-5"><EmptyState icon={faUserGraduate} title="No student records" description="No students matched the selected filters or your assigned scope." /></div> : (
+              <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-100 text-slate-700 uppercase font-semibold"><tr><th className="px-3 py-2.5">Student</th><th className="px-3 py-2.5">Section</th><th className="px-3 py-2.5 text-center">Attendance</th><th className="px-3 py-2.5 text-center">Assessment</th><th className="px-3 py-2.5 text-center">Assignments</th><th className="px-3 py-2.5 text-center">Risk</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">{students.map((s) => (
+                  <tr key={s.studentId} className={`cursor-pointer hover:bg-slate-50 ${selected?.studentId === s.studentId ? "bg-indigo-50/60" : ""}`} onClick={() => setSelected(s)}>
+                    <td className="px-3 py-2.5"><div className="font-semibold text-slate-900">{s.name}</div><div className="font-mono text-[11px] text-slate-500">{s.rollNumber || s.studentCode}</div></td>
+                    <td className="px-3 py-2.5 text-slate-600">{s.section || "—"}</td>
+                    <td className="px-3 py-2.5 text-center font-mono">{s.attendance.percentage != null ? `${s.attendance.percentage.toFixed(1)}%` : "—"}</td>
+                    <td className="px-3 py-2.5 text-center font-mono">{s.assessment.averagePercentage != null ? `${s.assessment.averagePercentage.toFixed(1)}%` : "—"}</td>
+                    <td className="px-3 py-2.5 text-center">{s.assignments.submitted}{s.assignments.total != null ? `/${s.assignments.total}` : ""}{s.assignments.missing ? <span className="ml-1 text-amber-700">({s.assignments.missing} missing)</span> : null}</td>
+                    <td className="px-3 py-2.5 text-center"><Badge variant={riskVariant(s.risk.level)}>{s.risk.level}</Badge></td>
+                  </tr>))}</tbody></table></div>)}
+          </Card>
+          <Card title={selected ? selected.name : "Student Profile"} subtitle={selected ? `${selected.rollNumber || selected.studentCode} · ${selected.program || ""} · Sem ${selected.semester ?? "—"}` : "Select a student to view evidence and intervention guidance."} icon={faClipboardList}>
+            {!selected ? <EmptyState icon={faUserGraduate} title="No student selected" description="Choose a student from the monitoring table to inspect evidence and risk indicators." /> : (
+              <div className="space-y-4 text-sm">
+                <div className="flex flex-wrap gap-2"><Badge variant={riskVariant(selected.risk.level)}>Risk: {selected.risk.level}</Badge><Badge variant="neutral">Score {selected.risk.score}</Badge>{selected.attendance.consecutiveAbsences >= 3 && <Badge variant="danger">{selected.attendance.consecutiveAbsences} consecutive absences</Badge>}</div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <Info label="Attendance" value={selected.attendance.percentage != null ? `${selected.attendance.percentage.toFixed(1)}% (${selected.attendance.totalSessions} sessions)` : "No records"} />
+                  <Info label="Assessment Avg" value={selected.assessment.averagePercentage != null ? `${selected.assessment.averagePercentage.toFixed(1)}%` : "No records"} />
+                  <Info label="Assignments" value={`${selected.assignments.submitted} submitted${selected.assignments.missing != null ? `, ${selected.assignments.missing} missing` : ""}${selected.assignments.late ? `, ${selected.assignments.late} late` : ""}`} />
+                  <Info label="Latest Result" value={selected.assessment.latest ? `${selected.assessment.latest.courseCode || ""} ${selected.assessment.latest.grade || ""} ${selected.assessment.latest.resultStatus || ""}`.trim() : "—"} />
+                </div>
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Supporting Evidence</p>
+                  {selected.risk.evidence.length === 0 ? <p className="mt-1 text-xs text-slate-500">No risk indicators detected from available records.</p> : <ul className="mt-2 space-y-2">{selected.risk.evidence.map((e, i) => <li key={i} className="rounded-lg border border-slate-200 p-2.5"><div className="flex items-center gap-2"><Badge variant={e.severity === "HIGH" ? "danger" : e.severity === "MEDIUM" ? "warning" : "info"}>{e.type}</Badge></div><p className="mt-1 text-xs text-slate-700">{e.detail}</p></li>)}</ul>}
+                </div>
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 p-3"><p className="text-xs font-semibold text-indigo-900">Recommended Action (advisory)</p><p className="mt-1 text-xs text-indigo-900/90">{selected.risk.recommendedAction}</p><p className="mt-2 text-[11px] text-indigo-900/70">Indicators explain why the student was flagged and never modify marks, attendance, or academic standing.</p></div>
+                {selected.attendance.recent.length > 0 && <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent Attendance</p><div className="mt-2 flex flex-wrap gap-1.5">{selected.attendance.recent.map((r, i) => <Badge key={i} variant={r.status === "Absent" ? "danger" : r.status === "Late" ? "warning" : "success"}>{r.date}: {r.status}</Badge>)}</div></div>}
+              </div>)}
+          </Card>
+        </div>
+      </> : null}
+

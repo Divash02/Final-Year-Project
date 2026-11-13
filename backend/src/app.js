@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +18,7 @@ import { registerNoticesRoutes } from "./routes/notices.js";
 import { registerCommunicationRoutes } from "./routes/communication.js";
 import { registerWorkflowRoutes } from "./routes/workflow.js";
 import { registerReportingRoutes } from "./routes/reporting.js";
+import { registerAdvancedAnalyticsRoutes } from "./routes/advancedAnalytics.js";
 import { registerProfileRoutes } from "./routes/profile.js";
 import { registerDepartmentalRoutes } from "./routes/departmental.js";
 import { registerAttendanceRoutes } from "./routes/attendance.js";
@@ -34,6 +35,21 @@ import { registerFolderRoutes } from "./routes/folders.js";
 import { registerDocumentRoutes } from "./routes/documents.js";
 import { registerFacilitiesRoutes } from "./routes/facilities.js";
 import { registerConnectRoutes } from "./routes/connect.js";
+import { registerFacultyProgressRoutes } from "./routes/facultyProgress.js";
+import { registerLessonPlanningRoutes } from "./routes/lessonPlanning.js";
+import { registerStudentAdvisingRoutes } from "./routes/studentAdvising.js";
+import { registerLeaveSubstitutionRoutes } from "./routes/leaveSubstitution.js";
+import { registerFacultyWorkloadRoutes } from "./routes/facultyWorkload.js";
+import { registerFacultyProjectsRoutes } from "./routes/facultyProjects.js";
+import { registerFacultyAlertsRoutes } from "./routes/facultyAlerts.js";
+import { registerEarlyWarningRoutes } from "./routes/earlyWarning.js";
+import { registerStudyPlannerRoutes } from "./routes/studyPlanner.js";
+import { registerStudentJourneyRoutes } from "./routes/studentJourney.js";
+import { registerInternshipRoutes } from "./routes/internship.js";
+import { registerResearchRoutes } from "./routes/research.js";
+import { registerDigitalCredentialsRoutes } from "./routes/digitalCredentials.js";
+import { registerCampusSafetyRoutes } from "./routes/campusSafety.js";
+import { registerGraduationRoutes } from "./routes/graduation.js";
 import { toErrorResponse } from "./utils/apiError.js";
 import { hashToken } from "./db.js";
 import { Session } from "./models/index.js";
@@ -67,9 +83,9 @@ export function createApp() {
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true, limit: "1mb" }));
   // Only profile photos are delivered as ordinary static assets: they are
-  // non-sensitive institutional directory images. Every other stored file —
+  // non-sensitive institutional directory images. Every other stored file â€”
   // calendar attachments, learning materials, assignment submissions,
-  // documents — is served through the authenticated, entitlement-checked
+  // documents â€” is served through the authenticated, entitlement-checked
   // `/api/files/:id` route instead.
   app.use(
     "/uploads/signatures",
@@ -151,6 +167,7 @@ export function createApp() {
   registerCommunicationRoutes(app);
   registerWorkflowRoutes(app);
   registerReportingRoutes(app);
+  registerAdvancedAnalyticsRoutes(app);
   registerFinanceRoutes(app);
   registerAdmissionsRoutes(app);
   registerAssessmentRoutes(app);
@@ -170,6 +187,21 @@ export function createApp() {
   registerDocumentRoutes(app);
   registerFacilitiesRoutes(app);
   registerConnectRoutes(app);
+  registerFacultyProgressRoutes(app);
+  registerLessonPlanningRoutes(app);
+  registerStudentAdvisingRoutes(app);
+  registerLeaveSubstitutionRoutes(app);
+  registerFacultyWorkloadRoutes(app);
+  registerFacultyProjectsRoutes(app);
+  registerFacultyAlertsRoutes(app);
+  registerEarlyWarningRoutes(app);
+  registerStudyPlannerRoutes(app);
+  registerStudentJourneyRoutes(app);
+  registerInternshipRoutes(app);
+  registerResearchRoutes(app);
+  registerDigitalCredentialsRoutes(app);
+  registerCampusSafetyRoutes(app);
+  registerGraduationRoutes(app);
 
   // Unknown API routes answer in the same structured shape as every other
   // error, so the frontend never has to special-case a bare HTML 404.

@@ -39,8 +39,17 @@ import {
   faBoxes,
   faClipboardCheck,
   faCalendarCheck,
+  faCircleExclamation,
   faSchool,
   faVideo,
+  faExclamationTriangle,
+  faCalendarAlt,
+  faBriefcaseMedical,
+  faAward,
+  faShieldAlt,
+  faScroll,
+  faUniversity,
+  faPlus,
 } from "@fortawesome/free-solid-svg-icons";
 import { UserRoleType } from "../types";
 
@@ -146,6 +155,70 @@ const intelligenceItem: NavItem = {
   permission: "ai.view",
 };
 
+const earlyWarningItem: NavItem = {
+  id: "early_warning",
+  labelEn: "Early Warning System",
+  labelNe: "अर्ली वार्निङ प्रणाली",
+  icon: faExclamationTriangle,
+  permission: "earlyWarning.view",
+};
+
+const studyPlannerItem: NavItem = {
+  id: "study_planner",
+  labelEn: "Smart Academic Planner",
+  labelNe: "स्मार्ट शैक्षिक योजनाकार",
+  icon: faCalendarAlt,
+  permission: "studyPlanner.view",
+};
+
+const studentJourneyItem: NavItem = {
+  id: "student_journey",
+  labelEn: "Student Lifecycle",
+  labelNe: "विद्यार्थी जीवनचक्र",
+  icon: faGraduationCap,
+  permission: "studentJourney.view",
+};
+
+const internshipItem: NavItem = {
+  id: "internship",
+  labelEn: "Internship Management",
+  labelNe: "इन्टर्नशिप व्यवस्थापन",
+  icon: faBriefcaseMedical,
+  permission: "internship.view",
+};
+
+const researchItem: NavItem = {
+  id: "research",
+  labelEn: "Research & Projects",
+  labelNe: "अनुसन्धान तथा परियोजना",
+  icon: faGraduationCap,
+  permission: "research.view",
+};
+
+const credentialsItem: NavItem = {
+  id: "credentials",
+  labelEn: "Digital Credentials",
+  labelNe: "डिजिटल प्रमाणपत्र",
+  icon: faAward,
+  permission: "credentials.view",
+};
+
+const safetyItem: NavItem = {
+  id: "safety",
+  labelEn: "Campus Safety",
+  labelNe: "क्याम्पस सुरक्षा",
+  icon: faShieldAlt,
+  permission: "safety.view",
+};
+
+const graduationItem: NavItem = {
+  id: "graduation",
+  labelEn: "Graduation & Convocation",
+  labelNe: "स्नातक तथा दीक्षान्त",
+  icon: faUniversity,
+  permission: "graduation.view",
+};
+
 const connectItem: NavItem = {
   id: "connect",
   labelEn: "Techspire Meet",
@@ -183,6 +256,7 @@ const STUDENT_NAV: NavSection[] = [
     { id: "examination", labelEn: "Exams & Results", labelNe: "परीक्षा तथा नतिजा", icon: faFileLines, permission: "exams.view" },
     { id: "calendar_documents", labelEn: "Academic Calendar", labelNe: "शैक्षिक क्यालेन्डर", icon: faCalendarDays, permission: "calendar.view" },
     { id: "student_coding_lab", labelEn: "Online Coding Lab", labelNe: "अनलाइन कोडिङ ल्याब", icon: faCode, permission: "coding.lab.view" },
+    studyPlannerItem,
   ]),
   defineSection("people-enrolment", [
     { id: "attendance_sheet", labelEn: "Attendance", labelNe: "उपस्थिति", icon: faUserCheck, permission: "attendance.view" },
@@ -208,6 +282,12 @@ const STUDENT_NAV: NavSection[] = [
     },
     { id: "smart_documents", labelEn: "My Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
     { id: "library", labelEn: "Library", labelNe: "पुस्तकालय", icon: faBook, permission: "library.view" },
+    studentJourneyItem,
+    credentialsItem,
+    earlyWarningItem,
+    internshipItem,
+    graduationItem,
+    safetyItem,
     intelligenceItem,
   ]),
   defineSection("communication-engagement", [
@@ -222,26 +302,31 @@ const STUDENT_NAV: NavSection[] = [
 const FACULTY_NAV: NavSection[] = [
   defineSection("core-academic", [
     dashboardItem("Faculty Dashboard", "संकाय ड्यासबोर्ड"),
-    /**
-     * `my_timetable` is a view of its own rather than the shared
-     * `timetable_attendance` entry: that id is claimed by nine role menus and
-     * renders the attendance register, which answers a different question from
-     * "what am I teaching, and when". A teacher arriving here gets their own
-     * schedule, and reaches the register from a class in it.
-     */
     { id: "my_timetable", labelEn: "My Timetable", labelNe: "मेरो समयतालिका", icon: faCalendarDays, permission: "timetable.view" },
     { id: "learning", labelEn: "My Courses & LMS", labelNe: "पाठ्यक्रम तथा LMS", icon: faBookOpen, permission: "courses.view" },
-    { id: "lms", labelEn: "Course Workspace", labelNe: "पाठ्यक्रम कार्यक्षेत्र", icon: faClipboardList, permission: "lms.view" },
-    { id: "quizzes", labelEn: "Quizzes", labelNe: "क्विजहरू", icon: faClipboardList, permission: "lms.quiz.manage" },
     { id: "faculty_assessment", labelEn: "My Assessment & Marks", labelNe: "मेरो मूल्याङ्कन तथा प्राप्ताङ्क", icon: faFilePen, permission: "grade.enter" },
+    { id: "student_progress", labelEn: "Student Progress & Analytics", labelNe: "विद्यार्थी प्रगति", icon: faChartPie, permission: "attendance.view.course" },
+    { id: "faculty_alerts", labelEn: "Alerts & Review Queue", labelNe: "सूचना र समीक्षा", icon: faCircleExclamation, permission: "attendance.view.course" },
     { id: "teacher_coding_lab", labelEn: "Online Coding Lab", labelNe: "अनलाइन कोडिङ ल्याब", icon: faCode, permission: "coding.lab.view" },
+    { id: "lms", labelEn: "Course Workspace", labelNe: "पाठ्यक्रम कार्यक्षेत्र", icon: faClipboardList, permission: "lms.view" },
+    { id: "lesson_planning", labelEn: "Lesson Planning", labelNe: "पाठ योजना", icon: faCalendarCheck, permission: "lms.content.manage" },
+    { id: "quizzes", labelEn: "Quizzes", labelNe: "क्विजहरू", icon: faClipboardCheck, permission: "lms.quiz.manage" },
+    studyPlannerItem,
+    earlyWarningItem,
   ]),
   defineSection("people-enrolment", [
-    { id: "attendance_sheet", labelEn: "Mark Attendance", labelNe: "à¤¦à¥ˆà¤¨à¤¿à¤• à¤‰à¤ªà¤¸à¥à¤¥à¤¿à¤¤à¤¿", icon: faUserCheck, permission: "attendance.view" },
-    { id: "students", labelEn: "My Students", labelNe: "à¤µà¤¿à¤¦à¥à¤¯à¤¾à¤°à¥à¤¥à¥€ à¤¸à¥‚à¤šà¥€", icon: faUsers, permission: "students.directory.view" },
+    { id: "attendance_sheet", labelEn: "Mark Attendance", labelNe: "दैनिक उपस्थिति", icon: faUserCheck, permission: "attendance.view" },
+    { id: "students", labelEn: "My Students", labelNe: "विद्यार्थी सूची", icon: faUsers, permission: "students.directory.view" },
+    { id: "student_advising", labelEn: "Student Advising", labelNe: "विद्यार्थी परामर्श", icon: faUserGroup, permission: "student.view.assigned" },
   ]),
   defineSection("administration-governance", [
+    { id: "faculty_workload", labelEn: "Faculty Workload", labelNe: "कार्यभार", icon: faBriefcase, permission: "lms.view" },
+    { id: "leave_substitution", labelEn: "Leave & Substitution", labelNe: "बिदा तथा प्रतिस्थापन", icon: faFileContract, permission: "attendance.session.create" },
+    { id: "resource_booking", labelEn: "Resource Booking", labelNe: "स्रोत आरक्षण", icon: faCalendarDays, permission: "facilities.view" },
     { id: "documents", labelEn: "Teaching Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
+    studentJourneyItem,
+    researchItem,
+    internshipItem,
     intelligenceItem,
   ]),
   defineSection("communication-engagement", [
@@ -259,6 +344,9 @@ const FACULTY_NAV: NavSection[] = [
     },
     connectItem,
   ]),
+  defineSection("campus-learning-services", [
+    { id: "research_projects", labelEn: "Research & Projects", labelNe: "अनुसन्धान तथा परियोजना", icon: faGraduationCap, permission: "lms.view" },
+  ]),
   accountSection(),
 ];
 
@@ -270,6 +358,8 @@ const EXAM_OFFICER_NAV: NavSection[] = [
     { id: "timetable_attendance", labelEn: "Exam Sessions & Timetable", labelNe: "परीक्षा समयतालिका", icon: faCalendarDays, permission: "timetable.view" },
     { id: "learning", labelEn: "Curriculum & Courses", labelNe: "पाठ्यक्रम तथा विषयहरू", icon: faBookOpen, permission: "courses.view" },
     { id: "quizzes", labelEn: "Quizzes", labelNe: "क्विजहरू", icon: faClipboardList, permission: "lms.quiz.manage" },
+    earlyWarningItem,
+    graduationItem,
   ]),
   defineSection("people-enrolment", [
     { id: "attendance_sheet", labelEn: "Exam Eligibility Check", labelNe: "योग्यता प्रमाणीकरण", icon: faUserCheck, permission: "attendance.view" },
@@ -278,6 +368,7 @@ const EXAM_OFFICER_NAV: NavSection[] = [
   defineSection("administration-governance", [
     { id: "analytics", labelEn: "Exam Analytics & Audit", labelNe: "परीक्षा विश्लेषण तथा अडिट", icon: faChartPie, permission: "analytics.view" },
     intelligenceItem,
+    studentJourneyItem,
   ]),
   defineSection("communication-engagement", [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
@@ -296,6 +387,7 @@ const DEPARTMENT_NAV: NavSection[] = [
     { id: "examination", labelEn: "Examinations & Results", labelNe: "परीक्षा तथा नतिजा", icon: faFileLines, permission: "exams.view" },
     { id: "calendar_documents", labelEn: "Academic Calendar", labelNe: "शैक्षिक क्यालेन्डर", icon: faCalendarDays, permission: "calendar.manage" },
     { id: "quizzes", labelEn: "Quizzes", labelNe: "क्विजहरू", icon: faClipboardList, permission: "lms.quiz.manage" },
+    earlyWarningItem,
   ]),
   defineSection("people-enrolment", [
     { id: "attendance_sheet", labelEn: "Attendance Monitoring", labelNe: "उपस्थिति अनुगमन", icon: faUserCheck, permission: "attendance.view" },
@@ -304,6 +396,9 @@ const DEPARTMENT_NAV: NavSection[] = [
   defineSection("administration-governance", [
     { id: "analytics", labelEn: "Department Reports", labelNe: "विभागीय प्रतिवेदन", icon: faChartPie, permission: "analytics.view" },
     intelligenceItem,
+    studentJourneyItem,
+    researchItem,
+    internshipItem,
   ]),
   defineSection("communication-engagement", [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
@@ -330,15 +425,21 @@ const REGISTRAR_NAV: NavSection[] = [
     { id: "timetable_attendance", labelEn: "Academic Timetable", labelNe: "शैक्षिक समयतालिका", icon: faCalendarDays, permission: "timetable.view" },
     { id: "calendar_documents", labelEn: "Academic Calendar", labelNe: "शैक्षिक क्यालेन्चर", icon: faCalendarDays, permission: "calendar.manage" },
     { id: "quizzes", labelEn: "Quizzes", labelNe: "क्विजहरू", icon: faClipboardList, permission: "lms.quiz.manage" },
+    earlyWarningItem,
+    graduationItem,
+    credentialsItem,
   ]),
   defineSection("people-enrolment", [
     { id: "students", labelEn: "Official Student Records", labelNe: "विद्यार्थी अभिलेख", icon: faUsers, permission: "students.directory.view" },
     { id: "admissions", labelEn: "Admissions & Enrollment", labelNe: "भर्ना तथा दर्ता", icon: faUserPlus, permission: "admissions.application.view" },
+    studentJourneyItem,
   ]),
   defineSection("administration-governance", [
     { id: "documents", labelEn: "Institutional Documents", labelNe: "कागजातहरू", icon: faFolder, permission: "documents.view" },
     { id: "analytics", labelEn: "Academic Audit & Reports", labelNe: "शैक्षिक अडिट तथा प्रतिवेदन", icon: faChartPie, permission: "analytics.view" },
     intelligenceItem,
+    researchItem,
+    internshipItem,
   ]),
   defineSection("communication-engagement", [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
@@ -360,9 +461,12 @@ const REGISTRAR_NAV: NavSection[] = [
 const FINANCE_NAV: NavSection[] = [
   defineSection("core-academic", [
     dashboardItem("Finance Dashboard", "वित्त ड्यासबोर्ड"),
+    earlyWarningItem,
+    graduationItem,
   ]),
   defineSection("people-enrolment", [
     { id: "students", labelEn: "Student Financial Profiles", labelNe: "विद्यार्थी खाता", icon: faUsers, permission: "students.directory.view" },
+    studentJourneyItem,
   ]),
   defineSection("administration-governance", [
     {
@@ -376,6 +480,7 @@ const FINANCE_NAV: NavSection[] = [
     },
     { id: "analytics", labelEn: "Revenue & Financial Audit", labelNe: "वित्तीय विश्लेषण", icon: faChartPie, permission: "analytics.view" },
     intelligenceItem,
+    safetyItem,
   ]),
   defineSection("communication-engagement", [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
@@ -391,13 +496,16 @@ const CAMPUS_ADMIN_NAV: NavSection[] = [
     dashboardItem("Campus Dashboard", "क्याम्पस ड्यासबोर्ड"),
     { id: "timetable_attendance", labelEn: "Room Allocations", labelNe: "कोठा विनियोजन", icon: faCalendarDays, permission: "timetable.view" },
     { id: "examination", labelEn: "Exam Venues Support", labelNe: "परीक्षा हल सहायता", icon: faFileLines, permission: "exams.view" },
+    earlyWarningItem,
   ]),
   defineSection("people-enrolment", [
     { id: "students", labelEn: "Campus Directory", labelNe: "निर्देशिका", icon: faUsers, permission: "students.directory.view" },
+    studentJourneyItem,
   ]),
   defineSection("administration-governance", [
     { id: "analytics", labelEn: "Campus Reports", labelNe: "क्याम्पस प्रतिवेदन", icon: faChartPie, permission: "analytics.view" },
     intelligenceItem,
+    safetyItem,
   ]),
   defineSection("campus-learning-services", [
     { id: "library", labelEn: "Library", labelNe: "पुस्तकालय", icon: faBook, permission: "library.view" },
@@ -433,13 +541,18 @@ const DEAN_NAV: NavSection[] = [
     { id: "timetable_attendance", labelEn: "Academic Timetable", labelNe: "समयतालिका", icon: faCalendarDays, permission: "timetable.view" },
     { id: "calendar_documents", labelEn: "Academic Calendar", labelNe: "शैक्षिक क्यालेन्चर", icon: faCalendarDays, permission: "calendar.manage" },
     { id: "quizzes", labelEn: "Quizzes", labelNe: "क्विजहरू", icon: faClipboardList, permission: "lms.quiz.manage" },
+    earlyWarningItem,
+    studentJourneyItem,
   ]),
   defineSection("people-enrolment", [
     { id: "students", labelEn: "Faculty Students", labelNe: "विद्यार्थीहरू", icon: faUsers, permission: "students.directory.view" },
+    internshipItem,
   ]),
   defineSection("administration-governance", [
     { id: "analytics", labelEn: "School Analytics & Audit", labelNe: "संकाय विश्लेषण", icon: faChartPie, permission: "analytics.view" },
     intelligenceItem,
+    researchItem,
+    credentialsItem,
   ]),
   defineSection("communication-engagement", [
     { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
@@ -467,9 +580,13 @@ const PARENT_NAV: NavSection[] = [
     dashboardItem("Parent Dashboard", "अभिभावक ड्यासबोर्ड"),
     { id: "timetable_attendance", labelEn: "Academic Timetable", labelNe: "समयतालिका", icon: faCalendarDays, permission: "timetable.view" },
     { id: "examination", labelEn: "Examinations & Results", labelNe: "परीक्षा तथा नतिजा", icon: faFileLines, permission: "exams.view" },
+    earlyWarningItem,
   ]),
   defineSection("administration-governance", [
     { id: "documents", labelEn: "My Documents", labelNe: "मेरा कागजातहरू", icon: faFolderOpen, permission: "documents.view" },
+    credentialsItem,
+    safetyItem,
+    graduationItem,
   ]),
   defineSection("communication-engagement", [
     { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
@@ -489,17 +606,22 @@ const SUPER_ADMIN_NAV: NavSection[] = [
   defineSection("core-academic", [
     dashboardItem("Institution Dashboard", "संस्था ड्यासबोर्ड"),
     { id: "learning", labelEn: "Courses & Curriculum", labelNe: "पाठ्यक्रम तथा विषयहरू", icon: faBookOpen, permission: "courses.view" },
-      { id: "lms", labelEn: "Course Workspaces", labelNe: "पाठ्यक्रम कार्यक्षेत्र", icon: faClipboardList, permission: "lms.view" },
-      { id: "timetable_attendance", labelEn: "Timetable & Sessions", labelNe: "समयतालिका तथा कक्षा", icon: faCalendarDays, permission: "timetable.view" },
-      { id: "calendar_documents", labelEn: "Academic Calendar", labelNe: "शैक्षिक क्यालेन्चर", icon: faCalendarDays, permission: "calendar.manage" },
+    { id: "lms", labelEn: "Course Workspaces", labelNe: "पाठ्यक्रम कार्यक्षेत्र", icon: faClipboardList, permission: "lms.view" },
+    { id: "timetable_attendance", labelEn: "Timetable & Sessions", labelNe: "समयतालिका तथा कक्षा", icon: faCalendarDays, permission: "timetable.view" },
+    { id: "calendar_documents", labelEn: "Academic Calendar", labelNe: "शैक्षिक क्यालेन्चर", icon: faCalendarDays, permission: "calendar.manage" },
     { id: "examination", labelEn: "Examinations Suite", labelNe: "परीक्षा व्यवस्थापन", icon: faFileLines, permission: "exams.view" },
     { id: "quizzes", labelEn: "Quizzes", labelNe: "क्विजहरू", icon: faClipboardList, permission: "lms.quiz.manage" },
+    earlyWarningItem,
+    studyPlannerItem,
+    studentJourneyItem,
+    graduationItem,
   ]),
   defineSection("people-enrolment", [
     { id: "students", labelEn: "Student Directory", labelNe: "विद्यार्थी निर्देशिका", icon: faUsers, permission: "students.directory.view" },
     { id: "admissions", labelEn: "Admissions Workflow", labelNe: "भर्ना प्रक्रिया", icon: faUserPlus, permission: "admissions.application.view" },
     { id: "attendance_sheet", labelEn: "Attendance Records", labelNe: "दैनिक उपस्थिती", icon: faUserCheck, permission: "attendance.view" },
     { id: "student_lifecycle", labelEn: "Student Lifecycle Management", labelNe: "विद्यार्थी जीवनचक्र व्यवस्थापन", icon: faGraduationCap, permission: "students.directory.view" },
+    internshipItem,
   ]),
   defineSection("administration-governance", [
     { id: "user_management", labelEn: "User & Role Management", labelNe: "प्रयोगकर्ता तथा भूमिका", icon: faShieldHalved, permission: "accounts.manage" },
@@ -516,10 +638,13 @@ const SUPER_ADMIN_NAV: NavSection[] = [
     { id: "intelligence", labelEn: "AI Intelligence", labelNe: "कृत्रिम बुद्धिमत्ता", icon: faBrain, permission: "ai.view" },
     { id: "workflow_automation", labelEn: "Workflow Automation", labelNe: "कार्यप्रवाह स्वचालन", icon: faSitemap, permission: "workflow.manage" },
     { id: "smart_documents", labelEn: "Smart Document Centre", labelNe: "स्मार्ट कागजात केन्द्र", icon: faFileAlt, permission: "documents.view" },
+    researchItem,
+    credentialsItem,
+    safetyItem,
   ]),
   defineSection("people-workforce", [
     workforceDashboardItem,
-  ]  ),
+  ]),
   defineSection("campus-learning-services", [
     { id: "library", labelEn: "Library", labelNe: "पुस्तकालय", icon: faBook, permission: "library.view" },
     { id: "campus_buildings", labelEn: "Buildings & Classrooms", labelNe: "भवन तथा कक्षाहरू", icon: faSchool, permission: "facilities.view" },
@@ -549,6 +674,37 @@ const SUPER_ADMIN_NAV: NavSection[] = [
   ]),
 ];
 
+const SECURITY_STAFF_NAV: NavSection[] = [
+  defineSection("core-academic", [
+    dashboardItem("Security Dashboard", "सुरक्षा ड्यासबोर्ड"),
+    earlyWarningItem,
+    studentJourneyItem,
+  ]),
+  defineSection("people-enrolment", [
+    { id: "students", labelEn: "Campus Directory", labelNe: "निर्देशिका", icon: faUsers, permission: "students.directory.view" },
+  ]),
+  defineSection("administration-governance", [
+    { id: "analytics", labelEn: "Campus Reports", labelNe: "क्याम्पस प्रतिवेदन", icon: faChartPie, permission: "analytics.view" },
+    intelligenceItem,
+    safetyItem,
+  ]),
+  defineSection("communication-engagement", [
+    { id: "communication", labelEn: "College Mail", labelNe: "कलेज मेल", icon: faEnvelope, permission: "mail.view" },
+    { id: "notices", labelEn: "Notices", labelNe: "सूचनाहरू", icon: faBullhorn, permission: "notices.view" },
+    {
+      id: "requests",
+      labelEn: "Safety Requests",
+      labelNe: "सुरक्षा निवेदन",
+      icon: faInbox,
+      permission: "workflow.view",
+      badge: "pendingRequests",
+      badgeTone: "warning",
+    },
+    connectItem,
+  ]),
+  accountSection(),
+];
+
 /** Role-aware navigation with permission filtering applied by the sidebar. */
 export function getNavSectionsForRole(role: UserRoleType): NavSection[] {
   switch (role) {
@@ -571,6 +727,8 @@ export function getNavSectionsForRole(role: UserRoleType): NavSection[] {
       return CAMPUS_ADMIN_NAV;
     case "dean":
       return DEAN_NAV;
+    case "security_staff":
+      return SECURITY_STAFF_NAV;
     case "super_admin":
     default:
       return SUPER_ADMIN_NAV;

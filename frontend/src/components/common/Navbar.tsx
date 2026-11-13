@@ -34,6 +34,7 @@ export const ROLE_LABELS: Record<UserRoleType, string> = {
   faculty: "Faculty",
   student: "Student",
   parent: "Parent",
+  security_staff: "Security Staff",
 };
 
 export const Navbar: React.FC = () => {

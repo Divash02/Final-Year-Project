@@ -60,6 +60,14 @@ export const routeToView: Record<string, string> = {
   "/campus/maintenance": "campus_maintenance",
   "/campus/assets": "campus_assets",
   "/campus/transport": "campus_transport",
+  "/safety/report-incident": "report_incident",
+  "/safety/incidents": "safety_incidents",
+  "/research": "research",
+  "/research-projects": "research_projects",
+  "/credentials": "credentials",
+  "/early-warning": "early_warning",
+  "/internship": "internship",
+  "/graduation": "graduation",
 };
 
 export const viewToRoute: Record<string, string> = Object.fromEntries(
@@ -78,6 +86,8 @@ viewToRoute.workflow_automation = "/workflows";
 viewToRoute.smart_documents = "/smart-documents";
 viewToRoute.student_lifecycle = "/student-lifecycle";
 viewToRoute.notifications = "/notifications";
+viewToRoute.report_incident = "/safety/report-incident";
+viewToRoute.safety_incidents = "/safety/incidents";
 
 const CODING_LAB_PATH =
   /^\/(student|teacher)\/coding-lab(?:\/projects\/([A-Za-z0-9]+))?(?:\/assignments\/([A-Za-z0-9]+))?$/;

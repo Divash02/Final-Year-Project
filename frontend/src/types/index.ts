@@ -79,7 +79,8 @@ export type UserRoleType =
   | "finance_officer"
   | "faculty"
   | "student"
-  | "parent";
+  | "parent"
+  | "security_staff";
 
 export type ExamCandidateScope =
   | "COURSE_SPECIFIC"
@@ -870,3 +871,159 @@ export interface StudentSeatingAssignment {
   seatNumber: number;
   publishedAt: string | null;
 }
+
+/* ------------------------------------------------------------------ */
+/* Campus Safety & Security – Incident reporting / case tracking types */
+/* ------------------------------------------------------------------ */
+
+export type IncidentType =
+  | "THEFT" | "ASSAULT" | "HARASSMENT" | "VANDALISM" | "FIRE_HAZARD" | "MEDICAL_EMERGENCY"
+  | "BULLYING" | "CYBERBULLYING" | "SAFETY_CONCERN" | "UNSAFE_CONDITION"
+  | "SECURITY_BREACH" | "SUSPICIOUS_ACTIVITY" | "OTHER";
+
+export type IncidentSeverity = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+
+export type IncidentStatus =
+  | "SUBMITTED" | "RECEIVED" | "UNDER_REVIEW" | "ASSIGNED_FOR_INVESTIGATION"
+  | "INVESTIGATION_IN_PROGRESS" | "AWAITING_STUDENT_INFORMATION" | "ACTION_TAKEN"
+  | "RESOLVED" | "CLOSED"
+  // Legacy statuses retained for older records.
+  | "REPORTED" | "ACKNOWLEDGED" | "UNDER_INVESTIGATION" | "ESCALATED";
+
+export type IncidentUpdateVisibility = "student" | "internal";
+
+export interface IncidentEvidence {
+  id: string;
+  fileId: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  description?: string;
+  uploadedBy?: string | null;
+  uploadedAt?: string;
+  visibility?: string;
+}
+
+export interface IncidentWitness {
+  name: string;
+  contact: string;
+  statement: string;
+}
+
+export interface IncidentAction {
+  id: string;
+  action: string;
+  takenBy: { id: string; name: string } | null;
+  takenAt: string;
+  notes?: string;
+}
+
+export interface IncidentInternalNote {
+  id: string;
+  note: string;
+  writtenBy: { id: string; name: string | null } | null;
+  writtenByName?: string | null;
+  writtenAt: string;
+}
+
+export interface IncidentResolution {
+  summary: string;
+  category: string;
+  actionsTaken: string;
+  resolvedBy: { id: string; name: string } | null;
+  resolvedAt: string | null;
+  reopenedAt: string | null;
+  reopenedBy: { id: string; name: string } | null;
+  reopenReason: string;
+  outcome: "RESOLVED" | "UNFOUNDED" | "REFERRED_EXTERNAL" | "ONGOING_MONITORING" | null;
+}
+
+export interface IncidentUpdate {
+  id: string;
+  incidentNumber: string;
+  status: IncidentStatus | null;
+  title: string;
+  description: string;
+  createdBy: { id: string; name: string } | null;
+  createdByName: string | null;
+  createdByRole: string | null;
+  visibility: IncidentUpdateVisibility;
+  attachments: IncidentEvidence[];
+  createdAt: string;
+}
+
+export interface IncidentMessage {
+  id: string;
+  incidentNumber: string;
+  senderId: string;
+  senderName: string;
+  senderRole: string | null;
+  senderType: "student" | "staff";
+  message: string;
+  visibility: IncidentUpdateVisibility;
+  attachments: IncidentEvidence[];
+  createdAt: string;
+}
+
+export interface Incident {
+  id: string;
+  _id: string;
+  incidentNumber: string;
+  title: string;
+  incidentType: IncidentType;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  priority: string;
+  description: string;
+  location: { building?: string; room?: string; area?: string; description?: string; coordinates?: { lat: number; lng: number } };
+  incidentDate: string | null;
+  incidentTime: string | null;
+  occurredAt: string;
+  reportedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  peopleInvolved: string;
+  witnesses: IncidentWitness[];
+  anonymous: boolean;
+  confidentialityRequest: boolean;
+  isConfidential: boolean;
+  accessLevel: string;
+  assignedDepartment: string | null;
+  assignedTo: { id: string; name: string; email: string } | null;
+  assignedAt: string | null;
+  reportedBy: { id: string; name: string; email: string } | null;
+  student: {
+    id: string;
+    studentId: string;
+    fullName: string;
+    program: string | null;
+    semester: number | null;
+  } | null;
+  evidence: IncidentEvidence[];
+  tags: string[];
+  actions: IncidentAction[];
+  internalNotes: IncidentInternalNote[];
+  resolution: IncidentResolution | null;
+  updates: IncidentUpdate[];
+  messages: IncidentMessage[];
+}
+
+export interface EmergencyContact {
+  name: string;
+  phone: string;
+  email: string;
+  available: string;
+  type: "SECURITY" | "MEDICAL" | "FIRE" | "POLICE" | "ADMIN" | "COUNSELING";
+}
+
+export interface CampusSafetySummary {
+  totalIncidents: number;
+  newReports: number;
+  underReview: number;
+  activeInvestigations: number;
+  awaitingStudentResponse: number;
+  resolvedCases: number;
+  closedCases: number;
+  highCriticalSeverity: number;
+}
+

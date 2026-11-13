@@ -150,8 +150,8 @@ export function registerCommunicationRoutes(app) {
     },
   );
 
-  // 2. Get Mail for specific folder (inbox, sent, drafts, trash, starred, archive)
-  // Requirement 30 & 32
+// 2. Get Mail for specific folder (inbox, sent, drafts, trash, starred, archive, spam)
+// Requirement 30 & 32
   app.get("/api/mail", requireAuth, requirePermission("mail.view"), async (req, res) => {
     try {
       const folder = String(req.query.folder || "inbox").toLowerCase();
@@ -193,6 +193,7 @@ export function registerCommunicationRoutes(app) {
             $elemMatch: {
               user: currentUserId,
               folder: "trash",
+              isDeleted: false,
             },
           },
         };
@@ -202,6 +203,27 @@ export function registerCommunicationRoutes(app) {
             $elemMatch: {
               user: currentUserId,
               folder: "archive",
+              isDeleted: false,
+            },
+          },
+        };
+      } else if (folder === "spam") {
+        filter = {
+          userStates: {
+            $elemMatch: {
+              user: currentUserId,
+              folder: "spam",
+              isDeleted: false,
+            },
+          },
+        };
+      } else if (folder === "all") {
+        filter = {
+          isDraft: false,
+          userStates: {
+            $elemMatch: {
+              user: currentUserId,
+              folder: { $ne: "trash", $ne: "spam" },
               isDeleted: false,
             },
           },
@@ -601,6 +623,38 @@ export function registerCommunicationRoutes(app) {
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: "Failed to delete mail." });
+    }
+  });
+
+  // 9. Permanent delete mail (from Trash only)
+  app.delete("/api/mail/:id/permanent", requireAuth, requirePermission("mail.view"), async (req, res) => {
+    try {
+      const currentUserId = req.user._id || req.user.id;
+      const mail = await Mail.findById(req.params.id);
+      if (!mail) return res.status(404).json({ error: "Mail not found." });
+
+      const stateIndex = mail.userStates.findIndex(
+        (s) => s.user.toString() === currentUserId.toString()
+      );
+
+      if (stateIndex >= 0) {
+        // Only allow permanent deletion from trash
+        if (mail.userStates[stateIndex].folder !== "trash") {
+          return res.status(400).json({ error: "Can only permanently delete mail from Trash." });
+        }
+        mail.userStates.splice(stateIndex, 1);
+      }
+
+      // If no user states remain, remove the document entirely
+      if (mail.userStates.length === 0) {
+        await Mail.findByIdAndDelete(req.params.id);
+      } else {
+        await mail.save();
+      }
+
+      res.json({ success: true, permanentlyDeleted: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to permanently delete mail." });
     }
   });
 

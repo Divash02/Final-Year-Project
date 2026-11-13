@@ -559,6 +559,214 @@ const roleGrants = {
   "coding.projects.manage": ["student", "faculty"],
   "coding.assignments.manage": ["faculty"],
 
+  // Early Warning System
+  "earlyWarning.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "finance_officer",
+    "faculty",
+    "student",
+  ],
+  "earlyWarning.manage": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "faculty",
+  ],
+
+  // Smart Academic Planner
+  "studyPlanner.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "faculty",
+    "student",
+  ],
+  "studyPlanner.manage": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "faculty",
+  ],
+
+  // Student Lifecycle & Case Management
+  "studentJourney.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "finance_officer",
+    "faculty",
+    "student",
+  ],
+  "studentJourney.manage": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "finance_officer",
+  ],
+
+  // Internship Management
+  "internship.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "finance_officer",
+    "faculty",
+    "student",
+  ],
+  "internship.manage": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+  ],
+
+  // Research & Project Hub
+  "research.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "finance_officer",
+    "faculty",
+    "student",
+  ],
+  "research.manage": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "faculty",
+  ],
+
+  // Digital Credentials & Achievements
+  "credentials.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "finance_officer",
+    "faculty",
+    "student",
+  ],
+  "credentials.manage": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+  ],
+
+  // Campus Safety & Security
+  "safety.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "finance_officer",
+    "faculty",
+    "student",
+  ],
+  "safety.report": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "finance_officer",
+    "faculty",
+    "student",
+  ],
+  "safety.manage": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "security_staff",
+  ],
+
+  // Graduation & Convocation
+  "graduation.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "finance_officer",
+    "faculty",
+    "student",
+  ],
+  "graduation.apply": [
+    "student",
+  ],
+  "graduation.manage_clearance": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "exam_officer",
+    "finance_officer",
+    "librarian",
+    "hostel_warden",
+    "lab_incharge",
+  ],
+  "graduation.approve": [
+    "super_admin",
+    "dean",
+    "registrar",
+  ],
+  "graduation.manage_certificate": [
+    "super_admin",
+    "registrar",
+  ],
+  "graduation.manage_convocation": [
+    "super_admin",
+    "registrar",
+    "dean",
+  ],
+
   // Academic Collaboration & Decisions
   "collaboration.class_summaries.view": [
     "super_admin",
@@ -899,6 +1107,49 @@ const roleGrants = {
     "super_admin",
     "registrar",
     "exam_officer",
+  ],
+
+  // Website Usage & Behavior Analytics
+  "website_analytics.view": [
+    "super_admin",
+  ],
+  "website_analytics.user_activity.view": [
+    "super_admin",
+  ],
+  "website_analytics.module_usage.view": [
+    "super_admin",
+  ],
+  "website_analytics.behavior_patterns.view": [
+    "super_admin",
+  ],
+  "website_analytics.session_tracking.view": [
+    "super_admin",
+  ],
+
+  // System Performance & Infrastructure Monitoring
+  "system_performance.view": [
+    "super_admin",
+  ],
+  "system_performance.cpu_memory.view": [
+    "super_admin",
+  ],
+  "system_performance.api_monitoring.view": [
+    "super_admin",
+  ],
+  "system_performance.database_monitoring.view": [
+    "super_admin",
+  ],
+  "system_performance.peak_usage.view": [
+    "super_admin",
+  ],
+  "system_performance.alerts.view": [
+    "super_admin",
+  ],
+  "system_performance.alerts.manage": [
+    "super_admin",
+  ],
+  "system_performance.historical_comparison.view": [
+    "super_admin",
   ],
 
   // HR & Workforce Management

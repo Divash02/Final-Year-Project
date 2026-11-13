@@ -137,6 +137,9 @@ export {
   ProjectProposal,
   PROJECT_PROPOSAL_STATUSES,
 } from "./ProjectProposal.js";
+export { AdvisingSession } from "./AdvisingSession.js";
+export { ClassSubstitution } from "./ClassSubstitution.js";
+export { FacultyWorkload } from "./FacultyWorkload.js";
 
 export {
   AcademicDecision,
@@ -183,8 +186,28 @@ export { DigitalCredential, CREDENTIAL_TYPES, CREDENTIAL_STATUSES } from "./Digi
 export { AttendanceQRSession } from "./AttendanceQRSession.js";
 export { LoginAttempt } from "./LoginAttempt.js";
 export { ClassroomBoard } from "./ClassroomBoard.js";
+export { UserActivityEvent } from "./UserActivityEvent.js";
+export { UserSession } from "./UserSession.js";
+export { SystemMetric } from "./SystemMetric.js";
+export { PerformanceAlert } from "./PerformanceAlert.js";
 export {
   VirtualSession,
   VIRTUAL_SESSION_TYPES,
   VIRTUAL_SESSION_STATUSES,
 } from "./VirtualSession.js";
+
+export { AcademicRiskIndicator } from "./AcademicRiskIndicator.js";
+export { AcademicIntervention } from "./AcademicIntervention.js";
+export {
+  InternshipCompany,
+  InternshipSupervisor,
+  InternshipApplication,
+  InternshipProgressReport,
+  InternshipEvaluation,
+} from "./InternshipApplication.js";
+export { ResearchMilestone, ResearchMeeting, ResearchProject } from "./ResearchProject.js";
+export { CampusIncident } from "./CampusIncident.js";
+export { IncidentUpdate } from "./IncidentUpdate.js";
+export { IncidentMessage } from "./IncidentMessage.js";
+export { GraduationClearance, GraduationApplication } from "./GraduationApplication.js";
+export { StudyActivity, StudyPlan } from "./StudyPlan.js";

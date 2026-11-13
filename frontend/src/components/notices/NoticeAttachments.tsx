@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCloudArrowUp,
@@ -84,16 +84,20 @@ export interface NoticeAttachmentsProps {
   onChange: (attachments: NoticeAttachment[]) => void;
   /** Set while the parent is saving, so the queue cannot change mid-flight. */
   disabled?: boolean;
+  /** Upload endpoint; defaults to the notice staging route. */
+  uploadRoute?: string;
 }
 
 export const NoticeAttachments: React.FC<NoticeAttachmentsProps> = ({
   value,
   onChange,
   disabled = false,
+  uploadRoute = "/notices/upload",
 }) => {
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [rejections, setRejections] = useState<string[]>([]);
   const [preview, setPreview] = useState<StoredFileSummary | null>(null);
+  const tasksRef = useRef<Map<QueueEntry, { abort: () => void }>>(new Map());
 
   const attachedCount = value.length;
   const remainingSlots = Math.max(0, MAX_FILES - attachedCount);
@@ -103,12 +107,26 @@ export const NoticeAttachments: React.FC<NoticeAttachmentsProps> = ({
       if (disabled) return;
       const problems: string[] = [];
       const accepted: File[] = [];
+      // Only dedupe against currently staged (not yet uploaded) files.
+      // Allow re-adding a file that was previously attached and removed.
+      const stagedSignatures = new Set<string>(
+        queue
+          .filter(
+            (entry): entry is Extract<QueueEntry, { kind: "staged" }> =>
+              entry.kind === "staged" && !!entry.file && !entry.uploaded,
+          )
+          .map((entry) => fileSignature(entry.file)),
+      );
 
       for (const file of files) {
         if (accepted.length >= remainingSlots) {
           problems.push(
             `"${file.name}" was not added: a notice may carry at most ${MAX_FILES} attachments.`,
           );
+          continue;
+        }
+        if (stagedSignatures.has(fileSignature(file))) {
+          problems.push(`"${file.name}" is already in the upload list.`);
           continue;
         }
         if (!ALLOWED_MIMES.has(file.type)) {
@@ -128,6 +146,7 @@ export const NoticeAttachments: React.FC<NoticeAttachmentsProps> = ({
           continue;
         }
         accepted.push(file);
+        stagedSignatures.add(fileSignature(file));
       }
 
       setRejections((previous) => [...previous, ...problems]);
@@ -145,7 +164,7 @@ export const NoticeAttachments: React.FC<NoticeAttachmentsProps> = ({
         ]);
       }
     },
-    [disabled, remainingSlots],
+    [disabled, remainingSlots, queue],
   );
 
   const uploadAll = useCallback(async () => {
@@ -165,7 +184,7 @@ export const NoticeAttachments: React.FC<NoticeAttachmentsProps> = ({
           ),
         );
 
-        const task = uploadWithProgress("/notices/upload", entry.file, {
+        const task = uploadWithProgress(uploadRoute, entry.file, {
           onProgress: (progress) => {
             setQueue((previous) =>
               previous.map((item) =>
@@ -176,28 +195,22 @@ export const NoticeAttachments: React.FC<NoticeAttachmentsProps> = ({
             );
           },
         });
+        tasksRef.current.set(entry, task);
 
         try {
           const result = await task.promise;
+          tasksRef.current.delete(entry);
           const uploaded = (result.data as { files?: NoticeAttachment[] })
             .files?.[0];
           if (!uploaded) {
             throw new Error("The server did not confirm the upload.");
           }
-          setQueue((previous) =>
-            previous.map((item) =>
-              item === entry
-                ? {
-                    ...item,
-                    status: "done" as const,
-                    percent: 100,
-                    uploaded,
-                  }
-                : item,
-            ),
-          );
           onChange([...value, uploaded]);
+          setQueue((previous) =>
+            previous.filter((item) => item !== entry),
+          );
         } catch (error) {
+          tasksRef.current.delete(entry);
           setQueue((previous) =>
             previous.map((item) =>
               item === entry
@@ -228,17 +241,29 @@ export const NoticeAttachments: React.FC<NoticeAttachmentsProps> = ({
   }, [queue, disabled, uploadAll]);
 
   const removeEntry = useCallback(
-    (index: number) => {
-      setQueue((previous) => {
-        const entry = previous[index];
-        if (!entry) return previous;
-        if (entry.kind === "staged" && entry.uploaded) {
-          onChange(value.filter((attachment) => attachment.fileId !== entry.uploaded!.fileId));
-        } else if (entry.kind === "attached") {
-          onChange(value.filter((attachment) => attachment.fileId !== entry.attachment.fileId));
-        }
-        return previous.filter((_, position) => position !== index);
-      });
+    (entry: QueueEntry) => {
+      tasksRef.current.get(entry)?.abort();
+      tasksRef.current.delete(entry);
+      if (entry.kind === "attached") {
+        const fileId = entry.attachment.fileId;
+        onChange(value.filter((attachment) => attachment.fileId !== fileId));
+        // Also remove any staged entry that uploaded this file (race condition).
+        setQueue((previous) =>
+          previous.filter(
+            (item) =>
+              !(
+                item.kind === "staged" &&
+                item.uploaded?.fileId === fileId
+              ),
+          ),
+        );
+        return;
+      }
+      // Staged entry: abort an in-flight transfer, then drop the row.
+      if (entry.uploaded) {
+        onChange(value.filter((attachment) => attachment.fileId !== entry.uploaded!.fileId));
+      }
+      setQueue((previous) => previous.filter((item) => item !== entry));
     },
     [onChange, value],
   );
@@ -250,7 +275,27 @@ export const NoticeAttachments: React.FC<NoticeAttachmentsProps> = ({
       kind: "attached" as const,
       attachment,
     }));
-    return [...attached, ...queue];
+    // A staged row whose upload completed is already mirrored in `value`;
+    // keep it out of the list until the queue update lands so the same
+    // file never renders twice.
+    const pending = queue.filter(
+      (entry) => entry.kind !== "staged" || !entry.uploaded,
+    );
+
+    // Deduplicate by fileId in case both attached and staged (with uploaded)
+    // coexist during the render between onChange and setQueue.
+    const seen = new Set<string>();
+    const deduplicated = [...attached, ...pending].filter((entry) => {
+      const fileId =
+        entry.kind === "attached"
+          ? entry.attachment.fileId
+          : entry.uploaded?.fileId;
+      if (!fileId || seen.has(fileId)) return false;
+      seen.add(fileId);
+      return true;
+    });
+
+    return deduplicated;
   }, [value, queue]);
 
   return (
@@ -402,7 +447,7 @@ export const NoticeAttachments: React.FC<NoticeAttachmentsProps> = ({
                     type="button"
                     title="Remove attachment"
                     aria-label={`Remove ${name}`}
-                    onClick={() => removeEntry(index)}
+                    onClick={() => removeEntry(entry)}
                     disabled={disabled}
                     className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                   >
@@ -441,6 +486,15 @@ function kindNote(entries: QueueEntry[]): string {
   return previewable
     ? `${previewable} file(s) can be previewed inside CollegeOS.`
     : "";
+}
+
+/**
+ * A stable identity for a File so the same pick cannot be staged twice.
+ * Browsers expose only name, size and lastModified, so those three
+ * together are the best client-side dedupe available.
+ */
+function fileSignature(file: File): string {
+  return `${file.name}\u0000${file.size}\u0000${file.lastModified}`;
 }
 
 function AttachmentIcon({ mimeType }: { mimeType: string }): React.ReactNode {

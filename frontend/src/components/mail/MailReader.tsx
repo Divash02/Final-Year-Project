@@ -2,161 +2,271 @@ import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPaperclip,
-  faCircleInfo,
   faListUl,
-  faClock,
-  faTriangleExclamation,
+  faReply,
+  faReplyAll,
+  faForward,
+  faBoxArchive,
+  faTrash,
+  faEnvelopeOpen,
+  faStar,
+  faEllipsis,
+  faChevronLeft,
+  faPaperPlane,
+  faEnvelope,
 } from "@fortawesome/free-solid-svg-icons";
 import { MailDetail, mailAttachmentName, mailSenderName } from "./mailTypes";
 import { MessageDigest } from "./messageDigest";
+import { MailAIActions } from "./MailAIActions";
+import { RichTextDisplay } from "../ui/RichTextDisplay";
+import { IconButton } from "../ui/IconButton";
+import { Button } from "../ui/Button";
 
 export interface MailReaderProps {
   detail: MailDetail;
   formatTimestamp: (value: string) => string;
-  /** Present when the reader-level summary panel is open. */
   digest: MessageDigest | null;
+  onBack: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+  onPermanentDelete: () => void;
+  onMarkUnread: () => void;
+  onReply: () => void;
+  onToggleStar: () => void;
+  onSummarize: () => void;
+  isStarred: boolean;
+  isSummarizing: boolean;
+  busy: boolean;
+  canArchive: boolean;
+  canMarkUnread: boolean;
+  isTrash: boolean;
 }
 
-/**
- * Message reading pane. Body copy is set at a comfortable reading size
- * (`text-base` / `leading-7`) rather than dense metadata text.
- */
 export const MailReader: React.FC<MailReaderProps> = ({
   detail,
   formatTimestamp,
   digest,
+  onBack,
+  onArchive,
+  onDelete,
+  onPermanentDelete,
+  onMarkUnread,
+  onReply,
+  onToggleStar,
+  onSummarize,
+  isStarred,
+  isSummarizing,
+  busy,
+  canArchive,
+  canMarkUnread,
+  isTrash,
 }) => {
   const { thread, recipients } = detail;
   const attachments = thread.attachments ?? [];
   const ccEmails = detail.ccEmails ?? thread.ccEmails ?? [];
   const bccEmails = detail.bccEmails ?? thread.bccEmails ?? [];
+  const sender = mailSenderName(thread);
+  const isUnread = !thread.read_at;
+
+  const allRecipients = [
+    ...recipients.map((r) => r.email),
+    ...ccEmails,
+    ...bccEmails,
+  ];
 
   return (
-    <article className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 py-7 lg:px-8">
-      <header>
-        <h2 className="text-xl font-semibold leading-snug text-slate-900">
-          {thread.subject || "(no subject)"}
-        </h2>
+    <article className="mail-reader">
+      {/* Top action toolbar */}
+      <div className="mail-reader-toolbar">
+        <div className="mail-reader-toolbar-left">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-mail-text-secondary)] hover:bg-[var(--color-mail-row-hover)] hover:text-[var(--color-mail-text-primary)] transition"
+            aria-label="Back to mail list"
+          >
+            <FontAwesomeIcon icon={faChevronLeft} className="w-4 h-4" aria-hidden="true" />
+          </button>
+          <IconButton
+            icon={faBoxArchive}
+            label="Archive"
+            variant="ghost"
+            size="sm"
+            onClick={onArchive}
+            disabled={busy || !canArchive}
+          />
+          {isTrash ? (
+            <IconButton
+              icon={faTrash}
+              label="Delete permanently"
+              variant="danger"
+              size="sm"
+              onClick={onPermanentDelete}
+              disabled={busy}
+            />
+          ) : (
+            <IconButton
+              icon={faTrash}
+              label="Delete"
+              variant="danger"
+              size="sm"
+              onClick={onDelete}
+              disabled={busy}
+            />
+          )}
+          <IconButton
+            icon={faEnvelopeOpen}
+            label={isUnread ? "Mark as read" : "Mark as unread"}
+            variant="ghost"
+            size="sm"
+            onClick={onMarkUnread}
+            disabled={busy || !canMarkUnread}
+          />
+        </div>
+        <div className="mail-reader-toolbar-right">
+          <IconButton
+            icon={isStarred ? faStar : faStar}
+            label={isStarred ? "Remove star" : "Star this message"}
+            variant="ghost"
+            size="sm"
+            onClick={onToggleStar}
+            disabled={busy}
+            className={isStarred ? "text-[var(--color-mail-star)]" : ""}
+          />
+          <IconButton
+            icon={faEllipsis}
+            label="More actions"
+            variant="ghost"
+            size="sm"
+            className="text-[var(--color-mail-text-muted)]"
+          />
+        </div>
+      </div>
 
-        <dl className="mt-4 grid gap-3 border-y border-slate-200 py-4 text-sm sm:grid-cols-[8rem_1fr] sm:gap-x-4">
-          <dt className="font-medium text-slate-500">From</dt>
-          <dd className="min-w-0 text-slate-800">
-            <span className="font-medium">{mailSenderName(thread)}</span>
-            <span className="text-slate-500"> &lt;{thread.sender_email}&gt;</span>
-          </dd>
+      {/* Email header - subject and sender */}
+      <header className="mail-reader-header">
+        <div className="mail-reader-subject-row">
+          <FontAwesomeIcon
+            icon={isStarred ? faStar : faStar}
+            className="mail-reader-star-btn"
+            aria-label={isStarred ? "Remove star" : "Star this message"}
+            aria-pressed={isStarred}
+            onClick={onToggleStar}
+          />
+          <h1 className="mail-reader-subject">
+            {thread.subject || "(no subject)"}
+          </h1>
+          <div className="mail-reader-labels">
+            {isUnread && (
+              <span className="mail-reader-label">Unread</span>
+            )}
+          </div>
+        </div>
 
-          <dt className="font-medium text-slate-500">To</dt>
-          <dd className="min-w-0 break-words text-slate-800">
-            {recipients.map((recipient) => recipient.email).join(", ") || "you"}
-          </dd>
+        <div className="mail-reader-meta">
+          <div className="mail-reader-sender-row">
+            <div className="mail-reader-avatar shrink-0">
+              <img
+                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(sender)}&background=3949AB&color=fff`}
+                alt=""
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+              {!thread.sender_email && (
+                <span className="text-xs font-medium">
+                  {sender.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div className="mail-reader-sender-info flex-1 min-w-0">
+              <span className="mail-reader-sender-name">{sender}</span>
+              <span className="mail-reader-sender-email">
+                &lt;{thread.sender_email}&gt;
+              </span>
+            </div>
+          </div>
 
-          {ccEmails.length > 0 && (
-            <>
-              <dt className="font-medium text-slate-500">Cc</dt>
-              <dd className="min-w-0 break-words text-slate-800">
-                {ccEmails.join(", ")}
-              </dd>
-            </>
+          {allRecipients.length > 0 && (
+            <div className="mail-reader-recipients">
+              <strong>To:</strong> {allRecipients.join(", ")}
+            </div>
           )}
 
-          {bccEmails.length > 0 && (
-            <>
-              <dt className="font-medium text-slate-500">Bcc</dt>
-              <dd className="min-w-0 break-words text-slate-800">
-                {bccEmails.join(", ")}
-              </dd>
-            </>
-          )}
-
-          <dt className="font-medium text-slate-500">Sent</dt>
-          <dd className="text-slate-800">
+          <div className="mail-reader-meta-row">
+            <span className="label">Sent</span>
             <time dateTime={thread.created_at}>
               {formatTimestamp(thread.created_at)}
             </time>
-          </dd>
-        </dl>
+          </div>
+        </div>
       </header>
 
-      {digest && (
-        <section
-          id="mail-summary-panel"
-          aria-label="Message summary"
-          className="rounded-xl border border-teal-200 bg-[var(--color-primary-soft)]/50 p-5"
-        >
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--color-primary-strong)]">
-            <FontAwesomeIcon icon={faListUl} aria-hidden="true" />
-            Message summary
-          </h3>
-
-          <dl className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <dt className="text-slate-600">Type</dt>
-              <dd className="font-medium text-slate-900">{digest.intent}</dd>
-            </div>
-            <div className="flex items-center gap-2">
-              <dt className="text-slate-600">Length</dt>
-              <dd className="flex items-center gap-1.5 font-medium text-slate-900">
-                <FontAwesomeIcon icon={faClock} className="text-xs text-slate-500" aria-hidden="true" />
-                {digest.wordCount} words · about {digest.readingMinutes} min read
-              </dd>
-            </div>
-          </dl>
-
-          {digest.keyPoints.length > 0 && (
-            <ul className="mt-4 space-y-2">
-              {digest.keyPoints.map((point, index) => (
-                <li
-                  key={index}
-                  className="flex gap-2.5 text-sm leading-relaxed text-slate-800"
-                >
-                  <FontAwesomeIcon
-                    icon={faCircleInfo}
-                    className="mt-1 shrink-0 text-xs text-[var(--color-primary)]"
-                    aria-hidden="true"
-                  />
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <p className="mt-4 flex items-start gap-2 text-xs text-slate-600">
-            <FontAwesomeIcon
-              icon={faTriangleExclamation}
-              className="mt-0.5 shrink-0"
-              aria-hidden="true"
-            />
-            <span>
-              Extracted on this device from the sentences in this message. No
-              content is generated or sent to an external service.
-            </span>
-          </p>
-        </section>
-      )}
-
-      <div className="whitespace-pre-wrap text-base leading-7 text-slate-700">
-        {thread.body}
+      {/* AI actions bar */}
+      <div className="border-t border-[var(--color-mail-border)] bg-[var(--color-mail-reader-header-bg)] px-4 py-3 shrink-0">
+        <MailAIActions
+          body={thread.body}
+          onSummarize={() => onSummarize()}
+          onSmartReply={() => onReply()}
+          onExtractActionItems={() => {}}
+          digest={digest}
+          busy={busy || isSummarizing}
+        />
       </div>
 
+      {/* Message body */}
+      <div className="mail-reader-body">
+        {thread.body ? (
+          <RichTextDisplay
+            content={thread.body}
+            className="max-w-none"
+          />
+        ) : (
+          <div className="mail-reader-body-empty">
+            <div className="mail-reader-empty-icon">
+              <FontAwesomeIcon icon={faEnvelope} className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <h3 className="mail-reader-empty-title">No message content</h3>
+            <p className="mail-reader-empty-desc">
+              This message has no body content.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Attachments */}
       {attachments.length > 0 && (
-        <section aria-label="Attachments" className="border-t border-slate-200 pt-5">
-          <h3 className="mb-3 text-sm font-semibold text-slate-900">
-            Attachments ({attachments.length})
-          </h3>
-          <ul className="grid gap-2 sm:grid-cols-2">
+        <section className="mail-reader-attachments">
+          <div className="mail-reader-attachments-header">
+            <span className="mail-reader-attachments-title">
+              Attachments ({attachments.length})
+            </span>
+          </div>
+          <ul className="mail-reader-attachment-list">
             {attachments.map((attachment, index) => (
-              <li
-                key={`${mailAttachmentName(attachment)}-${index}`}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 px-3.5 py-3 text-sm text-slate-700"
-              >
+              <li key={index} className="mail-reader-attachment-item">
                 <FontAwesomeIcon
                   icon={faPaperclip}
-                  className="shrink-0 text-slate-400"
+                  className="mail-reader-attachment-icon"
                   aria-hidden="true"
                 />
-                <span className="min-w-0 truncate">
-                  {mailAttachmentName(attachment)}
-                </span>
+                <div className="mail-reader-attachment-info">
+                  <span className="mail-reader-attachment-name">
+                    {mailAttachmentName(attachment)}
+                  </span>
+                  <span className="mail-reader-attachment-meta">
+                    {attachment.type ? attachment.type.toUpperCase() : ""}
+                    {attachment.size && attachment.type ? " · " : ""}
+                    {attachment.size ? `${Number(attachment.size) / 1024} KB` : ""}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="mail-reader-attachment-download"
+                  aria-label={`Download ${mailAttachmentName(attachment)}`}
+                >
+                  <FontAwesomeIcon icon={faPaperPlane} className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
               </li>
             ))}
           </ul>

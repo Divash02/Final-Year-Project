@@ -588,7 +588,8 @@ export const NoticesView: React.FC = () => {
             return (
               <article
                 key={notice.id}
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs"
+                className="relative rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition hover:border-[var(--color-primary)] hover:shadow-sm"
+                onClick={() => setDetail(notice)}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -654,7 +655,7 @@ export const NoticesView: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                  <div className="flex shrink-0 flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => setDetail(notice)}

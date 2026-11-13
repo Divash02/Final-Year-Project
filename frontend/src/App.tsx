@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useState, useCallback } from "react";
+﻿import React, { Suspense, lazy, useEffect, useState, useCallback } from "react";
 import { AuthUser } from "./types";
 import { CollegeOSProvider, useCollegeOS } from "./context/CollegeOSContext";
 import { ToastProvider, useToast } from "./components/ui/ToastContainer";
@@ -158,6 +158,42 @@ const CodingLabWorkspace = lazyModule(
   () => import("./components/modules/coding/CodingLabWorkspace"),
   (m) => m.CodingLabWorkspace,
 );
+const FacultyAssessmentWorkspaceView = lazyModule(
+  () => import("./components/modules/FacultyAssessmentWorkspaceView"),
+  (m) => m.FacultyAssessmentWorkspaceView,
+);
+const StudentProgressView = lazyModule(
+  () => import("./components/modules/StudentProgressView"),
+  (m) => m.StudentProgressView,
+);
+const LessonPlanningView = lazyModule(
+  () => import("./components/modules/LessonPlanningView"),
+  (m) => m.LessonPlanningView,
+);
+const StudentAdvisingView = lazyModule(
+  () => import("./components/modules/StudentAdvisingView"),
+  (m) => m.StudentAdvisingView,
+);
+const LeaveSubstitutionView = lazyModule(
+  () => import("./components/modules/LeaveSubstitutionView"),
+  (m) => m.LeaveSubstitutionView,
+);
+const FacultyWorkloadView = lazyModule(
+  () => import("./components/modules/FacultyWorkloadView"),
+  (m) => m.FacultyWorkloadView,
+);
+const ResearchProjectsView = lazyModule(
+  () => import("./components/modules/ResearchProjectsView"),
+  (m) => m.ResearchProjectsView,
+);
+const FacultyAlertsView = lazyModule(
+  () => import("./components/modules/FacultyAlertsView"),
+  (m) => m.FacultyAlertsView,
+);
+const ResourceBookingView = lazyModule(
+  () => import("./components/modules/ResourceBookingView"),
+  (m) => m.ResourceBookingView,
+);
 const HRDashboardView = lazyModule(
   () => import("./components/modules/hr/HRDashboardView"),
   (m) => m.HRDashboardView,
@@ -201,6 +237,42 @@ const CampusFacilitiesExtendedView = lazyModule(
 const NotificationsPage = lazyModule(
   () => import("./components/modules/NotificationsPage"),
   (m) => m.NotificationsPage,
+);
+const EarlyWarningView = lazyModule(
+  () => import("./components/modules/early-warning/EarlyWarningView"),
+  (m) => m.EarlyWarningView,
+);
+const StudyPlannerView = lazyModule(
+  () => import("./components/modules/study-planner/StudyPlannerView"),
+  (m) => m.StudyPlannerView,
+);
+const StudentJourneyView = lazyModule(
+  () => import("./components/modules/student-life/StudentJourneyView"),
+  (m) => m.StudentJourneyView,
+);
+const InternshipManagementView = lazyModule(
+  () => import("./components/modules/internship/InternshipManagementView"),
+  (m) => m.InternshipManagementView,
+);
+const ResearchProjectsViewNew = lazyModule(
+  () => import("./components/modules/research/ResearchProjectsView"),
+  (m) => m.ResearchProjectsView,
+);
+const DigitalCredentialsView = lazyModule(
+  () => import("./components/modules/credentials/DigitalCredentialsView"),
+  (m) => m.DigitalCredentialsView,
+);
+const CampusSafetyView = lazyModule(
+  () => import("./components/modules/safety/CampusSafetyView"),
+  (m) => m.CampusSafetyView,
+);
+const ReportIncidentView = lazyModule(
+  () => import("./components/modules/safety/ReportIncidentView"),
+  (m) => m.ReportIncidentView,
+);
+const GraduationConvocationView = lazyModule(
+  () => import("./components/modules/graduation/GraduationConvocationView"),
+  (m) => m.GraduationConvocationView,
 );
 const ReceiptModal = lazyModule(
   () => import("./components/common/ReceiptModal"),
@@ -257,9 +329,9 @@ const AppContent: React.FC = () => {
     setIntendedDestination,
   } = useCollegeOS();
   // Welcome-experience state:
-  //  "splash"   — cinematic intro playing
-  //  "welcome"  — public landing page visible
-  //  "login"    — visitor clicked "Enter CollegeOS", show LoginView
+  //  "splash"   â€” cinematic intro playing
+  //  "welcome"  â€” public landing page visible
+  //  "login"    â€” visitor clicked "Enter CollegeOS", show LoginView
   const pathname = window.location.pathname;
   const isRootPath = pathname === "/";
   const splashAlreadyShown =
@@ -271,7 +343,7 @@ const AppContent: React.FC = () => {
       if (pathname === "/login") return "login";
       if (isRootPath && !splashAlreadyShown) return "splash";
       if (isRootPath) return "welcome";
-      return "login"; // non-root path → go straight to login
+      return "login"; // non-root path â†’ go straight to login
     },
   );
 
@@ -279,7 +351,7 @@ const AppContent: React.FC = () => {
     try {
       sessionStorage.setItem(SPLASH_SESSION_KEY, "1");
     } catch {
-      // sessionStorage may be blocked in some contexts — harmless
+      // sessionStorage may be blocked in some contexts â€” harmless
     }
     setPublicStage("welcome");
   }, []);
@@ -310,12 +382,12 @@ const AppContent: React.FC = () => {
         aria-label="Restoring session"
       >
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
-        <p className="sr-only">Restoring your session…</p>
+        <p className="sr-only">Restoring your sessionâ€¦</p>
       </div>
     );
   }
 
-  // ── Public welcome experience (unauthenticated visitors at "/") ──────────
+  // â”€â”€ Public welcome experience (unauthenticated visitors at "/") â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!isAuthenticated && !loginTransition) {
     // Splash screen
     if (publicStage === "splash") {
@@ -327,11 +399,11 @@ const AppContent: React.FC = () => {
       return <WelcomePage onEnterPortal={handleEnterPortal} />;
     }
 
-    // "login" stage — visitor clicked "Enter CollegeOS"
+    // "login" stage â€” visitor clicked "Enter CollegeOS"
     return <LoginView onLoginSuccess={intendedDestination} />;
   }
 
-  // ── Login transition overlay ──────────────────────────────────────────────
+  // â”€â”€ Login transition overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (loginTransition) {
     return (
       <LoginView
@@ -341,40 +413,58 @@ const AppContent: React.FC = () => {
     );
   }
 
-   const permissionByView: Record<string, string> = {
-     user_management: "accounts.manage",
-     students: "students.directory.view",
-     admissions: "admissions.application.view",
-     finance: "finance.invoice.view",
-     examination: "exams.view",
-     assignments: "assignments.view",
-     lms: "lms.view",
-     learning: "courses.view",
-     materials: "courses.view",
-     timetable_attendance: "timetable.view",
-     my_timetable: "timetable.view",
-     attendance_sheet: "attendance.view",
-     examinations_calendar: "timetable.view",
-     calendar_documents: "calendar.view",
-     communication: "mail.view",
-     messages: "messages.view",
+const permissionByView: Record<string, string> = {
+      user_management: "accounts.manage",
+      students: "students.directory.view",
+      admissions: "admissions.application.view",
+      finance: "finance.invoice.view",
+      examination: "exams.view",
+      assignments: "assignments.view",
+      lms: "lms.view",
+      learning: "courses.view",
+      materials: "courses.view",
+      timetable_attendance: "timetable.view",
+      my_timetable: "timetable.view",
+      attendance_sheet: "attendance.view",
+      examinations_calendar: "timetable.view",
+      calendar_documents: "calendar.view",
+      communication: "mail.view",
+      messages: "messages.view",
       notices: "notices.view",
       connect: "connect.view",
       documents: "documents.view",
-     library: "library.view",
-     facilities_library: "facilities.view",
-     campus_facilities_ext: "facilities.view",
-     campus_buildings: "facilities.view",
-     campus_labs: "facilities.view",
-     campus_reservations: "facilities.view",
-     campus_maintenance: "facilities.view",
-     campus_assets: "facilities.view",
-     campus_transport: "facilities.view",
-     analytics: "analytics.view",
-     student_coding_lab: "coding.lab.view",
-     teacher_coding_lab: "coding.lab.view",
+      library: "library.view",
+      facilities_library: "facilities.view",
+      campus_facilities_ext: "facilities.view",
+      campus_buildings: "facilities.view",
+      campus_labs: "facilities.view",
+      campus_reservations: "facilities.view",
+      campus_maintenance: "facilities.view",
+      campus_assets: "facilities.view",
+      campus_transport: "facilities.view",
+      analytics: "analytics.view",
+      student_coding_lab: "coding.lab.view",
+      teacher_coding_lab: "coding.lab.view",
       quizzes: "lms.quiz.manage",
+      faculty_assessment: "grade.enter",
+      student_progress: "attendance.view.course",
+      lesson_planning: "lms.content.manage",
+      student_advising: "student.view.assigned",
+      leave_substitution: "attendance.session.create",
+      faculty_workload: "lms.view",
+      research_projects: "lms.view",
+      faculty_alerts: "attendance.view.course",
+      resource_booking: "facilities.view",
       smart_documents: "documents.view",
+      early_warning: "earlyWarning.view",
+      study_planner: "studyPlanner.view",
+      student_journey: "studentJourney.view",
+      internship: "internship.view",
+      research: "research.view",
+      credentials: "credentials.view",
+      safety: "safety.view",
+      report_incident: "safety.report",
+      graduation: "graduation.view",
     };
   const requiredPermission = permissionByView[activeView];
   if (
@@ -434,6 +524,30 @@ const AppContent: React.FC = () => {
 
        case "quizzes":
          return <QuizManagementWorkspace />;
+
+      case "faculty_assessment":
+        return <FacultyAssessmentWorkspaceView />;
+
+      case "student_progress":
+        return <StudentProgressView />;
+
+      case "lesson_planning":
+        return <LessonPlanningView />;
+
+      case "student_advising":
+        return <StudentAdvisingView />;
+
+      case "leave_substitution":
+        return <LeaveSubstitutionView />;
+
+      case "faculty_workload":
+        return <FacultyWorkloadView />;
+
+      case "research_projects":
+        return <ResearchProjectsView />;
+
+      case "resource_booking":
+        return <ResourceBookingView />;
 
       case "learning":
         return isStudentAccount(currentUser) ? (
@@ -537,6 +651,33 @@ const AppContent: React.FC = () => {
 
       case "student_lifecycle":
         return <StudentLifecycleView />;
+
+      case "early_warning":
+        return <EarlyWarningView />;
+
+      case "study_planner":
+        return <StudyPlannerView />;
+
+      case "student_journey":
+        return <StudentJourneyView />;
+
+      case "internship":
+        return <InternshipManagementView />;
+
+      case "research":
+        return <ResearchProjectsViewNew />;
+
+      case "credentials":
+        return <DigitalCredentialsView />;
+
+      case "safety":
+        return <CampusSafetyView />;
+
+      case "report_incident":
+        return <ReportIncidentView />;
+
+      case "graduation":
+        return <GraduationConvocationView />;
 
       case "campus_facilities_ext":
       case "campus_buildings":

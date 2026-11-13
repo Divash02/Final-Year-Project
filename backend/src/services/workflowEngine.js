@@ -182,7 +182,7 @@ async function resolveStepApprovers(definition, step, requesterId) {
 
 import { emitForNotificationUsers } from "./notificationService.js";
 
-async function createNotifications(users, title, message, idempotencyKey, extra = {}) {
+export async function createNotifications(users, title, message, idempotencyKey, extra = {}) {
   if (!users.length) return;
   const docs = users.map((user) => ({
     user: user._id,

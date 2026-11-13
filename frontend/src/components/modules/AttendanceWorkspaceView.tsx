@@ -19,7 +19,6 @@ import {
   fetchMyAttendance,
   createAttendanceSession,
   saveRegisterApi,
-  closeSession as closeSessionApi,
   correctAttendance,
   requestQrToken,
   checkInWithQr,
@@ -42,7 +41,6 @@ import {
   faQrcode,
   faRotate,
   faSearch,
-  faStop,
   faTriangleExclamation,
   faUserCheck,
   faUsers,
@@ -122,7 +120,6 @@ export const AttendanceWorkspaceView: React.FC = () => {
   const canStartSession = permissions.has("attendance.session.create");
   const canMark = permissions.has("attendance.manual_mark");
   const canCorrect = permissions.has("attendance.edit");
-  const canCloseSession = permissions.has("attendance.session.close");
   const canViewQr = permissions.has("attendance.session.create");
 
   const [context, setContext] = useState<AttendanceContext | null>(null);
@@ -461,37 +458,39 @@ export const AttendanceWorkspaceView: React.FC = () => {
         remarks: remarks[student.studentMongoId] || "",
       }));
       const result = await saveRegisterApi(activeSession.id, payload);
-      setNotice(
+      const savedMessage =
         `${result.savedCount} attendance mark(s) saved${
           result.clearedCount > 0 ? `, ${result.clearedCount} cleared` : ""
-        } for ${activeSession.courseCode}.`,
-      );
-      setSaveState("saved");
-      await Promise.all([loadSessionDetail(activeSession.id), loadSessions()]);
-      window.setTimeout(() => setSaveState("idle"), 3000);
+        } for ${activeSession.courseCode}.`;
+      
+      // Check if session was automatically closed by backend
+      if (result.sessionClosed) {
+        setNotice(`${savedMessage} Session closed automatically.`);
+        setSaveState("saved");
+        await loadSessions();
+        // Redirect to landing page by clearing active session and showing setup
+        setActiveSession(null);
+        setShowSetup(true);
+        setRoster([]);
+        setMarks({});
+        setRemarks({});
+        setPreviousMarks({});
+        setPreviousRemarks({});
+        setUndoStack([]);
+        setQrCredential(null);
+        setShowQr(false);
+        window.setTimeout(() => setSaveState("idle"), 3000);
+      } else {
+        setNotice(savedMessage);
+        setSaveState("saved");
+        await Promise.all([loadSessionDetail(activeSession.id), loadSessions()]);
+        window.setTimeout(() => setSaveState("idle"), 3000);
+      }
     } catch (requestError: unknown) {
       setError(
         errorMessage(requestError, "Unable to save attendance. Please try again."),
       );
       setSaveState("error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const closeSession = async () => {
-    if (!activeSession) return;
-    setBusy(true);
-    try {
-      await closeSessionApi(activeSession.id);
-      setQrCredential(null);
-      setShowQr(false);
-      setNotice("Attendance session closed and saved to history.");
-      setActiveSession(null);
-      setShowSetup(true);
-      await loadSessions();
-    } catch (requestError: unknown) {
-      setError(errorMessage(requestError, "Could not close the attendance session."));
     } finally {
       setBusy(false);
     }
@@ -703,7 +702,7 @@ export const AttendanceWorkspaceView: React.FC = () => {
         </div>
         {activeSession &&
           activeSession.status === "OPEN" &&
-          (canViewQr || canCloseSession) && (
+          canViewQr && (
           <div className="flex flex-wrap gap-2">
             {canViewQr && (
               <button
@@ -714,17 +713,6 @@ export const AttendanceWorkspaceView: React.FC = () => {
               >
                 <FontAwesomeIcon icon={faQrcode} aria-hidden="true" />
                 Attendance code
-              </button>
-            )}
-            {canCloseSession && (
-              <button
-                type="button"
-                onClick={() => void closeSession()}
-                disabled={busy}
-                className="cos-btn cos-btn-secondary"
-              >
-                <FontAwesomeIcon icon={faStop} aria-hidden="true" />
-                Close Session
               </button>
             )}
           </div>

@@ -10,6 +10,7 @@ import {
   Staff,
   CourseWeek,
   Notice,
+  CampusIncident,
 } from "../models/index.js";
 import { requireAuth } from "../middleware/auth.js";
 import { route, notFound } from "../utils/apiError.js";
@@ -95,6 +96,8 @@ async function canReadFile(req, stored) {
       return canReadDocument(req, stored);
     case "notice_attachment":
       return canReadNoticeAttachment(req, stored);
+    case "campus_incident":
+      return canReadIncidentFile(req, stored);
     case "avatar":
       // Profile photos are institutional directory images already served as
       // static assets; the stored-file route allows the signed-in account only.
@@ -238,4 +241,28 @@ async function canReadNoticeAttachment(req, stored) {
 
   const context = await getAudienceContext(req.user);
   return audienceMatchesStudent(notice.audience, context);
+}
+
+/**
+ * Incident evidence files are readable by the student who owns the incident and
+ * by authorised staff who may view the incident itself. Knowing a file id is
+ * never enough to reach another student's evidence.
+ */
+async function canReadIncidentFile(req, stored) {
+  const incident = await CampusIncident.findById(stored.relatedId).lean();
+  if (!incident) return false;
+  const actorId = String(req.user._id || req.user.id);
+  const roles = getUserRoles(req.user);
+
+  // The reporting student may access files on their own incident.
+  if (String(incident.reportedBy) === actorId) return true;
+
+  // Authorised staff may access evidence on incidents they are entitled to view.
+  const CONFIDENTIAL_ACCESS_ROLES = ["security_staff", "campus_admin", "super_admin", "dean", "registrar"];
+  if (roles.some((role) => CONFIDENTIAL_ACCESS_ROLES.includes(role))) return true;
+
+  // Assigned staff member may access evidence on their assigned incident.
+  if (incident.assignedTo && String(incident.assignedTo) === actorId) return true;
+
+  return false;
 }
