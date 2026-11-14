@@ -2,91 +2,54 @@
 import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { registerHealthRoutes } from "./routes/health.js";
-import { registerAuthRoutes } from "./routes/auth.js";
-import { registerAdministrationRoutes } from "./routes/administration.js";
-import { registerAcademicsRoutes } from "./routes/academics.js";
-import { registerAcademicCalendarRoutes } from "./routes/calendar.js";
-import { registerLearningMaterialRoutes } from "./routes/materials.js";
-import { registerAssignmentRoutes } from "./routes/assignments.js";
-import { registerLmsRoutes } from "./routes/lms.js";
-import { registerQuizRoutes } from "./routes/quizzes.js";
-import { registerTimetableRoutes } from "./routes/timetable.js";
-import { registerMyTimetableRoutes } from "./routes/myTimetable.js";
-import { registerFileRoutes } from "./routes/files.js";
-import { registerNoticesRoutes } from "./routes/notices.js";
-import { registerCommunicationRoutes } from "./routes/communication.js";
-import { registerWorkflowRoutes } from "./routes/workflow.js";
-import { registerReportingRoutes } from "./routes/reporting.js";
-import { registerAdvancedAnalyticsRoutes } from "./routes/advancedAnalytics.js";
-import { registerProfileRoutes } from "./routes/profile.js";
-import { registerDepartmentalRoutes } from "./routes/departmental.js";
-import { registerAttendanceRoutes } from "./routes/attendance.js";
-import { registerFinanceRoutes } from "./routes/finance.js";
-import { registerAdmissionsRoutes } from "./routes/admissions.js";
-import { registerExaminationRoutes } from "./routes/examinations.js";
-import { registerExamSeatingRoutes } from "./routes/examSeating.js";
-import { registerCodingRoutes } from "./routes/coding.js";
-import { registerAssessmentRoutes } from "./routes/assessments.js";
-import { registerAIRoutes } from "./routes/ai.js";
-import { registerHRRoutes } from "./routes/hr.js";
-import { registerLibraryRoutes } from "./routes/library.js";
-import { registerFolderRoutes } from "./routes/folders.js";
-import { registerDocumentRoutes } from "./routes/documents.js";
-import { registerFacilitiesRoutes } from "./routes/facilities.js";
-import { registerConnectRoutes } from "./routes/connect.js";
-import { registerFacultyProgressRoutes } from "./routes/facultyProgress.js";
-import { registerLessonPlanningRoutes } from "./routes/lessonPlanning.js";
-import { registerStudentAdvisingRoutes } from "./routes/studentAdvising.js";
-import { registerLeaveSubstitutionRoutes } from "./routes/leaveSubstitution.js";
-import { registerFacultyWorkloadRoutes } from "./routes/facultyWorkload.js";
-import { registerFacultyProjectsRoutes } from "./routes/facultyProjects.js";
-import { registerFacultyAlertsRoutes } from "./routes/facultyAlerts.js";
-import { registerEarlyWarningRoutes } from "./routes/earlyWarning.js";
-import { registerStudyPlannerRoutes } from "./routes/studyPlanner.js";
-import { registerStudentJourneyRoutes } from "./routes/studentJourney.js";
-import { registerInternshipRoutes } from "./routes/internship.js";
-import { registerResearchRoutes } from "./routes/research.js";
-import { registerDigitalCredentialsRoutes } from "./routes/digitalCredentials.js";
-import { registerCampusSafetyRoutes } from "./routes/campusSafety.js";
-import { registerGraduationRoutes } from "./routes/graduation.js";
+import { registerRoutes } from "./routes/index.js";
+import { requestContext } from "./middleware/requestContext.js";
+import { securityHeaders } from "./middleware/securityHeaders.js";
+import { authRateLimiter } from "./middleware/rateLimit.js";
 import { toErrorResponse } from "./utils/apiError.js";
-import { hashToken } from "./db.js";
+import { logger } from "./utils/logger.js";
+import { env } from "./config/environment.js";
+import { hashToken } from "./utils/token.js";
 import { Session } from "./models/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.resolve(__dirname, "../uploads");
-  const signatureDir = path.join(uploadsDir, "signatures");
+const signatureDir = path.join(uploadsDir, "signatures");
 
+/**
+ * Application bootstrap.
+ *
+ * Responsibilities are intentionally narrow: express construction, global
+ * middleware, security policy, one call to the centralized route registry and
+ * the central error boundary. Domain business logic lives in `routes/`,
+ * `controllers/`, `services/` and `models/`.
+ */
 export function createApp() {
   const app = express();
   app.disable("x-powered-by");
-
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://localhost:5173")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
 
   const corsOptions = {
     origin: (origin, callback) => {
       // Allow non-browser requests (curl, Postman, etc.) where origin is undefined
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (env.allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error("Not allowed by CORS policy"), false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-csrf-token", "X-CSRF-Token"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-csrf-token", "X-CSRF-Token", "X-Request-Id"],
   };
 
   app.use(cors(corsOptions));
+  app.use(securityHeaders);
+  app.use(requestContext);
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-  // Only profile photos are delivered as ordinary static assets: they are
-  // non-sensitive institutional directory images. Every other stored file â€”
-  // calendar attachments, learning materials, assignment submissions,
-  // documents â€” is served through the authenticated, entitlement-checked
-  // `/api/files/:id` route instead.
+
+  // Only profile photos and signatures are delivered as ordinary static assets:
+  // they are non-sensitive institutional directory images. Every other stored
+  // file is served through the authenticated, entitlement-checked `/api/files/:id`
+  // route instead.
   app.use(
     "/uploads/signatures",
     express.static(signatureDir, {
@@ -114,7 +77,12 @@ export function createApp() {
     }),
   );
 
-  registerHealthRoutes(app);
+  // Unauthenticated, mutating auth endpoints are the credential-guessing
+  // surface: rate-limit them by client before any handler runs.
+  app.use(
+    ["/api/auth/login", "/api/auth/forgot-password", "/api/auth/reset-password"],
+    authRateLimiter,
+  );
 
   // CSRF protection for state-changing, authenticated API requests. CollegeOS
   // bears its session token in localStorage (not a cookie), so a cross-site
@@ -149,59 +117,7 @@ export function createApp() {
     }
   });
 
-  registerAuthRoutes(app);
-  registerAdministrationRoutes(app);
-  registerAcademicsRoutes(app);
-  registerAcademicCalendarRoutes(app);
-  registerLearningMaterialRoutes(app);
-  registerAssignmentRoutes(app);
-  // The weekly planner and the quiz runtime share one authorisation service, so
-  // they are registered together and before the reporting reads that summarise
-  // their records.
-  registerLmsRoutes(app);
-  registerQuizRoutes(app);
-  registerTimetableRoutes(app);
-  registerMyTimetableRoutes(app);
-  registerFileRoutes(app);
-  registerNoticesRoutes(app);
-  registerCommunicationRoutes(app);
-  registerWorkflowRoutes(app);
-  registerReportingRoutes(app);
-  registerAdvancedAnalyticsRoutes(app);
-  registerFinanceRoutes(app);
-  registerAdmissionsRoutes(app);
-  registerAssessmentRoutes(app);
-  // Seating routes register before the examination routes so the
-  // literal `/api/exams/seating...` and `/api/exams/venues` paths
-  // are never captured by the examination module's `/api/exams/:id`.
-  registerExamSeatingRoutes(app);
-  registerExaminationRoutes(app);
-  registerProfileRoutes(app);
-  registerDepartmentalRoutes(app);
-  registerAttendanceRoutes(app);
-  registerCodingRoutes(app);
-  registerAIRoutes(app);
-  registerHRRoutes(app);
-  registerLibraryRoutes(app);
-  registerFolderRoutes(app);
-  registerDocumentRoutes(app);
-  registerFacilitiesRoutes(app);
-  registerConnectRoutes(app);
-  registerFacultyProgressRoutes(app);
-  registerLessonPlanningRoutes(app);
-  registerStudentAdvisingRoutes(app);
-  registerLeaveSubstitutionRoutes(app);
-  registerFacultyWorkloadRoutes(app);
-  registerFacultyProjectsRoutes(app);
-  registerFacultyAlertsRoutes(app);
-  registerEarlyWarningRoutes(app);
-  registerStudyPlannerRoutes(app);
-  registerStudentJourneyRoutes(app);
-  registerInternshipRoutes(app);
-  registerResearchRoutes(app);
-  registerDigitalCredentialsRoutes(app);
-  registerCampusSafetyRoutes(app);
-  registerGraduationRoutes(app);
+  registerRoutes(app);
 
   // Unknown API routes answer in the same structured shape as every other
   // error, so the frontend never has to special-case a bare HTML 404.
@@ -209,6 +125,7 @@ export function createApp() {
     res.status(404).json({
       error: "This CollegeOS endpoint does not exist.",
       code: "NOT_FOUND",
+      requestId: req.requestId,
     });
   });
 
@@ -222,12 +139,21 @@ export function createApp() {
     }
     const { status, body } = toErrorResponse(error, {
       logContext: `${req.method} ${req.originalUrl}`,
+      requestId: req.requestId,
     });
     if (status >= 500) {
-      console.error(`${req.method} ${req.originalUrl} failed:`, error);
+      logger.error("unhandled_error", {
+        requestId: req.requestId,
+        method: req.method,
+        path: req.originalUrl,
+        message: error?.message,
+        stack: error?.stack,
+      });
     }
     res.status(status).json(body);
   });
 
   return app;
 }
+
+export default createApp;

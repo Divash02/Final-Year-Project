@@ -127,19 +127,25 @@ export const EmailSignatureSettingsView: React.FC = () => {
     setStrokes((s) => [...s, img]);
     ctx.putImageData(img, 0, 0);
   };
+  const uploadSignatureImage = async (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const data = await apiRequest<{ imageUrl: string }>("/users/me/signature/image", {
+      method: "POST",
+      body: form,
+    });
+    if (data.imageUrl) setHandwrittenUrl(data.imageUrl);
+  };
+
   const saveDrawing = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) return;
     const file = new File([blob], "signature.png", { type: "image/png" });
-    const form = new FormData();
-    form.append("file", file);
     setUploading(true);
     try {
-      const res = await fetch("/api/users/me/signature/image", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: form });
-      const data = await res.json();
-      if (data.imageUrl) setHandwrittenUrl(data.imageUrl);
+      await uploadSignatureImage(file);
     } finally {
       setUploading(false);
     }
@@ -196,11 +202,7 @@ export const EmailSignatureSettingsView: React.FC = () => {
                 if (!file) return;
                 setUploading(true);
                 try {
-                  const form = new FormData();
-                  form.append("file", file);
-                  const res = await fetch("/api/users/me/signature/image", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: form });
-                  const data = await res.json();
-                  if (data.imageUrl) setHandwrittenUrl(data.imageUrl);
+                  await uploadSignatureImage(file);
                 } finally {
                   setUploading(false);
                 }

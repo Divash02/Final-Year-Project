@@ -1,7 +1,7 @@
 const configuredApiBase =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
 const normalizedApiBase = configuredApiBase.replace(/\/+$/, "");
-const API_BASE = /\/api$/i.test(normalizedApiBase)
+export const API_BASE = /\/api$/i.test(normalizedApiBase)
   ? normalizedApiBase
   : `${normalizedApiBase}/api`;
 
@@ -21,6 +21,24 @@ export function resolveAssetUrl(value?: string | null): string | undefined {
 
 function isFormData(body: BodyInit | null | undefined): boolean {
   return typeof FormData !== "undefined" && body instanceof FormData;
+}
+
+/** Session token storage keys. One definition so no component invents its own. */
+export const TOKEN_STORAGE_KEY = "collegeos_token";
+export const CSRF_STORAGE_KEY = "collegeos_csrf_token";
+
+/**
+ * Authorization headers for callers that cannot use `apiFetch` (for example
+ * an XMLHttpRequest upload that needs progress events). Every transport must
+ * source the token and CSRF value from here so there is one auth mechanism.
+ */
+export function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const csrf = localStorage.getItem(CSRF_STORAGE_KEY);
+  if (csrf) headers["X-CSRF-Token"] = csrf;
+  return headers;
 }
 
 /**
@@ -124,8 +142,8 @@ export async function apiFetch(
   options: ApiFetchOptions = {},
 ): Promise<Response> {
   const { skipSessionCheck, ...fetchOptions } = options;
-  const token = localStorage.getItem("collegeos_token");
-  const csrfToken = localStorage.getItem("collegeos_csrf_token");
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  const csrfToken = localStorage.getItem(CSRF_STORAGE_KEY);
   const isLoginRoute = /\/auth\/login\/?$/i.test(route);
   const headers = new Headers(fetchOptions.headers);
   // FormData bodies must keep the browser-generated multipart boundary, so the
@@ -183,6 +201,24 @@ export async function apiFetch(
      if (error instanceof ApiError) throw error;
      throw error instanceof Error ? error : new Error("Cannot reach the CollegeOS API. Restart the app with npm run dev.");
    }
+}
+
+/**
+ * Fetches a stored file (PDF/image/office) as a Blob through the central
+ * client, so the session token is attached and an expired session is handled
+ * exactly like any other API call. Inline viewers and downloads must use this
+ * instead of calling `fetch` directly.
+ */
+export async function fetchStoredFileBlob(fileId: string): Promise<Blob> {
+  const response = await apiFetch(`/files/${encodeURIComponent(fileId)}`);
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new ApiError(
+      data.error || `The file could not be loaded (HTTP ${response.status}).`,
+      response.status,
+    );
+  }
+  return response.blob();
 }
 
 export function apiUpload<T>(

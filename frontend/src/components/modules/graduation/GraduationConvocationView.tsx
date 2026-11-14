@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../../components/ui/ToastContainer";
 import { useCollegeOS } from "../../../context/CollegeOSContext";
+import { apiRequest } from "../../../services/apiClient";
 import {
   faGraduationCap,
   faUser,
@@ -228,9 +229,9 @@ export const GraduationConvocationView: React.FC = () => {
       params.append("page", String(filters.page));
       params.append("limit", String(filters.limit));
 
-      const res = await fetch(`/api/graduation/applications?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch applications");
-      const data = await res.json();
+      const data = await apiRequest<{ applications: Application[]; pagination: typeof pagination }>(
+        `/graduation/applications?${params}`,
+      );
       setApplications(data.applications);
       setPagination(data.pagination);
     } catch (err) {
@@ -241,9 +242,7 @@ export const GraduationConvocationView: React.FC = () => {
   const fetchEligibility = async () => {
     if (isStudent) {
       try {
-        const res = await fetch("/api/graduation/check-eligibility", { method: "POST" });
-        if (!res.ok) throw new Error("Failed to check eligibility");
-        const data = await res.json();
+        const data = await apiRequest<EligibilityResult>("/graduation/check-eligibility", { method: "POST" });
         setEligibility(data);
       } catch (err) {
         toast.error("Failed to check eligibility");
@@ -262,13 +261,10 @@ export const GraduationConvocationView: React.FC = () => {
 
   const handleCheckEligibility = async (studentId?: string) => {
     try {
-      const res = await fetch("/api/graduation/check-eligibility", {
+      const data = await apiRequest<EligibilityResult>("/graduation/check-eligibility", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId }),
       });
-      if (!res.ok) throw new Error("Failed to check eligibility");
-      const data = await res.json();
       setEligibility(data);
       setShowEligibilityModal(true);
     } catch (err) {
@@ -282,12 +278,10 @@ export const GraduationConvocationView: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch("/api/graduation/applications", {
+      await apiRequest("/graduation/applications", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ graduationCycle: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}` }),
       });
-      if (!res.ok) throw new Error("Failed to submit application");
       toast.success("Graduation application submitted");
       setShowEligibilityModal(false);
       fetchApplications();
@@ -299,12 +293,10 @@ export const GraduationConvocationView: React.FC = () => {
   const handleUpdateClearance = async (applicationId: string, clearanceTypeParam: string) => {
     try {
       const { clearanceType: _, ...restClearanceForm } = clearanceForm;
-      const res = await fetch(`/api/graduation/applications/${applicationId}/clearance`, {
+      await apiRequest(`/graduation/applications/${applicationId}/clearance`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clearanceType: clearanceTypeParam, ...restClearanceForm }),
       });
-      if (!res.ok) throw new Error("Failed to update clearance");
       toast.success("Clearance updated");
       setClearanceForm({ clearanceType: "", status: "APPROVED", remarks: "", documents: [] });
       fetchApplications();
@@ -317,12 +309,10 @@ export const GraduationConvocationView: React.FC = () => {
     const remarks = prompt("Remarks:");
     if (remarks === null) return;
     try {
-      const res = await fetch(`/api/graduation/applications/${applicationId}/final-approval`, {
+      await apiRequest(`/graduation/applications/${applicationId}/final-approval`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, remarks }),
       });
-      if (!res.ok) throw new Error("Failed to process approval");
       toast.success(`Application ${status === "GRADUATION_APPROVED" ? "approved" : "rejected"}`);
       fetchApplications();
     } catch (err) {
@@ -336,12 +326,10 @@ export const GraduationConvocationView: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`/api/graduation/applications/${applicationId}/certificate`, {
+      await apiRequest(`/graduation/applications/${applicationId}/certificate`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(certificateForm),
       });
-      if (!res.ok) throw new Error("Failed to generate certificate");
       toast.success("Certificate generated");
       setCertificateForm({ certificateNumber: "", issuedAt: new Date().toISOString().split("T")[0], certificateUrl: "", qrCodeData: "" });
       fetchApplications();
@@ -352,12 +340,10 @@ export const GraduationConvocationView: React.FC = () => {
 
   const handleConvocationAction = async (applicationId: string) => {
     try {
-      const res = await fetch(`/api/graduation/applications/${applicationId}/convocation`, {
+      await apiRequest(`/graduation/applications/${applicationId}/convocation`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(convocationForm),
       });
-      if (!res.ok) throw new Error("Failed to process convocation");
       toast.success("Convocation updated");
       setConvocationForm({ action: "register", ceremonyDate: "", venue: "", guestCount: 0, regaliaSize: "", specialRequests: "" });
       fetchApplications();

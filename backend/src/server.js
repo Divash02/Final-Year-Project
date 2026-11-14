@@ -11,6 +11,8 @@ const backendEnvPath = path.resolve(__dirname, "../.env");
 const backendEnvResult = dotenv.config({ path: backendEnvPath, override: false });
 
 import { initializeServerState } from "./db.js";
+import { disconnectDatabase, getConnectionHealth } from "./config/database.js";
+import { env } from "./config/environment.js";
 import { createApp } from "./app.js";
 import {
   startAcademicScheduler,
@@ -20,6 +22,11 @@ import {
   startWorkflowScheduler,
   stopWorkflowScheduler,
 } from "./services/workflowScheduler.js";
+import {
+  startAIJobWorker,
+  stopAIJobWorker,
+} from "./services/ai/aiJobService.js";
+import "./services/ai/aiJobHandlers.js";
 import { Server as SocketIOServer } from "socket.io";
 import { initializeConnectRealtime } from "./services/connectRealtime.js";
 import { initializeNotificationRealtime } from "./services/notificationRealtime.js";
@@ -51,9 +58,14 @@ function logSafeLiveKitDiagnostics() {
 
 logSafeLiveKitDiagnostics();
 
-const PORT = Number(process.env.PORT || 4000);
+const PORT = Number(process.env.PORT || env.port);
 fs.mkdirSync(path.resolve(__dirname, "../uploads"), { recursive: true });
-initializeServerState();
+await initializeServerState();
+
+const health = getConnectionHealth();
+console.log(
+  `[Database] ${health.state}${health.database ? ` (${health.database})` : ""}`,
+);
 
 const app = createApp();
 const server = http.createServer(app);
@@ -91,11 +103,26 @@ server.listen(PORT, () => {
 // window open or let a student submit late.
 startAcademicScheduler();
 startWorkflowScheduler();
+// Heavy AI work runs in the background worker, not on the request path.
+startAIJobWorker();
+
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Received ${signal}; shutting down gracefully...`);
+  stopAcademicScheduler();
+  stopWorkflowScheduler();
+  await stopAIJobWorker();
+  await new Promise((resolve) => server.close(resolve));
+  await disconnectDatabase().catch((error) => {
+    console.error("Error during database disconnect:", error.message);
+  });
+  process.exit(0);
+}
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
-    stopAcademicScheduler();
-    stopWorkflowScheduler();
-    server.close(() => process.exit(0));
+    void shutdown(signal);
   });
 }

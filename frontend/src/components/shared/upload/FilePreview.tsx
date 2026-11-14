@@ -9,10 +9,8 @@ import {
 import { Button } from "../../ui/Button";
 import { IconButton } from "../../ui/IconButton";
 import { downloadStoredFile } from "../../../services/uploadClient";
+import { fetchStoredFileBlob } from "../../../services/apiClient";
 import { canPreviewInline, formatBytes } from "./fileTypes";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
 
 export interface FilePreviewProps {
   /** Stored file id served by `/api/files/:id`. */
@@ -63,18 +61,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
     let url: string | null = null;
     (async () => {
       try {
-        const token = localStorage.getItem("collegeos_token");
-        const response = await fetch(`${API_BASE}/files/${fileId}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(
-            (body as { error?: string }).error ||
-              `Preview unavailable (HTTP ${response.status}).`,
-          );
-        }
-        const blob = await response.blob();
+        const blob = await fetchStoredFileBlob(fileId);
         if (revoked) return;
         url = URL.createObjectURL(blob);
         setObjectUrl(url);

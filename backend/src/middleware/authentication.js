@@ -1,10 +1,7 @@
-import {
-  verifyToken,
-  classifySession,
-  getUserById,
-  touchSession,
-  logAudit,
-} from "../db.js";
+import { verifyToken } from "../utils/token.js";
+import { classifySession, touchSession } from "../services/sessionService.js";
+import { getUserById } from "../services/identityService.js";
+import { logAudit } from "../services/auditService.js";
 import { getSessionPolicy } from "../config/sessionSecurity.js";
 
 /**

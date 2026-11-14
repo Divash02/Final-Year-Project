@@ -1,12 +1,14 @@
+import { fetchStoredFileBlob } from "../services/apiClient";
+
 /**
  * Authenticated inline document preview.
  *
  * Stored files are private: `/api/files/:id` authorises every
  * request against the record that owns the file. An inline
  * viewer therefore cannot use a plain URL — the bytes are
- * fetched with the session token and exposed to the viewer
- * through a short-lived object URL, which is revoked when
- * the viewer closes.
+ * fetched with the session token (through the central API client)
+ * and exposed to the viewer through a short-lived object URL,
+ * which is revoked when the viewer closes.
  */
 
 export type PreviewKind = "pdf" | "image" | "office" | "other";
@@ -47,9 +49,6 @@ export function formatBytes(bytes: number): string {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
-
 /**
  * Fetches a stored file with the session token and returns a
  * blob URL the browser can render inline. Callers must revoke
@@ -58,20 +57,8 @@ const API_BASE =
 export async function fetchPreviewUrl(
   fileId: string,
 ): Promise<{ url: string; mimeType: string }> {
-  const token = localStorage.getItem("collegeos_token");
-  const response = await fetch(`${API_BASE}/files/${fileId}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(
-      (body as { error?: string }).error ||
-        `The document could not be loaded (HTTP ${response.status}).`,
-    );
-  }
-  const blob = await response.blob();
-  const mimeType =
-    blob.type || response.headers.get("Content-Type") || "application/octet-stream";
+  const blob = await fetchStoredFileBlob(fileId);
+  const mimeType = blob.type || "application/octet-stream";
   return { url: URL.createObjectURL(blob), mimeType };
 }
 

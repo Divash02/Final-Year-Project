@@ -11,8 +11,7 @@
  * never has to guess whether an upload succeeded.
  */
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
+import { API_BASE, authHeaders, fetchStoredFileBlob } from "./apiClient";
 
 export interface UploadProgress {
   /** Bytes transferred so far, when the total is known. */
@@ -105,11 +104,11 @@ export function uploadWithProgress(
       reject(new Error("Upload cancelled."));
     });
 
-    const token = localStorage.getItem("collegeos_token");
-    const csrfToken = localStorage.getItem("collegeos_csrf_token");
     xhr.open("POST", `${API_BASE}${route}`, true);
-    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-    if (csrfToken) xhr.setRequestHeader("X-CSRF-Token", csrfToken);
+    const headers = authHeaders();
+    for (const [name, value] of Object.entries(headers)) {
+      xhr.setRequestHeader(name, value);
+    }
     xhr.send(form);
   });
 
@@ -131,18 +130,7 @@ export function uploadWithProgress(
  * id.
  */
 export async function fetchStoredFile(fileId: string): Promise<Blob> {
-  const token = localStorage.getItem("collegeos_token");
-  const response = await fetch(`${API_BASE}/files/${fileId}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(
-      (body as { error?: string }).error ||
-        `The file could not be loaded (HTTP ${response.status}).`,
-    );
-  }
-  return response.blob();
+  return fetchStoredFileBlob(fileId);
 }
 
 /**
@@ -157,18 +145,7 @@ export async function downloadStoredFile(
   fileId: string,
   filename: string,
 ): Promise<void> {
-  const token = localStorage.getItem("collegeos_token");
-  const response = await fetch(`${API_BASE}/files/${fileId}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(
-      (body as { error?: string }).error ||
-        `Download failed (HTTP ${response.status}).`,
-    );
-  }
-  const blob = await response.blob();
+  const blob = await fetchStoredFileBlob(fileId);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;

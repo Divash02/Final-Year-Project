@@ -1,4 +1,4 @@
-import { getStudentById, authorizeUser } from "../db.js";
+import { getStudentById, authorizeUser } from "../services/identityService.js";
 import { hasPermission } from "../permissions/catalog.js";
 
 /**

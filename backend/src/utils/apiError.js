@@ -53,10 +53,10 @@ export function route(handler) {
  * Client-safe error serialisation. Known `ApiError`s keep their message;
  * anything else is logged with full detail and reported as an opaque 500.
  */
-export function toErrorResponse(error, { logContext } = {}) {
-  const requestId = `req_${Date.now().toString(36)}${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
+export function toErrorResponse(error, { logContext, requestId } = {}) {
+  const resolvedRequestId =
+    requestId ||
+    `req_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
   if (error instanceof ApiError) {
     return {

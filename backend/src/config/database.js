@@ -1,17 +1,25 @@
 import mongoose from "mongoose";
+import { env } from "./environment.js";
 
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/collegeos";
+/**
+ * MongoDB connection lifecycle.
+ *
+ * This module owns the connection only: URI resolution, connect/retry,
+ * health state and graceful disconnect. It imports no models, no identity or
+ * role logic, and no Express request handling, so any layer can depend on it
+ * without creating a cycle.
+ */
+
+const MONGODB_URI = env.mongoUri;
+const MAX_RETRIES = 5;
+const RETRY_DELAY_MS = 3000;
 
 let isConnected = false;
 
 export async function connectDatabase() {
-  if (isConnected) {
+  if (isConnected && mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
-
-  const MAX_RETRIES = 5;
-  const RETRY_DELAY_MS = 3000;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -40,6 +48,31 @@ export async function connectDatabase() {
 
 export function getDbConnection() {
   return mongoose.connection;
+}
+
+/**
+ * Connection health for the `/api/health` endpoint and operational probes.
+ * `readyState` follows the driver: 0 disconnected, 1 connected, 2 connecting,
+ * 3 disconnecting.
+ */
+export function getConnectionHealth() {
+  const readyState = mongoose.connection.readyState;
+  const states = { 0: "disconnected", 1: "connected", 2: "connecting", 3: "disconnecting" };
+  return {
+    readyState,
+    state: states[readyState] || "unknown",
+    ok: readyState === 1,
+    database: mongoose.connection.name || null,
+  };
+}
+
+export async function disconnectDatabase() {
+  if (mongoose.connection.readyState === 0) {
+    isConnected = false;
+    return;
+  }
+  await mongoose.connection.close();
+  isConnected = false;
 }
 
 export { mongoose };

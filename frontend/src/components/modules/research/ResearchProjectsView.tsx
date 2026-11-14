@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useToast } from "../../../components/ui/ToastContainer";
 import { useCollegeOS } from "../../../context/CollegeOSContext";
+import { apiRequest } from "../../../services/apiClient";
 import {
   faGraduationCap,
   faUser,
@@ -152,9 +153,9 @@ export const ResearchProjectsView: React.FC = () => {
       params.append("page", String(filters.page));
       params.append("limit", String(filters.limit));
 
-      const res = await fetch(`/api/research/projects?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch projects");
-      const data = await res.json();
+      const data = await apiRequest<{ projects: ResearchProject[]; pagination: typeof pagination }>(
+        `/research/projects?${params}`,
+      );
       setProjects(data.projects);
       setPagination(data.pagination);
     } catch (err) {
@@ -168,8 +169,7 @@ export const ResearchProjectsView: React.FC = () => {
 
   const handleSubmitProposal = async (projectId: string) => {
     try {
-      const res = await fetch(`/api/research/projects/${projectId}/submit-proposal`, { method: "PATCH" });
-      if (!res.ok) throw new Error("Failed to submit proposal");
+      await apiRequest(`/research/projects/${projectId}/submit-proposal`, { method: "PATCH" });
       toast.success("Proposal submitted for review");
       fetchProjects();
     } catch (err) {
@@ -179,12 +179,10 @@ export const ResearchProjectsView: React.FC = () => {
 
   const handleReviewProposal = async (projectId: string, status: string, feedback: string) => {
     try {
-      const res = await fetch(`/api/research/projects/${projectId}/review-proposal`, {
+      await apiRequest(`/research/projects/${projectId}/review-proposal`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, feedback }),
       });
-      if (!res.ok) throw new Error("Failed to review proposal");
       toast.success("Proposal reviewed");
       fetchProjects();
     } catch (err) {
@@ -194,12 +192,10 @@ export const ResearchProjectsView: React.FC = () => {
 
   const handleCreateMilestone = async (projectId: string, milestone: Partial<Milestone>) => {
     try {
-      const res = await fetch(`/api/research/projects/${projectId}/milestones`, {
+      await apiRequest(`/research/projects/${projectId}/milestones`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(milestone),
       });
-      if (!res.ok) throw new Error("Failed to create milestone");
       toast.success("Milestone created");
       fetchProjects();
     } catch (err) {
@@ -209,12 +205,10 @@ export const ResearchProjectsView: React.FC = () => {
 
   const handleUpdateMilestone = async (milestoneId: string, updates: Partial<Milestone>) => {
     try {
-      const res = await fetch(`/api/research/milestones/${milestoneId}`, {
+      await apiRequest(`/research/milestones/${milestoneId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
-      if (!res.ok) throw new Error("Failed to update milestone");
       toast.success("Milestone updated");
       fetchProjects();
     } catch (err) {
@@ -224,12 +218,10 @@ export const ResearchProjectsView: React.FC = () => {
 
   const handleCreateMeeting = async (projectId: string, meeting: Partial<Meeting>) => {
     try {
-      const res = await fetch(`/api/research/projects/${projectId}/meetings`, {
+      await apiRequest(`/research/projects/${projectId}/meetings`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(meeting),
       });
-      if (!res.ok) throw new Error("Failed to create meeting");
       toast.success("Meeting scheduled");
       fetchProjects();
     } catch (err) {
@@ -239,8 +231,7 @@ export const ResearchProjectsView: React.FC = () => {
 
   const handleSubmitFinalReport = async (projectId: string) => {
     try {
-      const res = await fetch(`/api/research/projects/${projectId}/submit-final-report`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed to submit final report");
+      await apiRequest(`/research/projects/${projectId}/submit-final-report`, { method: "POST" });
       toast.success("Final report submitted");
       fetchProjects();
     } catch (err) {
@@ -250,12 +241,10 @@ export const ResearchProjectsView: React.FC = () => {
 
   const handleReviewFinalReport = async (projectId: string, status: string, feedback: string, externalExaminerId?: string, defenseDate?: string) => {
     try {
-      const res = await fetch(`/api/research/projects/${projectId}/review-final-report`, {
+      await apiRequest(`/research/projects/${projectId}/review-final-report`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, feedback, externalExaminerId, defenseDate }),
       });
-      if (!res.ok) throw new Error("Failed to review final report");
       toast.success("Final report reviewed");
       fetchProjects();
     } catch (err) {
@@ -265,12 +254,10 @@ export const ResearchProjectsView: React.FC = () => {
 
   const handleRecordDefense = async (projectId: string, defenseResult: string, finalGrade?: string, finalGradePoints?: number) => {
     try {
-      const res = await fetch(`/api/research/projects/${projectId}/defense-result`, {
+      await apiRequest(`/research/projects/${projectId}/defense-result`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ defenseResult, finalGrade, finalGradePoints }),
       });
-      if (!res.ok) throw new Error("Failed to record defense result");
       toast.success("Defense result recorded");
       fetchProjects();
     } catch (err) {

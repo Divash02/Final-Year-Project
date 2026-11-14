@@ -177,6 +177,7 @@ export {
 
 // AI Intelligence, Cybersecurity & Advanced IT Ecosystem
 export { AIActivityLog } from "./AIActivityLog.js";
+export { AIJob, AI_JOB_STATUSES } from "./AIJob.js";
 export { AnomalyAlert } from "./AnomalyAlert.js";
 export { ITAsset, ASSET_CATEGORIES, ASSET_STATUSES } from "./ITAsset.js";
 export { SoftwareLicense } from "./SoftwareLicense.js";
