@@ -177,7 +177,7 @@ export const CpuPerformanceChart: React.FC<CpuPerformanceChartProps> = ({
           </div>
           <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50">
             <div className="w-3 h-3 rounded-full bg-red-500" />
-            <span className="font-medium text-red-800">Critical: >80%</span>
+            <span className="font-medium text-red-800">Critical: &gt;80%</span>
           </div>
         </div>
       </div>

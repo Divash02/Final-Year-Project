@@ -28,9 +28,11 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 interface StudentOption {
   id: string;
   studentId: string;
-  fullName: string;
-  program: string;
-  semester: number;
+  fullName?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  program?: string | null;
+  semester?: number | null;
 }
 
 interface StudyPlan {
@@ -137,8 +139,19 @@ export const StudyPlannerView: React.FC = () => {
   const loadStudents = useCallback(async () => {
     if (isStudent) return;
     try {
-      const res = await apiRequest<{ students: StudentOption[] }>("/students");
-      setStudents(res.students || []);
+      const res = await apiRequest<{ students: StudentOption[] }>("/students?limit=200");
+      setStudents(
+        (res.students || []).map((student) => ({
+          id: student.id,
+          studentId: student.studentId,
+          fullName:
+            student.fullName ||
+            [student.firstName, student.lastName].filter(Boolean).join(" ") ||
+            student.studentId,
+          program: student.program || "",
+          semester: student.semester ?? 0,
+        }))
+      );
     } catch {
       // Fallback to master students from context
       setStudents(
@@ -146,8 +159,8 @@ export const StudyPlannerView: React.FC = () => {
           id: s.id,
           studentId: s.studentId,
           fullName: `${s.firstName} ${s.lastName}`,
-          program: s.program,
-          semester: s.semester,
+          program: s.programCode,
+          semester: s.currentSemester,
         }))
       );
     }

@@ -525,6 +525,9 @@ const permissionByView: Record<string, string> = {
        case "quizzes":
          return <QuizManagementWorkspace />;
 
+      case "faculty_alerts":
+        return <FacultyAlertsView />;
+
       case "faculty_assessment":
         return <FacultyAssessmentWorkspaceView />;
 

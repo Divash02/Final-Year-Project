@@ -1096,6 +1096,7 @@ export function serialiseStudent(student) {
     department: student.department || null,
     batch: student.batch || null,
     section: student.section || null,
+    academicYear: student.academicYear || null,
     semester: student.semester ?? null,
     campus: student.campus || null,
     phone: student.phone || user?.phone || null,

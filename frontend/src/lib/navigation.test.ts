@@ -379,3 +379,34 @@ test("hod and program coordinator share the department portal", () => {
     getNavSectionsForRole("program_coordinator").map((section) => section.id),
   );
 });
+
+test("every sidebar item has its own navigable path", () => {
+  const navIds = new Set<string>();
+  for (const role of ROLES) {
+    for (const section of getNavSectionsForRole(role)) {
+      for (const item of section.items) {
+        navIds.add(item.id);
+      }
+    }
+  }
+
+  assert.ok(navIds.size > 0, "navigation must expose items");
+
+  for (const id of navIds) {
+    const route = viewToRoute[id];
+    assert.ok(route, `${id} must have a route so the sidebar can change the URL`);
+    assert.equal(routeToView[route], id, `${route} must resolve back to ${id}`);
+    assert.equal(resolveRoute(route).view, id, `refreshing ${route} must keep ${id}`);
+  }
+});
+
+test("the student lifecycle screens are individually addressable", () => {
+  for (const [id, route] of [
+    ["quizzes", "/quizzes"],
+    ["study_planner", "/study-planner"],
+    ["student_journey", "/student-journey"],
+  ] as const) {
+    assert.equal(viewToRoute[id], route, `${id} must navigate to ${route}`);
+    assert.equal(routeToView[route], id, `${route} must resolve to ${id}`);
+  }
+});

@@ -296,9 +296,9 @@ export const StudentIncidentReportsView: React.FC = () => {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:border-[var(--color-primary)] outline-none"
           >
             <option value="">All Statuses</option>
-            {[ "SUBMITTED","RECEIVED","UNDER_REVIEW","ASSIGNED_FOR_INVESTIGATION","INVESTIGATION_IN_PROGRESS","AWAITING_STUDENT_INFORMATION","ACTION_TAKEN","RESOLVED","CLOSED" ] as IncidentStatus[]}.map((st) => (
+            {([ "SUBMITTED","RECEIVED","UNDER_REVIEW","ASSIGNED_FOR_INVESTIGATION","INVESTIGATION_IN_PROGRESS","AWAITING_STUDENT_INFORMATION","ACTION_TAKEN","RESOLVED","CLOSED" ] as IncidentStatus[]).map((st) => (
               <option key={st} value={st}>{STATUS_LABELS[st]}</option>
-            ))
+            ))}
           </select>
           <select
             value={filters.severity}

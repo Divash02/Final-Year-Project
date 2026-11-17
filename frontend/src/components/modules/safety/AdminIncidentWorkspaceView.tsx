@@ -431,7 +431,7 @@ export const AdminIncidentWorkspaceView: React.FC = () => {
         <select value={filters.incidentType} onChange={(e) => setFilters({ ...filters, incidentType: e.target.value, page: 1 })}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:border-[var(--color-primary)] outline-none">
           <option value="">All Types</option>
-          {[ "THEFT","ASSAULT","HARASSMENT","VANDALISM","FIRE_HAZARD","MEDICAL_EMERGENCY","BULLYING","CYBERBULLYING","SAFETY_CONCERN","UNSAFE_CONDITION","SECURITY_BREACH","SUSPICIOUS_ACTIVITY","OTHER" ] as IncidentType[]}.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>}
+          {([ "THEFT","ASSAULT","HARASSMENT","VANDALISM","FIRE_HAZARD","MEDICAL_EMERGENCY","BULLYING","CYBERBULLYING","SAFETY_CONCERN","UNSAFE_CONDITION","SECURITY_BREACH","SUSPICIOUS_ACTIVITY","OTHER" ] as IncidentType[]).map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
         </select>
         <select value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value, page: 1 })}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:border-[var(--color-primary)] outline-none">
@@ -440,7 +440,7 @@ export const AdminIncidentWorkspaceView: React.FC = () => {
         <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:border-[var(--color-primary)] outline-none">
           <option value="">All Statuses</option>
-          {[ "SUBMITTED","RECEIVED","UNDER_REVIEW","ASSIGNED_FOR_INVESTIGATION","INVESTIGATION_IN_PROGRESS","AWAITING_STUDENT_INFORMATION","ACTION_TAKEN","RESOLVED","CLOSED" ] as IncidentStatus[]}.map((st) => <option key={st} value={st}>{STATUS_LABELS[st]}</option>}
+          {([ "SUBMITTED","RECEIVED","UNDER_REVIEW","ASSIGNED_FOR_INVESTIGATION","INVESTIGATION_IN_PROGRESS","AWAITING_STUDENT_INFORMATION","ACTION_TAKEN","RESOLVED","CLOSED" ] as IncidentStatus[]).map((st) => <option key={st} value={st}>{STATUS_LABELS[st]}</option>)}
         </select>
         <select value={filters.assignedDepartment} onChange={(e) => setFilters({ ...filters, assignedDepartment: e.target.value, page: 1 })}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:border-[var(--color-primary)] outline-none">
@@ -632,7 +632,7 @@ export const AdminIncidentWorkspaceView: React.FC = () => {
                         <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Update Status</div>
                         <select value={statusForm.status} onChange={(e) => setStatusForm({ ...statusForm, status: e.target.value as IncidentStatus })} className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-lg focus:border-[var(--color-primary)] outline-none">
                           <option value="">New status</option>
-                          {[ "RECEIVED","UNDER_REVIEW","ASSIGNED_FOR_INVESTIGATION","INVESTIGATION_IN_PROGRESS","AWAITING_STUDENT_INFORMATION","ACTION_TAKEN","RESOLVED","CLOSED" ] as IncidentStatus[]}.map((st) => <option key={st} value={st}>{STATUS_LABELS[st]}</option>}
+                          {([ "RECEIVED","UNDER_REVIEW","ASSIGNED_FOR_INVESTIGATION","INVESTIGATION_IN_PROGRESS","AWAITING_STUDENT_INFORMATION","ACTION_TAKEN","RESOLVED","CLOSED" ] as IncidentStatus[]).map((st) => <option key={st} value={st}>{STATUS_LABELS[st]}</option>)}
                         </select>
                         <input value={statusForm.description} onChange={(e) => setStatusForm({ ...statusForm, description: e.target.value })} placeholder="Description (optional)" className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-lg focus:border-[var(--color-primary)] outline-none" />
                         <button onClick={handleStatusChange} disabled={actionLoading === "status"} className="w-full px-3 py-2 bg-[var(--color-primary)] text-white rounded-lg disabled:opacity-50">{actionLoading === "status" ? "Updating…" : "Update Status"}</button>

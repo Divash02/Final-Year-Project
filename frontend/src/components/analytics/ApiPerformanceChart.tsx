@@ -178,7 +178,7 @@ export const ApiPerformanceChart: React.FC<ApiPerformanceChartProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
           <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50">
             <div className="w-3 h-3 rounded-full bg-green-500" />
-            <span className="font-medium text-green-800">Fast: <500ms</span>
+            <span className="font-medium text-green-800">Fast: &lt;500ms</span>
           </div>
           <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-50">
             <div className="w-3 h-3 rounded-full bg-amber-500" />
@@ -186,11 +186,11 @@ export const ApiPerformanceChart: React.FC<ApiPerformanceChartProps> = ({
           </div>
           <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50">
             <div className="w-3 h-3 rounded-full bg-red-500" />
-            <span className="font-medium text-red-800">Slow: >1000ms</span>
+            <span className="font-medium text-red-800">Slow: &gt;1000ms</span>
           </div>
           <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50">
             <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500" />
-            <span className="font-medium text-red-800">Critical: >2000ms</span>
+            <span className="font-medium text-red-800">Critical: &gt;2000ms</span>
           </div>
         </div>
       </div>
