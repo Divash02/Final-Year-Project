@@ -145,7 +145,7 @@ export const Navbar: React.FC = () => {
   const timeZone = resolveInstitutionTimeZone(currentTenant.config.timezone);
 
   return (
-    <header className="sticky top-0 z-[200] h-16 w-full shrink-0 border-b border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <header className="sticky top-0 z-[200] h-16 w-full shrink-0 bg-white">
       <div className="flex h-full w-full items-center justify-between gap-4 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <IconButton

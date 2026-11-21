@@ -646,6 +646,90 @@ const roleGrants = {
     "registrar",
   ],
 
+  // Faculty Mentoring
+  "mentorship.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "faculty",
+    "student",
+  ],
+  "mentorship.manage": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "faculty",
+  ],
+  "mentorship.recommend_readiness": ["faculty", "super_admin", "dean", "program_coordinator"],
+
+  // Student Identity Verification
+  "student.verification.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "faculty",
+    "student",
+  ],
+  "student.verification.manage": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+  ],
+
+  // Career Readiness Assessment
+  "readiness.view": [
+    "super_admin",
+    "campus_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "faculty",
+    "student",
+  ],
+  "readiness.manage": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+  ],
+
+  // Employer Talent Discovery & Recruitment
+  "talent.discovery.view": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "faculty",
+  ],
+  "recruitment.view": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+    "faculty",
+  ],
+  "recruitment.manage": [
+    "super_admin",
+    "dean",
+    "hod",
+    "program_coordinator",
+    "registrar",
+  ],
+
   // Research & Project Hub
   "research.view": [
     "super_admin",

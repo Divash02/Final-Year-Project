@@ -344,7 +344,7 @@ export const AttendanceRecordsWorkspaceView: React.FC = () => {
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
+          <table className="w-full min-w-max border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 {activeColumns.map((column) => {
@@ -352,22 +352,9 @@ export const AttendanceRecordsWorkspaceView: React.FC = () => {
                   return (
                     <th
                       key={column}
-                      className="px-4 py-2.5 text-left font-semibold text-slate-700"
+                      className="px-4 py-2 text-left font-semibold text-slate-700 whitespace-nowrap text-[13px]"
                     >
-                      <button
-                        type="button"
-                        onClick={() => toggleColumn(column)}
-                        className="flex items-center gap-1.5 hover:text-[var(--color-primary)]"
-                        aria-label={`Toggle ${columnDef?.label} column`}
-                      >
-                        <span>{columnDef?.label || column}</span>
-                        <span
-                          className={column === "student" ? "text-xs opacity-50" : "text-xs opacity-30"}
-                          aria-hidden="true"
-                        >
-                          {column === "student" ? "•" : "✕"}
-                        </span>
-                      </button>
+                      {columnDef?.label || column}
                     </th>
                   );
                 })}
@@ -377,7 +364,7 @@ export const AttendanceRecordsWorkspaceView: React.FC = () => {
               {filtered.map((record) => (
                 <tr key={record.id} className="hover:bg-slate-50">
                   {activeColumns.map((column) => (
-                    <td key={column} className="px-4 py-2.5 align-top">
+                    <td key={column} className="px-4 py-2 align-top whitespace-nowrap text-[13px] text-slate-600">
                       {renderCell(record, column, setSelectedRecord)}
                     </td>
                   ))}

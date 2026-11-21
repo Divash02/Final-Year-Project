@@ -79,6 +79,16 @@ export const routeToView: Record<string, string> = {
   "/credentials": "credentials",
   "/early-warning": "early_warning",
   "/internship": "internship",
+  "/internships": "internship",
+  "/internships/dashboard": "internship",
+  "/internships/opportunities": "internship",
+  "/internships/applications": "internship",
+  "/internships/placement": "internship",
+  "/internships/virtual-workplace": "internship",
+  "/internships/virtual-workplace/companies": "internship",
+  "/internships/virtual-workplace/projects": "internship",
+  "/internships/virtual-workplace/tasks": "internship",
+  "/internships/portfolio": "internship",
   "/graduation": "graduation",
 };
 
@@ -125,6 +135,14 @@ export function resolveRoute(pathname: string): ResolvedRoute {
       view: `online_class_${classMatch[2]}`,
       codingLab: { projectId: null, assignmentId: null },
       classSession: classMatch[1],
+    };
+  }
+
+  if (pathname === "/internship" || pathname === "/internships" || pathname.startsWith("/internships/")) {
+    return {
+      view: "internship",
+      codingLab: { projectId: null, assignmentId: null },
+      classSession: null,
     };
   }
 

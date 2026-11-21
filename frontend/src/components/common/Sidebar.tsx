@@ -162,7 +162,7 @@ export const Sidebar: React.FC = () => {
       )}
 
       <aside
-        className={`fixed left-0 top-16 z-[170] flex h-[calc(100vh-4rem)] w-[280px] max-w-[85%] shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain border-r border-[var(--color-sidebar-border)] bg-[var(--color-sidebar)] text-[var(--color-sidebar-text)] transition-transform duration-200 ease-in-out lg:sticky lg:top-0 lg:z-[140] lg:h-full lg:max-w-none lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-[170] flex h-screen w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain border-r border-slate-200 bg-slate-50/70 text-slate-900 transition-transform duration-200 ease-in-out lg:sticky lg:top-0 lg:z-[140] lg:h-full lg:max-w-none lg:translate-x-0 ${
           isMobileMenuOpen
             ? "translate-x-0 shadow-2xl"
             : "-translate-x-full lg:translate-x-0"
@@ -186,7 +186,7 @@ export const Sidebar: React.FC = () => {
                   onClick={() => toggleSection(section.id)}
                   title={sectionTitle}
                 >
-                  <span className="cos-nav-section-title">{sectionTitle}</span>
+                  <span className="cos-nav-section-title text-[11px] leading-4 font-semibold tracking-[0.06em] uppercase text-slate-900 whitespace-normal mt-4 mb-1.5 px-2.5">{sectionTitle}</span>
                   <FontAwesomeIcon
                     icon={faChevronDown}
                     className={`cos-nav-section-chevron${
@@ -197,7 +197,7 @@ export const Sidebar: React.FC = () => {
                 </button>
                 <ul
                   id={`nav-section-items-${section.id}`}
-                  className="space-y-1"
+                  className="space-y-0.5"
                   role="group"
                   aria-labelledby={`nav-section-heading-${section.id}`}
                   hidden={isCollapsed}
@@ -219,11 +219,11 @@ export const Sidebar: React.FC = () => {
                               setActiveView(item.id);
                               setIsMobileMenuOpen(false);
                             }}
-                            className={`cos-nav-item ${
-                              isActive
-                                ? "bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 text-[var(--color-primary)] font-semibold rounded-full shadow-sm"
-                                : ""
-                            }`}
+className={`cos-nav-item h-8 px-2.5 rounded-md gap-2.5 whitespace-nowrap truncate text-[12px] leading-5 ${
+                               isActive
+                                 ? "bg-[var(--color-primary)]/10 backdrop-blur-sm text-slate-900 font-medium border-0 ring-0 shadow-none"
+                                 : "text-slate-600"
+                             }`}
                         >
                           <FontAwesomeIcon
                             icon={item.icon}
@@ -231,7 +231,7 @@ export const Sidebar: React.FC = () => {
                             aria-hidden="true"
                           />
                           <span
-                            className="min-w-0 flex-1 truncate"
+                            className="min-w-0 flex-1 text-[12px] whitespace-nowrap"
                             title={label}
                           >
                             {label}

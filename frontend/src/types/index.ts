@@ -1027,3 +1027,458 @@ export interface CampusSafetySummary {
   highCriticalSeverity: number;
 }
 
+/* ------------------------------------------------------------------ */
+/* Faculty Mentorship                                                 */
+/* ------------------------------------------------------------------ */
+
+export type MentorshipAssignmentStatus =
+  | "PENDING"
+  | "ACTIVE"
+  | "COMPLETED"
+  | "TERMINATED"
+  | "REASSIGNMENT_REQUESTED";
+
+export interface MentorshipAssignment {
+  id: string;
+  institutionId: string;
+  studentId: string;
+  studentName?: string;
+  studentIdNumber?: string;
+  facultyId: string;
+  facultyName?: string;
+  facultyEmail?: string;
+  academicProgram?: string;
+  semester?: number;
+  status: MentorshipAssignmentStatus;
+  assignedAt: string;
+  assignedBy?: string;
+  completedAt?: string | null;
+  terminationReason?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  sessions?: MentoringSession[];
+}
+
+export interface MentoringSession {
+  id: string;
+  assignmentId: string;
+  assignment?: MentorshipAssignment;
+  scheduledAt: string;
+  heldAt?: string | null;
+  durationMinutes?: number | null;
+  sessionType: "individual" | "group" | "checkin";
+  topics?: string[];
+  outcomes?: string;
+  studentReflection?: string | null;
+  facultyComments?: string | null;
+  nextSteps?: string | null;
+  status: "SCHEDULED" | "HELD" | "MISSED" | "CANCELLED";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FacultyObservation {
+  id: string;
+  assignmentId: string;
+  studentId: string;
+  facultyId: string;
+  facultyName?: string;
+  observedAt: string;
+  competencyArea: string;
+  rating: number; // 1-5
+  evidence?: string;
+  comments?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MentorshipDashboard {
+  totalAssignments: number;
+  activeAssignments: number;
+  completedAssignments: number;
+  pendingAssignments: number;
+  terminatedAssignments: number;
+  totalSessions: number;
+  heldSessions: number;
+  upcomingSessions: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* Student Identity Verification                                      */
+/* ------------------------------------------------------------------ */
+
+export type VerificationStatus =
+  | "PENDING"
+  | "UNDER_REVIEW"
+  | "VERIFIED"
+  | "REJECTED"
+  | "REVOKED";
+
+export type VerificationType =
+  | "IDENTITY_DOCUMENT"
+  | "ACADEMIC_RECORD"
+  | "ENROLLMENT_PROOF"
+  | "OTHER";
+
+export interface VerificationHistoryEntry {
+  id: string;
+  verificationId: string;
+  action: string;
+  actor: string;
+  actorRole: string;
+  timestamp: string;
+  notes?: string;
+  previousStatus?: VerificationStatus | null;
+  newStatus?: VerificationStatus | null;
+}
+
+export interface StudentIdentityVerification {
+  id: string;
+  studentId: string;
+  studentName?: string;
+  studentIdNumber?: string;
+  verificationType: VerificationType;
+  documentNumber?: string | null;
+  documentType?: string | null;
+  issuingAuthority?: string | null;
+  expiryDate?: string | null;
+  status: VerificationStatus;
+  submittedAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  reviewerRole?: string | null;
+  reviewNotes?: string | null;
+  rejectionReason?: string | null;
+  verifiedUntil?: string | null;
+  history: VerificationHistoryEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VerificationDashboard {
+  totalVerifications: number;
+  pending: number;
+  underReview: number;
+  verified: number;
+  rejected: number;
+  revoked: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* Career Readiness Assessment                                        */
+/* ------------------------------------------------------------------ */
+
+export type RecommendationStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "ACCEPTED_FOR_ASSESSMENT"
+  | "RETURNED_FOR_REVISION"
+  | "CLOSED";
+
+export type AssessmentStatus =
+  | "PENDING_REVIEW"
+  | "ASSESSMENT_IN_PROGRESS"
+  | "MORE_EVIDENCE_REQUIRED"
+  | "READY_FOR_SPECIFIED_ROLE"
+  | "NOT_YET_READY"
+  | "REASSESSMENT_REQUESTED";
+
+export type ReadinessDecision =
+  | "READY"
+  | "NOT_YET_READY"
+  | "REASSESSMENT_REQUESTED";
+
+export interface CareerRoleSummary {
+  id: string;
+  code: string;
+  name: string;
+  industry?: string;
+  difficulty?: string;
+}
+
+export interface CompetencySummary {
+  id: string;
+  name: string;
+  code?: string;
+}
+
+export interface ReadinessRecommendation {
+  id: string;
+  studentId: string;
+  studentName?: string;
+  studentIdNumber?: string;
+  facultyId: string;
+  facultyName?: string;
+  careerRole: string | CareerRoleSummary;
+  careerPathCode?: string | null;
+  status: RecommendationStatus;
+  recommendedCompetencies: (string | CompetencySummary)[];
+  skillGaps: string[];
+  areasOfStrength: string[];
+  facultyComments: string;
+  supportingSubmissions: string[];
+  relevantProjects: string[];
+  submittedAt?: string | null;
+  reviewDecision?: RecommendationStatus | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  reviewComments?: string | null;
+  additionalEvidenceRequested?: string[];
+  auditTrail: {
+    action: string;
+    actor: string;
+    actorName?: string;
+    timestamp: string;
+    note?: string;
+  }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CareerReadinessAssessment {
+  id: string;
+  studentId: string;
+  studentName?: string;
+  recommendationId?: string | null;
+  careerRole: string | CareerRoleSummary;
+  careerPathCode?: string | null;
+  status: AssessmentStatus;
+  assessorId?: string | null;
+  assessorName?: string | null;
+  decision?: ReadinessDecision | null;
+  decisionRationale?: string | null;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  notifiedAt?: string | null;
+  evidenceSummary?: string | null;
+  competencyReviews: {
+    competency: string;
+    met: boolean;
+    evidenceNote?: string;
+    reviewerComment?: string;
+  }[];
+  reassessmentDueAt?: string | null;
+  auditTrail: {
+    action: string;
+    actor: string;
+    actorName?: string;
+    timestamp: string;
+    note?: string;
+  }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReadinessDecisionRecord {
+  id: string;
+  assessmentId: string;
+  studentId: string;
+  careerRole: string | CareerRoleSummary;
+  careerPathCode?: string | null;
+  decision: ReadinessDecision;
+  rationale: string;
+  decidedBy: string;
+  decidedByName?: string;
+  decidedAt: string;
+  evidenceSummary?: string | null;
+  competenciesMet: { competency: string; met: boolean }[];
+  reassessmentDueAt?: string | null;
+}
+
+export interface ReadinessDashboard {
+  pendingReview: number;
+  moreEvidenceRequired: number;
+  assessmentInProgress: number;
+  readyForRole: number;
+  notYetReady: number;
+  reassessmentRequested: number;
+  total: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* Talent Discovery & Recruitment (employer / internship / project)   */
+/* ------------------------------------------------------------------ */
+
+export type EmployerStatus = "ACTIVE" | "INACTIVE" | "PENDING_APPROVAL" | "SUSPENDED";
+
+export type EmployerSize =
+  | "STARTUP"
+  | "SMALL"
+  | "MEDIUM"
+  | "LARGE"
+  | "ENTERPRISE";
+
+export interface Employer {
+  id: string;
+  institutionId: string;
+  name: string;
+  legalName?: string | null;
+  industry: string;
+  website?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+  size: EmployerSize;
+  description?: string | null;
+  status: EmployerStatus;
+  contactPerson?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type InternshipStatus =
+  | "DRAFT"
+  | "PUBLISHED"
+  | "CLOSED"
+  | "APPLICATIONS_OPEN"
+  | "APPLICATIONS_CLOSED"
+  | "SELECTION_IN_PROGRESS"
+  | "OFFERED"
+  | "ACTIVE"
+  | "COMPLETED"
+  | "CANCELLED";
+
+export type InternshipType = "PAID" | "UNPAID" | "STIPEND" | "CREDIT_BASED";
+
+export interface Internship {
+  id: string;
+  employerId: string;
+  employerName?: string;
+  title: string;
+  description: string;
+  industry: string;
+  type: InternshipType;
+  location: string;
+  isRemote: boolean;
+  startDate: string;
+  endDate: string;
+  durationWeeks?: number;
+  stipend?: number | null;
+  stipendCurrency?: string | null;
+  status: InternshipStatus;
+  applicationDeadline?: string | null;
+  requiredSkills: string[];
+  preferredMajors: string[];
+  minSemester?: number | null;
+  maxSemester?: number | null;
+  vacancies: number;
+  applicationsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type InternshipApplicationStatus =
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "SHORTLISTED"
+  | "INTERVIEWING"
+  | "OFFERED"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "WITHDRAWN";
+
+export interface InternshipApplication {
+  id: string;
+  internshipId: string;
+  internshipTitle?: string;
+  studentId: string;
+  studentName?: string;
+  studentIdNumber?: string;
+  coverLetter?: string | null;
+  resumeFileId?: string | null;
+  resumeFileName?: string | null;
+  status: InternshipApplicationStatus;
+  appliedAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  reviewerNotes?: string | null;
+  offerDate?: string | null;
+  acceptedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type IndustryProjectStatus =
+  | "PROPOSED"
+  | "APPROVED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "ARCHIVED";
+
+export interface IndustryProject {
+  id: string;
+  employerId: string;
+  employerName?: string;
+  title: string;
+  description: string;
+  industry: string;
+  status: IndustryProjectStatus;
+  startDate: string;
+  endDate?: string | null;
+  durationWeeks?: number;
+  stipend?: number | null;
+  requiredSkills: string[];
+  preferredMajors: string[];
+  vacancies: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RecruitmentJobStatus = "DRAFT" | "PUBLISHED" | "CLOSED" | "FILLED";
+
+export interface RecruitmentJob {
+  id: string;
+  employerId: string;
+  employerName?: string;
+  title: string;
+  description: string;
+  industry: string;
+  location: string;
+  isRemote: boolean;
+  status: RecruitmentJobStatus;
+  applicationDeadline?: string | null;
+  requiredSkills: string[];
+  preferredMajors: string[];
+  minExperience?: number | null;
+  salaryMin?: number | null;
+  salaryMax?: number | null;
+  salaryCurrency?: string | null;
+  vacancies: number;
+  applicationsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RecruitmentApplicationStatus =
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "SHORTLISTED"
+  | "INTERVIEWING"
+  | "OFFERED"
+  | "HIRED"
+  | "REJECTED"
+  | "WITHDRAWN";
+
+export interface RecruitmentApplication {
+  id: string;
+  jobId: string;
+  jobTitle?: string;
+  studentId: string;
+  studentName?: string;
+  coverLetter?: string | null;
+  resumeFileId?: string | null;
+  resumeFileName?: string | null;
+  status: RecruitmentApplicationStatus;
+  appliedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+

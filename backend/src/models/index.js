@@ -199,13 +199,98 @@ export {
 
 export { AcademicRiskIndicator } from "./AcademicRiskIndicator.js";
 export { AcademicIntervention } from "./AcademicIntervention.js";
+
+// Internships & Industry Experience: Real Internships Domain
 export {
+  Employer,
   InternshipCompany,
+  EmployerUser,
+  EmployerVerification,
+  InternshipOpportunity,
   InternshipSupervisor,
   InternshipApplication,
+  InternshipInterview,
+  InternshipOffer,
+  InternshipPlacement,
+  InternshipAgreement,
+  InternshipTask,
+  InternshipLogbook,
   InternshipProgressReport,
+  InternshipAttendance,
+  InternshipReport,
   InternshipEvaluation,
-} from "./InternshipApplication.js";
+  InternshipCredential,
+} from "./Internship.js";
+
+// Internships & Industry Experience: Industry Projects Domain
+export {
+  IndustryProject,
+  IndustryProjectMembership,
+  IndustryProjectTask,
+  IndustryProjectSubmission,
+  IndustryProjectEvaluation,
+} from "./IndustryProject.js";
+
+// Internships & Industry Experience: Virtual Workplace Simulations Domain
+export {
+  VirtualCompanyTemplate,
+  VirtualDepartment,
+  VirtualSimulation,
+  SimulationApplication,
+  SimulationMembership,
+  SimulationTeam,
+  SimulationProject,
+  SimulationTask,
+  SimulationSubmission,
+  SimulationReview,
+  SimulationEvent,
+  SimulationMeeting,
+  SimulationMessage,
+  SimulationAssessment,
+  VirtualCompany,
+  VirtualAgent,
+  SimulationScenario,
+  SpecialistWorkspaceConfig,
+  CrossFunctionalProject,
+  ProjectTeamMembership,
+  CAREER_PATHS,
+} from "./VirtualWorkplace.js";
+
+// Career Explorer Domain
+export {
+  CareerCategory,
+  CareerRole,
+  StudentCareerInterest,
+  CareerExplorationActivity,
+} from "./Career.js";
+
+// Internships & Industry Experience: Competencies & Portfolio
+export {
+  Competency,
+  CompetencyEvidence,
+  ProfessionalPortfolio,
+} from "./Competency.js";
+
+// Faculty Mentoring Domain
+export {
+  MentorshipAssignment,
+  MentoringSession,
+  FacultyObservation,
+} from "./Mentorship.js";
+
+// Career Readiness Assessment Domain
+export {
+  ReadinessRecommendation,
+  CareerReadinessAssessment,
+  ReadinessDecision,
+} from "./ReadinessAssessment.js";
+
+// Student Identity Verification Domain
+export {
+  StudentIdentityVerification,
+  VerificationHistory,
+} from "./StudentVerification.js";
+
 export { ResearchMilestone, ResearchMeeting, ResearchProject } from "./ResearchProject.js";
 export { CampusIncident } from "./CampusIncident.js";
 export { IncidentUpdate } from "./IncidentUpdate.js";

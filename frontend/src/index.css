@@ -42,18 +42,18 @@ button:disabled,
     -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial,
     "Noto Sans Devanagari", "Nirmala UI", sans-serif;
 
-  --color-background: #f8fafc;
+  --color-background: #F8F9FB;
   --color-surface: #ffffff;
   --color-surface-strong: #ffffff;
-  --color-foreground: #0f172a;
+  --color-foreground: #333333;
 
-  --color-primary: #AC201B;
+  --color-primary: #B72026;
   --color-primary-strong: #8a1815;
-  --color-primary-soft: #dff7f4;
+  --color-primary-soft: #fdf2f2;
 
   --color-sidebar: #ffffff;
   --color-sidebar-strong: #f6f7f5;
-  --color-sidebar-border: #e4e7e3;
+  --color-sidebar-border: #E7EBF0;
 
   /* College Mail - Material 3 Expressive design tokens */
   --color-mail-primary: #3949AB;
@@ -123,7 +123,7 @@ button:disabled,
   --color-text-muted: #64748b;
 
   /* Borders */
-  --color-border: #e2e8f0;
+  --color-border: #E7EBF0;
   --color-border-strong: #cbd5e1;
 
   /* Brand: institutional teal */
@@ -137,12 +137,12 @@ button:disabled,
   --color-accent-soft: #ffedd5;
 
   /* Status */
-  --color-secondary: #1d4ed8;
+  --color-secondary: #056CB8;
   --color-secondary-soft: #e8f0ff;
-  --color-success: #15803d;
+  --color-success: #16A34A;
   --color-success-strong: #0f5c32;
   --color-success-soft: #dcfce7;
-  --color-warning: #b45309;
+  --color-warning: #F59E0B;
   --color-warning-soft: #fef3c7;
   --color-danger: #b91c1c;
   --color-danger-soft: #fee2e2;
