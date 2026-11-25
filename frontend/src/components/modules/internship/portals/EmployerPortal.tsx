@@ -1,13 +1,5 @@
-import React, { useState } from "react";
-import {
-  MOCK_COMPANIES,
-  MOCK_OPPORTUNITIES,
-  MOCK_APPLICATIONS,
-  MOCK_LOGBOOK_ENTRIES,
-  MOCK_ATTENDANCE_RECORDS,
-  MOCK_EVALUATIONS,
-  MOCK_DOCUMENTS,
-} from "../mockData";
+import React, { useState, useEffect } from "react";
+import * as internshipApi from "../../../../services/internshipApi";
 import {
   InternshipOpportunity,
   ApplicationRecord,
@@ -58,15 +50,35 @@ export const EmployerPortal: React.FC<EmployerPortalProps> = ({
   onNavigate,
   searchQuery,
 }) => {
-  const company = MOCK_COMPANIES[0]; // Apex Global Cloud Solutions
+  const company = { id: "employer-1", name: "Apex Global Cloud Solutions" };
 
   // Interactive state
-  const [opportunities, setOpportunities] = useState<InternshipOpportunity[]>(
-    MOCK_OPPORTUNITIES.filter((o) => o.companyId === company.id)
-  );
-  const [applications, setApplications] = useState<ApplicationRecord[]>(
-    MOCK_APPLICATIONS.filter((a) => a.companyName.includes("Apex"))
-  );
+  const [opportunities, setOpportunities] = useState<InternshipOpportunity[]>([]);
+  const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const [oppsRes, appsRes] = await Promise.all([
+          internshipApi.listOpportunities({ page: 1, limit: 50 }),
+          internshipApi.listApplications({ page: 1, limit: 50 }),
+        ]);
+        if (cancelled) return;
+        setOpportunities(Array.isArray(oppsRes?.items) ? oppsRes.items : Array.isArray(oppsRes) ? oppsRes : []);
+        setApplications(Array.isArray(appsRes?.items) ? appsRes.items : Array.isArray(appsRes) ? appsRes : []);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || "Failed to load employer data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [selectedApplication, setSelectedApplication] = useState<ApplicationRecord | null>(null);
   const [selectedIntern, setSelectedIntern] = useState<ApplicationRecord | null>(null);
 
@@ -83,7 +95,7 @@ export const EmployerPortal: React.FC<EmployerPortalProps> = ({
   const [newOppSkills, setNewOppSkills] = useState("TypeScript, React, Node.js");
 
   // Logbook Approval State
-  const [logbooks, setLogbooks] = useState<LogbookEntry[]>(MOCK_LOGBOOK_ENTRIES);
+  const [logbooks, setLogbooks] = useState<LogbookEntry[]>([]);
   const [selectedLogbook, setSelectedLogbook] = useState<LogbookEntry | null>(null);
   const [feedbackComment, setFeedbackComment] = useState("");
 

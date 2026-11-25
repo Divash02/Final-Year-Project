@@ -1,22 +1,11 @@
-import React, { useState } from "react";
-import {
-  MOCK_COMPANIES,
-  MOCK_OPPORTUNITIES,
-  MOCK_APPLICATIONS,
-  MOCK_ACTIVE_PLACEMENT,
-  MOCK_LOGBOOK_ENTRIES,
-  MOCK_ATTENDANCE_RECORDS,
-  MOCK_AUDIT_LOGS,
-  MOCK_VIRTUAL_COMPANIES,
-  MOCK_INDUSTRY_PROJECTS,
-} from "../mockData";
+import React, { useState, useEffect } from "react";
+import * as internshipApi from "../../../../services/internshipApi";
 import {
   Company,
   InternshipOpportunity,
   ApplicationRecord,
   PlacementDetail,
   AuditLogItem,
-  VirtualCompany,
 } from "../types";
 import {
   StatusBadge,
@@ -47,6 +36,7 @@ import {
   faClock,
   faAward,
 } from "@fortawesome/free-solid-svg-icons";
+import { VirtualWorkplaceAdmin } from "../components/VirtualWorkplaceAdmin";
 
 interface AdminPortalProps {
   activePage: string;
@@ -59,11 +49,36 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onNavigate,
   searchQuery,
 }) => {
-  const [companies, setCompanies] = useState<Company[]>(MOCK_COMPANIES);
-  const [opportunities, setOpportunities] = useState<InternshipOpportunity[]>(MOCK_OPPORTUNITIES);
-  const [applications, setApplications] = useState<ApplicationRecord[]>(MOCK_APPLICATIONS);
-  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(MOCK_AUDIT_LOGS);
-  const [virtualCompanies, setVirtualCompanies] = useState<VirtualCompany[]>(MOCK_VIRTUAL_COMPANIES);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [opportunities, setOpportunities] = useState<InternshipOpportunity[]>([]);
+  const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const [employersRes, oppsRes, appsRes] = await Promise.all([
+          internshipApi.listEmployers({ page: 1, limit: 50 }),
+          internshipApi.listOpportunities({ page: 1, limit: 50 }),
+          internshipApi.listApplications({ page: 1, limit: 50 }),
+        ]);
+        if (cancelled) return;
+        setCompanies(Array.isArray(employersRes?.items) ? employersRes.items : Array.isArray(employersRes) ? employersRes : []);
+        setOpportunities(Array.isArray(oppsRes?.items) ? oppsRes.items : Array.isArray(oppsRes) ? oppsRes : []);
+        setApplications(Array.isArray(appsRes?.items) ? appsRes.items : Array.isArray(appsRes) ? appsRes : []);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || "Failed to load admin data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Selected entities for actions
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
@@ -417,67 +432,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   );
 
   // --------------------------------------------------------------------------
-  // PAGE 4: VIRTUAL WORKPLACE ADMINISTRATION & SIMULATION MANAGEMENT
-  // --------------------------------------------------------------------------
-  const renderVirtualWorkplaceAdmin = () => (
-    <div className="space-y-5">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-            Virtual Workplace Simulation Governance
-          </h2>
-          <p className="text-xs text-slate-500">
-            Manage simulated enterprise environments, configure career-track templates, and inject production scenarios
-          </p>
-        </div>
-        <button
-          onClick={() => alert("Simulation incident injected into active cohort!")}
-          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center space-x-1"
-        >
-          <FontAwesomeIcon icon={faPlus} />
-          <span>Inject Incident / Crisis</span>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {virtualCompanies.map((vc) => (
-          <div
-            key={vc.id}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-full uppercase">
-                  {vc.sector.replace(/_/g, " ")}
-                </span>
-                <span className="text-xs font-semibold text-slate-400">{vc.difficulty}</span>
-              </div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-2">{vc.name}</h3>
-              <p className="text-xs text-slate-500 mt-0.5">{vc.brandTagline}</p>
-
-              <div className="mt-3.5 space-y-1.5 text-xs">
-                <p><strong>Configured Departments:</strong> {vc.departments.length} Squads</p>
-                <p><strong>Open Career Tracks:</strong> Frontend Dev, PM, UI/UX Designer, QA</p>
-                <p><strong>Active Projects:</strong> {vc.activeProjects.join(", ")}</p>
-              </div>
-            </div>
-
-            <div className="mt-5 pt-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-              <span className="text-emerald-600 font-semibold">Status: Simulation Live</span>
-              <button
-                onClick={() => onNavigate("vw_overview")}
-                className="px-3 py-1.5 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700"
-              >
-                Inspect Simulation
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  // --------------------------------------------------------------------------
   // PAGE 5: AUDIT LOGS
   // --------------------------------------------------------------------------
   const renderAuditLogs = () => (
@@ -530,8 +484,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       {(activePage === "adm_opp_approval" || activePage === "adm_applications") && renderDashboard()}
       {(activePage === "adm_placements" || activePage === "adm_completion" || activePage === "adm_supervisors") &&
         renderPlacementsAndCertificates()}
-      {(activePage === "adm_vw_admin" || activePage === "adm_templates" || activePage === "adm_sim_management") &&
-        renderVirtualWorkplaceAdmin()}
+      {(activePage === "adm_vw_admin" || activePage === "adm_templates" || activePage === "adm_sim_management") && (
+        <VirtualWorkplaceAdmin />
+      )}
       {activePage === "adm_audit_logs" && renderAuditLogs()}
 
       {/* Fallback for monitoring/analytics/settings */}

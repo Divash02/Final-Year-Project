@@ -1152,39 +1152,248 @@ export async function getPortfolio(slug, { requestingUser }) {
 }
 
 /**
- * List portfolios (public only unless coordinator).
+ * Validate a membership and return workspace access info.
  *
- * @param {Object} options { requestingUser, page, limit }
+ * @param {string} membershipId
+ * @param {Object} options { requestingUser }
  * @returns {Promise<Object>}
  */
-export async function listPortfolios({ requestingUser, page = 1, limit = 20 }) {
+export async function validateMembership(membershipId, { requestingUser }) {
+  const membership = await SimulationMembership.findById(membershipId)
+    .populate("student", "studentId firstName lastName program semester department")
+    .populate("simulation")
+    .populate("team", "teamName department")
+    .populate("department", "name description openRoles workflowConfig")
+    .lean();
+
+  if (!membership) {
+    throw notFound("Simulation membership not found.");
+  }
+
+  const student = await resolveStudentForUser(requestingUser);
   const roles = getUserRoles(requestingUser);
+  const isStudent = roles.includes("student");
   const isCoordinatorUser = isCoordinator(requestingUser);
+  const isFacultyUser = isFaculty(requestingUser);
 
-  const query = isCoordinatorUser ? {} : { isPublic: true };
+  let canAccess = false;
+  if (isCoordinatorUser || isFacultyUser) {
+    canAccess = true;
+  } else if (isStudent && student && String(membership.student._id) === String(student._id)) {
+    canAccess = true;
+  }
 
-  const p = Math.max(1, Number(page));
-  const l = Math.min(100, Math.max(1, Number(limit)));
-  const skip = (p - 1) * l;
+  if (!canAccess) {
+    throw forbidden("You are not authorized to access this workspace.");
+  }
 
-  const [items, total] = await Promise.all([
-    ProfessionalPortfolio.find(query)
-      .populate("student", "studentId firstName lastName program semester department")
-      .sort({ lastUpdated: -1 })
-      .skip(skip)
-      .limit(l)
+  if (membership.status !== "ACTIVE") {
+    throw badRequest(`Membership is not active. Current status: ${membership.status}`, {
+      code: "MEMBERSHIP_NOT_ACTIVE",
+      status: membership.status,
+    });
+  }
+
+  const simulation = await VirtualSimulation.findById(membership.simulation._id || membership.simulation)
+    .populate("template", "name sector templateCode")
+    .lean();
+
+  return {
+    membership: {
+      id: String(membership._id),
+      ...membership,
+      student: membership.student
+        ? { id: String(membership.student._id), studentId: membership.student.studentId, name: `${membership.student.firstName} ${membership.student.lastName}`, program: membership.student.program }
+        : null,
+      team: membership.team
+        ? { id: String(membership.team._id), teamName: membership.team.teamName, department: membership.team.department }
+        : null,
+      department: membership.department
+        ? { id: String(membership.department._id), name: membership.department.name, description: membership.department.description, openRoles: membership.department.openRoles, workflowConfig: membership.department.workflowConfig }
+        : null,
+    },
+    simulation: simulation
+      ? {
+          id: String(simulation._id),
+          ...simulation,
+          template: simulation.template
+            ? { id: String(simulation.template._id), name: simulation.template.name, sector: simulation.template.sector, templateCode: simulation.template.templateCode }
+            : null,
+        }
+      : null,
+  };
+}
+
+/**
+ * Get comprehensive workspace data for a membership.
+ *
+ * @param {string} membershipId
+ * @param {Object} options { requestingUser }
+ * @returns {Promise<Object>}
+ */
+export async function getWorkspaceData(membershipId, { requestingUser }) {
+  const validation = await validateMembership(membershipId, { requestingUser });
+  const membership = validation.membership;
+  const simulation = validation.simulation;
+
+  const [company, tasks, projects, events, teamMembers, assessments, competencies, portfolio] = await Promise.all([
+    VirtualCompany.findOne({ simulation: simulation.id }).lean(),
+    SimulationTask.find({ simulation: simulation.id, careerPath: membership.careerPath })
+      .populate("project", "name epic")
+      .populate("assigneeMembership", "student")
+      .sort({ sprintNumber: -1, createdAt: -1 })
+      .limit(50)
       .lean(),
-    ProfessionalPortfolio.countDocuments(query),
+    SimulationProject.find({ simulation: simulation.id })
+      .populate("team", "teamName")
+      .sort({ createdAt: -1 })
+      .lean(),
+    SimulationEvent.find({ simulation: simulation.id })
+      .sort({ detectedAt: -1 })
+      .limit(20)
+      .lean(),
+    SimulationMembership.find({ team: membership.team?.id, status: "ACTIVE" })
+      .populate("student", "studentId firstName lastName program semester department")
+      .populate("team", "teamName")
+      .lean(),
+    SimulationAssessment.findOne({ simulation: simulation.id, student: membership.student.id }).lean(),
+    Competency.find({}).lean(),
+    ProfessionalPortfolio.findOne({ student: membership.student.id }).lean(),
   ]);
 
   return {
-    items: items.map((p) => ({
-      id: String(p._id),
-      ...p,
-      student: p.student
-        ? { id: String(p.student._id), studentId: p.student.studentId, name: `${p.student.firstName} ${p.student.lastName}`, program: p.student.program }
+    membership: {
+      id: membership.id,
+      careerPath: membership.careerPath,
+      status: membership.status,
+      jobTitle: membership.jobTitle,
+      completedStoryPoints: membership.completedStoryPoints,
+      completedTasks: membership.completedTasks,
+      codeReviewsGiven: membership.codeReviewsGiven,
+      codeReviewsReceived: membership.codeReviewsReceived,
+      incidentsResolved: membership.incidentsResolved,
+      joinedAt: membership.joinedAt,
+      student: membership.student,
+      team: membership.team,
+      department: membership.department,
+    },
+    simulation: {
+      id: simulation.id,
+      simulationCode: simulation.simulationCode,
+      companyName: simulation.companyName,
+      academicYear: simulation.academicYear,
+      semester: simulation.semester,
+      currentSprintNumber: simulation.currentSprintNumber,
+      startDate: simulation.startDate,
+      endDate: simulation.endDate,
+      status: simulation.status,
+      template: simulation.template,
+    },
+    company: company
+      ? {
+          id: String(company._id),
+          ...company,
+          departments: company.departments || [],
+          virtualManagers: company.virtualManagers || [],
+          virtualColleagues: company.virtualColleagues || [],
+          teams: company.teams || [],
+          projects: company.projects || [],
+        }
+      : null,
+    department: membership.department,
+    team: membership.team,
+    tasks: tasks.map((t) => ({
+      id: String(t._id),
+      ...t,
+      project: t.project
+        ? { id: String(t.project._id), name: t.project.name, epic: t.project.epic }
+        : null,
+      assigneeMembership: t.assigneeMembership
+        ? { id: String(t.assigneeMembership._id), student: t.assigneeMembership.student }
         : null,
     })),
-    pagination: { page: p, limit: l, total, pages: Math.ceil(total / l) },
+    projects: projects.map((p) => ({
+      id: String(p._id),
+      ...p,
+      team: p.team
+        ? { id: String(p.team._id), teamName: p.team.teamName }
+        : null,
+    })),
+    events: events.map((e) => ({
+      id: String(e._id),
+      ...e,
+    })),
+    teamMembers: teamMembers.map((m) => ({
+      id: String(m._id),
+      careerPath: m.careerPath,
+      jobTitle: m.jobTitle,
+      status: m.status,
+      student: m.student
+        ? { id: String(m.student._id), studentId: m.student.studentId, name: `${m.student.firstName} ${m.student.lastName}`, program: m.student.program }
+        : null,
+      team: m.team
+        ? { id: String(m.team._id), teamName: m.team.teamName }
+        : null,
+    })),
+    assessment: assessment
+      ? {
+          id: String(assessment._id),
+          ...assessment,
+        }
+      : null,
+    competencies: competencies || [],
+    portfolio: portfolio
+      ? {
+          id: String(portfolio._id),
+          ...portfolio,
+        }
+      : null,
   };
+}
+
+/**
+ * Get memberships for the current student user.
+ *
+ * @param {Object} options { requestingUser }
+ * @returns {Promise<Array>}
+ */
+export async function getStudentMemberships({ requestingUser }) {
+  const student = await resolveStudentForUser(requestingUser);
+  if (!student) {
+    throw forbidden("Student profile not found.");
+  }
+
+  const memberships = await SimulationMembership.find({ student: student._id, status: "ACTIVE" })
+    .populate("simulation", "simulationCode companyName academicYear semester status currentSprintNumber")
+    .populate("team", "teamName department")
+    .populate("department", "name description")
+    .sort({ joinedAt: -1 })
+    .lean();
+
+  return memberships.map((m) => ({
+    id: String(m._id),
+    careerPath: m.careerPath,
+    status: m.status,
+    jobTitle: m.jobTitle,
+    completedStoryPoints: m.completedStoryPoints,
+    completedTasks: m.completedTasks,
+    joinedAt: m.joinedAt,
+    simulation: m.simulation
+      ? {
+          id: String(m.simulation._id),
+          simulationCode: m.simulation.simulationCode,
+          companyName: m.simulation.companyName,
+          academicYear: m.simulation.academicYear,
+          semester: m.simulation.semester,
+          status: m.simulation.status,
+          currentSprintNumber: m.simulation.currentSprintNumber,
+        }
+      : null,
+    team: m.team
+      ? { id: String(m.team._id), teamName: m.team.teamName, department: m.team.department }
+      : null,
+    department: m.department
+      ? { id: String(m.department._id), name: m.department.name, description: m.department.description }
+      : null,
+  }));
 }

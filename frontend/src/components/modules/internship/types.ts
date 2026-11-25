@@ -245,25 +245,6 @@ export interface IndustryProject {
 // VIRTUAL WORKPLACE SIMULATION TYPES
 // -------------------------------------------------------------
 
-export interface VirtualCompany {
-  id: string;
-  name: string;
-  brandTagline: string;
-  sector: "FINTECH_ENTERPRISE" | "CLOUD_SAAS" | "HEALTH_TECH" | "ECOMMERCE_SCALEUP" | "CYBER_SECURITY";
-  description: string;
-  headquarters: string;
-  employeeCount: number;
-  technologies: string[];
-  openSimulations: number;
-  difficulty: "FOUNDATIONAL" | "ACCELERATED" | "PRODUCTION_GRADE";
-  activeProjects: string[];
-  departments: {
-    name: string;
-    description: string;
-    openRoles: string[];
-  }[];
-}
-
 export interface VirtualTeamMember {
   id: string;
   name: string;
@@ -470,6 +451,153 @@ export interface VirtualCompany {
   simulation: { id: string; simulationCode: string; companyName: string; status: string };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SimulationTask {
+  id: string;
+  title: string;
+  description: string;
+  status: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  assignee: string;
+  dueDate: string;
+  attachments?: string[];
+  comments?: string[];
+}
+
+export interface SimulationSubmission {
+  id: string;
+  taskId: string;
+  studentId: string;
+  content: string;
+  submittedAt: string;
+  status: "PENDING" | "REVIEWED" | "APPROVED" | "REJECTED";
+}
+
+export interface SimulationReview {
+  id: string;
+  submissionId: string;
+  reviewerId: string;
+  feedback: string;
+  rating: number;
+  reviewedAt: string;
+}
+
+export interface SimulationEvent {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  type: "MEETING" | "DEADLINE" | "REVIEW" | "MILESTONE";
+}
+
+export interface SimulationMeeting {
+  id: string;
+  title: string;
+  agenda: string;
+  scheduledAt: string;
+  attendees: string[];
+  notes?: string;
+  actionItems?: string[];
+}
+
+export interface SimulationMessage {
+  id: string;
+  sender: string;
+  content: string;
+  channel: string;
+  timestamp: string;
+  mentions?: string[];
+}
+
+export interface SimulationMembership {
+  id: string;
+  studentId: string;
+  simulationId: string;
+  role: string;
+  status: "ACTIVE" | "COMPLETED" | "WITHDRAWN";
+  enrolledAt: string;
+}
+
+export interface SimulationAssessment {
+  id: string;
+  studentId: string;
+  competencyArea: string;
+  score: number;
+  feedback: string;
+  assessedAt: string;
+}
+
+export interface SimulationProject {
+  id: string;
+  name: string;
+  description: string;
+  status: "PLANNED" | "ACTIVE" | "COMPLETED" | "ARCHIVED";
+  epic?: string;
+  team?: string;
+  targetReleaseDate?: string | null;
+  requiredCareerPaths?: string[];
+  milestones: { title: string; dueDate: string; completed: boolean }[];
+  assignedTeamIds: string[];
+  startDate: string;
+  endDate?: string | null;
+}
+
+export interface CompetencyEvidence {
+  id: string;
+  studentId: string;
+  competencyArea: string;
+  evidenceType: string;
+  evidenceUrl?: string;
+  description: string;
+  verified: boolean;
+  verifiedBy?: string | null;
+  verifiedAt?: string | null;
+  createdAt: string;
+}
+
+export interface ProfessionalPortfolio {
+  id: string;
+  studentId: string;
+  slug: string;
+  title: string;
+  summary: string;
+  skills: string[];
+  projects: { title: string; description: string; url?: string }[];
+  competencies: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VirtualColleague {
+  id: string;
+  name: string;
+  role: string;
+  department: string;
+  avatarUrl?: string;
+  communicationStyle?: string;
+  responsibilities?: string[];
+  isAI: boolean;
+}
+
+export interface SimulationTeam {
+  id: string;
+  name: string;
+  department: string;
+  members: string[];
+  lead: string | null;
+  projectIds: string[];
+}
+
+export interface SimulationProject {
+  id: string;
+  name: string;
+  description: string;
+  status: "PLANNED" | "ACTIVE" | "COMPLETED" | "ARCHIVED";
+  milestones: { title: string; dueDate: string; completed: boolean }[];
+  assignedTeamIds: string[];
+  startDate: string;
+  endDate?: string | null;
 }
 
 export interface VirtualDepartment {

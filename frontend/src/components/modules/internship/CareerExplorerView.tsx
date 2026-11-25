@@ -40,13 +40,17 @@ import {
   faMapSigns,
   faLayerGroup,
   faMagic,
+  faExclamationTriangle,
+  faClock,
+  faTimes,
+  faCheckCircle,
 } from "@fortawesome/free-solid-svg-icons";
 import {
   CareerCategory,
   CareerRole,
   CareerExplorerDashboard,
   StudentCareerInterest,
-} from "../types";
+} from "./types";
 import { apiRequest } from "../../../services/apiClient";
 import { StatusBadge, ModalWrapper, DrawerWrapper } from "./components/SharedWidgets";
 
@@ -340,8 +344,6 @@ export const CareerExplorerView: React.FC<CareerExplorerViewProps> = ({ onNaviga
         isOpen={!!roleDetailDrawer}
         onClose={() => setRoleDetailDrawer(null)}
         title={roleDetailDrawer?.name || "Career Role"}
-        position="right"
-        size="lg"
       >
         {roleDetailDrawer && (
           <RoleDetailDrawer
@@ -362,7 +364,6 @@ export const CareerExplorerView: React.FC<CareerExplorerViewProps> = ({ onNaviga
         isOpen={compareModal}
         onClose={() => setCompareModal(false)}
         title="Compare Career Roles"
-        size="xl"
       >
         {selectedRolesForCompare.length >= 2 && (
           <CompareRolesModal

@@ -592,6 +592,52 @@ export async function createSupervisor(data, { requestingUser }) {
   return { id: String(supervisor._id), ...supervisor.toObject() };
 }
 
+export async function listSupervisors({ requestingUser, query }) {
+  const roles = getUserRoles(requestingUser);
+  const isCoordinator = roles.some((r) =>
+    ["registrar", "dean", "hod", "program_coordinator", "super_admin"].includes(r),
+  );
+
+  const filter = {};
+  if (query.company) filter.company = query.company;
+  if (query.search) {
+    const re = new RegExp(String(query.search).trim(), "i");
+    filter.$or = [
+      { firstName: re },
+      { lastName: re },
+      { email: re },
+      { designation: re },
+      { department: re },
+    ];
+  }
+
+  // Non-coordinators can only see supervisors for their own employer.
+  if (!isCoordinator) {
+    const { EmployerUser } = await import("../../models/index.js");
+    const employerUser = await EmployerUser.findOne({
+      user: requestingUser._id || requestingUser.id,
+      status: "ACTIVE",
+    }).lean();
+    if (!employerUser) {
+      return { supervisors: [], total: 0 };
+    }
+    filter.company = employerUser.employer;
+  }
+
+  const supervisors = await InternshipSupervisor.find(filter)
+    .populate("company", "name")
+    .sort({ isPrimary: -1, createdAt: -1 })
+    .lean();
+
+  return {
+    supervisors: supervisors.map((s) => ({
+      id: String(s._id),
+      ...s,
+    })),
+    total: supervisors.length,
+  };
+}
+
 /**
  * Assign an industry supervisor to a placement.
  *

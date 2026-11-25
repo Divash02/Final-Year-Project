@@ -90,6 +90,14 @@ export const getPlacement = asyncHandler(async (req, res) => {
 /* Supervisors                                                        */
 /* ------------------------------------------------------------------ */
 
+export const listSupervisors = asyncHandler(async (req, res) => {
+  const result = await placementService.listSupervisors({
+    requestingUser: req.user,
+    query: req.query,
+  });
+  res.json(result);
+});
+
 export const createSupervisor = asyncHandler(async (req, res) => {
   const { company, firstName, lastName } = req.body;
   if (!company || !firstName || !lastName) {

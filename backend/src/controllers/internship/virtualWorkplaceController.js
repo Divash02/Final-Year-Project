@@ -115,6 +115,27 @@ export const listMemberships = asyncHandler(async (req, res) => {
   res.json({ memberships });
 });
 
+export const validateMembership = asyncHandler(async (req, res) => {
+  const validation = await vwService.validateMembership(req.params.id, {
+    requestingUser: req.user,
+  });
+  res.json(validation);
+});
+
+export const getWorkspaceData = asyncHandler(async (req, res) => {
+  const workspaceData = await vwService.getWorkspaceData(req.params.id, {
+    requestingUser: req.user,
+  });
+  res.json({ workspace: workspaceData });
+});
+
+export const getStudentMemberships = asyncHandler(async (req, res) => {
+  const memberships = await vwService.getStudentMemberships({
+    requestingUser: req.user,
+  });
+  res.json({ memberships });
+});
+
 /* ------------------------------------------------------------------ */
 /* Teams                                                              */
 /* ------------------------------------------------------------------ */

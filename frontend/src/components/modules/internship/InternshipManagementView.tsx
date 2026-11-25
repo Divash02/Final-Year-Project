@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useCollegeOS } from "../../../context/CollegeOSContext";
-import { PortalRole, ExperienceArea, CareerPath } from "./types";
+import { PortalRole, ExperienceArea, CareerPath, SimulationMembership } from "./types";
 import { InternshipHeader } from "./components/InternshipHeader";
 import { InternshipSidebar } from "./components/InternshipSidebar";
 import { StudentPortal } from "./portals/StudentPortal";
@@ -35,23 +35,60 @@ export const InternshipManagementView: React.FC = () => {
   const [activePage, setActivePage] = useState<string>("stu_dashboard");
   const [careerPath, setCareerPath] = useState<CareerPath>("frontend_developer");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [virtualWorkspaceMembershipId, setVirtualWorkspaceMembershipId] = useState<string | null>(null);
+  const [isFullScreenWorkspace, setIsFullScreenWorkspace] = useState(false);
+  const [previousRoute, setPreviousRoute] = useState<string | null>(null);
 
   // Sync initial sub-path if navigated from deep link
   useEffect(() => {
     if (typeof window !== "undefined") {
       const path = window.location.pathname;
-      if (path.includes("/virtual-workplace/tasks")) {
+      if (path.startsWith("/virtual-workplace/")) {
+        // Extract membership ID from URL if present: /virtual-workplace/:membershipId/...
+        const match = path.match(/^\/virtual-workplace\/([^/]+)(?:\/.*)?$/);
+        if (match && match[1] !== "overview" && match[1] !== "projects" && match[1] !== "tasks" && 
+            match[1] !== "documentation" && match[1] !== "meetings" && match[1] !== "communication" &&
+            match[1] !== "submission" && match[1] !== "reviews" && match[1] !== "incidents" &&
+            match[1] !== "performance" && match[1] !== "skills" && match[1] !== "portfolio" &&
+            match[1] !== "team" && match[1] !== "company" && match[1] !== "department") {
+          // This looks like a membership ID
+          setVirtualWorkspaceMembershipId(match[1]);
+          setIsFullScreenWorkspace(true);
+          setPreviousRoute("/internships/dashboard");
+        }
+        
         setActiveArea("virtual_workplace");
-        setActivePage("vw_tasks");
-      } else if (path.includes("/virtual-workplace/projects")) {
-        setActiveArea("virtual_workplace");
-        setActivePage("vw_projects");
-      } else if (path.includes("/virtual-workplace/companies")) {
-        setActiveArea("virtual_workplace");
-        setActivePage("vw_company");
-      } else if (path.includes("/virtual-workplace")) {
-        setActiveArea("virtual_workplace");
-        setActivePage("vw_overview");
+        if (path.includes("/virtual-workplace/tasks")) {
+          setActivePage("vw_tasks");
+        } else if (path.includes("/virtual-workplace/projects")) {
+          setActivePage("vw_projects");
+        } else if (path.includes("/virtual-workplace/companies") || path.includes("/virtual-workplace/company")) {
+          setActivePage("vw_company");
+        } else if (path.includes("/virtual-workplace/department")) {
+          setActivePage("vw_department");
+        } else if (path.includes("/virtual-workplace/team")) {
+          setActivePage("vw_team");
+        } else if (path.includes("/virtual-workplace/documentation")) {
+          setActivePage("vw_documentation");
+        } else if (path.includes("/virtual-workplace/meetings")) {
+          setActivePage("vw_meetings");
+        } else if (path.includes("/virtual-workplace/communication")) {
+          setActivePage("vw_communication");
+        } else if (path.includes("/virtual-workplace/submission")) {
+          setActivePage("vw_submission");
+        } else if (path.includes("/virtual-workplace/reviews")) {
+          setActivePage("vw_reviews");
+        } else if (path.includes("/virtual-workplace/incidents")) {
+          setActivePage("vw_incidents");
+        } else if (path.includes("/virtual-workplace/performance")) {
+          setActivePage("vw_performance");
+        } else if (path.includes("/virtual-workplace/skills")) {
+          setActivePage("vw_skills");
+        } else if (path.includes("/virtual-workplace/portfolio")) {
+          setActivePage("vw_portfolio");
+        } else {
+          setActivePage("vw_overview");
+        }
       } else if (path.includes("/career/explorer") || path.includes("/career-explorer")) {
         setActiveArea("career_explorer");
         setActivePage("career_explorer");
@@ -93,6 +130,9 @@ export const InternshipManagementView: React.FC = () => {
     } else {
       setActivePage("adm_dashboard");
     }
+    // Exit full-screen workspace when switching roles
+    setIsFullScreenWorkspace(false);
+    setVirtualWorkspaceMembershipId(null);
   };
 
   // Update default active page when switching areas
@@ -132,6 +172,44 @@ export const InternshipManagementView: React.FC = () => {
         window.history.pushState({}, "", "/internships/dashboard");
       }
     }
+    // Exit full-screen workspace when switching areas
+    setIsFullScreenWorkspace(false);
+    setVirtualWorkspaceMembershipId(null);
+  };
+
+  const handleEnterVirtualWorkspace = (membershipId: string) => {
+    setVirtualWorkspaceMembershipId(membershipId);
+    setIsFullScreenWorkspace(true);
+    setPreviousRoute(window.location.pathname);
+    setActiveArea("virtual_workplace");
+    setActivePage("vw_overview");
+    window.history.pushState({}, "", `/virtual-workplace/${membershipId}`);
+  };
+
+  const handleExitWorkspace = () => {
+    setIsFullScreenWorkspace(false);
+    setVirtualWorkspaceMembershipId(null);
+    // Navigate back to the appropriate internship portal
+    const returnRoute = previousRoute || "/internships/dashboard";
+    window.history.pushState({}, "", returnRoute);
+    // Reset to appropriate default page based on role
+    if (activeRole === "student") {
+      setActivePage("stu_dashboard");
+      setActiveArea("real_internships");
+    } else if (
+      activeRole === "employer_owner" ||
+      activeRole === "employer_recruiter" ||
+      activeRole === "employer_supervisor"
+    ) {
+      setActivePage("emp_dashboard");
+      setActiveArea("real_internships");
+    } else if (activeRole === "faculty_supervisor") {
+      setActivePage("fac_dashboard");
+      setActiveArea("real_internships");
+    } else {
+      setActivePage("adm_dashboard");
+      setActiveArea("real_internships");
+    }
   };
 
   const handleSelectPage = (pageId: string) => {
@@ -139,9 +217,27 @@ export const InternshipManagementView: React.FC = () => {
     // Sync URL when relevant
     if (pageId.startsWith("vw_")) {
       setActiveArea("virtual_workplace");
-      if (pageId === "vw_tasks") window.history.pushState({}, "", "/internships/virtual-workplace/tasks");
-      else if (pageId === "vw_projects") window.history.pushState({}, "", "/internships/virtual-workplace/projects");
-      else window.history.pushState({}, "", "/internships/virtual-workplace");
+      if (isFullScreenWorkspace && virtualWorkspaceMembershipId) {
+        if (pageId === "vw_tasks") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/tasks`);
+        else if (pageId === "vw_projects") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/projects`);
+        else if (pageId === "vw_company") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/company`);
+        else if (pageId === "vw_department") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/department`);
+        else if (pageId === "vw_team") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/team`);
+        else if (pageId === "vw_documentation") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/documentation`);
+        else if (pageId === "vw_meetings") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/meetings`);
+        else if (pageId === "vw_communication") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/communication`);
+        else if (pageId === "vw_submission") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/submission`);
+        else if (pageId === "vw_reviews") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/reviews`);
+        else if (pageId === "vw_incidents") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/incidents`);
+        else if (pageId === "vw_performance") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/performance`);
+        else if (pageId === "vw_skills") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/skills`);
+        else if (pageId === "vw_portfolio") window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}/portfolio`);
+        else window.history.pushState({}, "", `/virtual-workplace/${virtualWorkspaceMembershipId}`);
+      } else {
+        if (pageId === "vw_tasks") window.history.pushState({}, "", "/internships/virtual-workplace/tasks");
+        else if (pageId === "vw_projects") window.history.pushState({}, "", "/internships/virtual-workplace/projects");
+        else window.history.pushState({}, "", "/internships/virtual-workplace");
+      }
     } else if (pageId === "stu_explore") {
       setActiveArea("real_internships");
       window.history.pushState({}, "", "/internships/opportunities");
@@ -207,8 +303,22 @@ export const InternshipManagementView: React.FC = () => {
     activeArea === "virtual_workplace" || activePage.startsWith("vw_");
   const isCareerExplorerLayout = activeArea === "career_explorer" || activePage.startsWith("career_");
 
+  // In full-screen workspace mode, render only the workspace without CollegeOS shell
+  if (isFullScreenWorkspace && virtualWorkspaceMembershipId) {
+    return (
+      <VirtualWorkplaceWorkspace
+        activePage={activePage}
+        onNavigate={handleSelectPage}
+        careerPath={careerPath}
+        onChangeCareerPath={setCareerPath}
+        membershipId={virtualWorkspaceMembershipId}
+        onExitWorkspace={handleExitWorkspace}
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-col min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors">
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors">
       {/* Module Top Navigation & Switcher Header */}
       <InternshipHeader
         activeArea={activeArea}
@@ -223,7 +333,7 @@ export const InternshipManagementView: React.FC = () => {
       />
 
       {/* Main Layout Area: Contextual Sidebar + Dynamic Content View */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <InternshipSidebar
           activeRole={activeRole}
           activePage={activePage}
@@ -231,16 +341,19 @@ export const InternshipManagementView: React.FC = () => {
           activeArea={activeArea}
           onSelectArea={handleSelectArea}
           isVirtualWorkspaceMode={isVirtualWorkplaceLayout}
+          onExitWorkspace={isVirtualWorkplaceLayout ? handleExitWorkspace : undefined}
         />
 
         <main className="flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-950">
-          {/* Virtual Workplace dedicated view */}
+          {/* Virtual Workplace dedicated view (embedded in CollegeOS) */}
           {isVirtualWorkplaceLayout ? (
             <VirtualWorkplaceWorkspace
               activePage={activePage}
               onNavigate={handleSelectPage}
               careerPath={careerPath}
               onChangeCareerPath={setCareerPath}
+              membershipId={virtualWorkspaceMembershipId || ""}
+              onExitWorkspace={handleExitWorkspace}
             />
           ) : isCareerExplorerLayout ? (
             <CareerExplorerView onNavigate={handleSelectPage} />
@@ -249,6 +362,7 @@ export const InternshipManagementView: React.FC = () => {
               activePage={activePage}
               onNavigate={handleSelectPage}
               searchQuery={searchQuery}
+              onEnterVirtualWorkspace={handleEnterVirtualWorkspace}
             />
           ) : activeRole === "employer_owner" ||
             activeRole === "employer_recruiter" ||

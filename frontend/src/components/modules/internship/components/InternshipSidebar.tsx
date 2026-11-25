@@ -42,6 +42,7 @@ import {
   faMapSigns,
   faLayerGroup,
   faMagic,
+  faSignOutAlt,
 } from "@fortawesome/free-solid-svg-icons";
 
 interface SidebarItem {
@@ -64,6 +65,7 @@ interface InternshipSidebarProps {
   activeArea: ExperienceArea;
   onSelectArea: (area: ExperienceArea) => void;
   isVirtualWorkspaceMode?: boolean;
+  onExitWorkspace?: () => void;
 }
 
 export const InternshipSidebar: React.FC<InternshipSidebarProps> = ({
@@ -73,6 +75,7 @@ export const InternshipSidebar: React.FC<InternshipSidebarProps> = ({
   activeArea,
   onSelectArea,
   isVirtualWorkspaceMode = false,
+  onExitWorkspace,
 }) => {
   // If in dedicated virtual workspace mode, render Virtual Workplace navigation
   if (isVirtualWorkspaceMode || activeArea === "virtual_workplace") {
@@ -116,7 +119,7 @@ export const InternshipSidebar: React.FC<InternshipSidebarProps> = ({
     ];
 
     return (
-      <aside className="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-full overflow-y-auto">
+      <aside className="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-full min-h-0 overflow-y-auto">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-indigo-50/50 dark:bg-indigo-950/20">
           <div className="flex items-center space-x-2">
             <span className="h-6 w-6 rounded-md bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
@@ -175,6 +178,19 @@ export const InternshipSidebar: React.FC<InternshipSidebarProps> = ({
               </ul>
             </div>
           ))}
+        </div>
+
+        {/* Sidebar Footer - Exit Workspace */}
+        <div className="p-3 border-t border-slate-200 dark:border-slate-800">
+          {onExitWorkspace && (
+            <button
+              onClick={onExitWorkspace}
+              className="w-full flex items-center space-x-2 px-3 py-2 text-xs font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
+            >
+              <FontAwesomeIcon icon={faSignOutAlt} className="w-4 h-4" />
+              <span>Exit Workspace</span>
+            </button>
+          )}
         </div>
       </aside>
     );
@@ -353,7 +369,7 @@ export const InternshipSidebar: React.FC<InternshipSidebarProps> = ({
 
   function renderSidebar(portalTitle: string, sections: SidebarSection[]) {
     return (
-      <aside className="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-full overflow-y-auto">
+      <aside className="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-full min-h-0 overflow-y-auto">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
             {portalTitle}

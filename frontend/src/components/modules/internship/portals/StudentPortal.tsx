@@ -1,18 +1,5 @@
-import React, { useState } from "react";
-import {
-  MOCK_OPPORTUNITIES,
-  MOCK_APPLICATIONS,
-  MOCK_ACTIVE_PLACEMENT,
-  MOCK_LOGBOOK_ENTRIES,
-  MOCK_ATTENDANCE_RECORDS,
-  MOCK_MEETINGS,
-  MOCK_DOCUMENTS,
-  MOCK_EVALUATIONS,
-  MOCK_INDUSTRY_PROJECTS,
-  MOCK_COMPANIES,
-  MOCK_VIRTUAL_COMPANIES,
-  MOCK_COMPETENCIES,
-} from "../mockData";
+import React, { useState, useEffect } from "react";
+import * as internshipApi from "../../../../services/internshipApi";
 import {
   InternshipOpportunity,
   ApplicationRecord,
@@ -61,6 +48,7 @@ interface StudentPortalProps {
   activePage: string;
   onNavigate: (pageId: string) => void;
   searchQuery: string;
+  onEnterVirtualWorkspace?: (membershipId: string) => void;
 }
 
 export const StudentPortal: React.FC<StudentPortalProps> = ({
@@ -69,10 +57,35 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   searchQuery,
 }) => {
   // Local state for interactive student flows
-  const [opportunities, setOpportunities] = useState<InternshipOpportunity[]>(MOCK_OPPORTUNITIES);
-  const [applications, setApplications] = useState<ApplicationRecord[]>(MOCK_APPLICATIONS);
-  const [logbooks, setLogbooks] = useState<LogbookEntry[]>(MOCK_LOGBOOK_ENTRIES);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(MOCK_ATTENDANCE_RECORDS);
+  const [opportunities, setOpportunities] = useState<InternshipOpportunity[]>([]);
+  const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [logbooks, setLogbooks] = useState<LogbookEntry[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch real data from backend on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const [oppsRes, appsRes] = await Promise.all([
+          internshipApi.listOpportunities({ page: 1, limit: 50 }),
+          internshipApi.listApplications({ page: 1, limit: 50 }),
+        ]);
+        if (cancelled) return;
+        setOpportunities(Array.isArray(oppsRes?.items) ? oppsRes.items : Array.isArray(oppsRes) ? oppsRes : []);
+        setApplications(Array.isArray(appsRes?.items) ? appsRes.items : Array.isArray(appsRes) ? appsRes : []);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || "Failed to load internship data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Selected detail drawers & modals
   const [selectedOpportunity, setSelectedOpportunity] = useState<InternshipOpportunity | null>(null);
@@ -110,32 +123,24 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const itemsPerPage = 5;
 
   // Apply Action
-  const handleApplySubmit = (e: React.FormEvent) => {
+  const handleApplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOpportunity) return;
-    const newApp: ApplicationRecord = {
-      id: `app-${Date.now()}`,
-      opportunityId: selectedOpportunity.id,
-      opportunityTitle: selectedOpportunity.title,
-      companyName: selectedOpportunity.companyName,
-      studentId: "STU-2023-0491",
-      studentName: "Aarav Sharma",
-      studentEmail: "aarav.sharma@techspire.edu.np",
-      studentProgram: "B.Sc. Computer Science & Software Engineering",
-      studentSemester: 7,
-      studentGpa: 3.86,
-      appliedDate: new Date().toISOString().slice(0, 10),
-      status: "SUBMITTED",
-      coverLetter: applyCoverLetter || "Excited to apply my technical skills to this role.",
-      resumeUrl: "/documents/resumes/aarav_sharma_cv.pdf",
-    };
-    setApplications([newApp, ...applications]);
-    setApplySuccessMsg("Application submitted successfully!");
-    setTimeout(() => {
-      setShowApplyModal(false);
-      setApplySuccessMsg("");
-      onNavigate("stu_applications");
-    }, 1200);
+    try {
+      const newApp = await internshipApi.createApplication({
+        opportunityId: selectedOpportunity.id,
+        coverLetter: applyCoverLetter || "Excited to apply my technical skills to this role.",
+      });
+      setApplications([newApp, ...applications]);
+      setApplySuccessMsg("Application submitted successfully!");
+      setTimeout(() => {
+        setShowApplyModal(false);
+        setApplySuccessMsg("");
+        onNavigate("stu_applications");
+      }, 1200);
+    } catch (err: any) {
+      setApplySuccessMsg(err?.message || "Failed to submit application");
+    }
   };
 
   // Add Logbook Entry Action
@@ -1345,10 +1350,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 <div className="mt-5 pt-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
                   <span className="text-slate-400 font-medium">Difficulty: {vc.difficulty}</span>
                   <button
-                    onClick={() => onNavigate("vw_overview")}
+                    onClick={() => onEnterVirtualWorkspace?.(vc.id)}
                     className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-xs"
                   >
-                    Enter Simulation
+                    Enter Virtual Workplace
                   </button>
                 </div>
               </div>

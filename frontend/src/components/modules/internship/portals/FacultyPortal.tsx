@@ -1,11 +1,5 @@
-import React, { useState } from "react";
-import {
-  MOCK_ACTIVE_PLACEMENT,
-  MOCK_LOGBOOK_ENTRIES,
-  MOCK_EVALUATIONS,
-  MOCK_MEETINGS,
-  MOCK_DOCUMENTS,
-} from "../mockData";
+import React, { useState, useEffect } from "react";
+import * as internshipApi from "../../../../services/internshipApi";
 import { LogbookEntry, EvaluationRubric, MeetingItem } from "../types";
 import {
   StatusBadge,
@@ -42,9 +36,41 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
   onNavigate,
   searchQuery,
 }) => {
-  const [logbooks, setLogbooks] = useState<LogbookEntry[]>(MOCK_LOGBOOK_ENTRIES);
-  const [meetings, setMeetings] = useState<MeetingItem[]>(MOCK_MEETINGS);
+  const [logbooks, setLogbooks] = useState<LogbookEntry[]>([]);
+  const [meetings, setMeetings] = useState<MeetingItem[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const logbooksRes = await internshipApi.listPlacements({ page: 1, limit: 50 });
+        if (cancelled) return;
+        // Fetch logbooks for each placement (best-effort)
+        const placementList = Array.isArray(logbooksRes?.items) ? logbooksRes.items : [];
+        const allLogbooks: LogbookEntry[] = [];
+        for (const p of placementList) {
+          try {
+            const lb = await internshipApi.listLogbooks(p.id || p._id);
+            const items = Array.isArray(lb?.items) ? lb.items : Array.isArray(lb) ? lb : [];
+            allLogbooks.push(...items);
+          } catch {
+            // ignore per-placement errors
+          }
+        }
+        if (!cancelled) setLogbooks(allLogbooks);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || "Failed to load faculty data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Faculty grading form state
   const [evalAcademic, setEvalAcademic] = useState(5);

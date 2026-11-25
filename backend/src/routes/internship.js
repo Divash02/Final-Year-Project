@@ -56,6 +56,7 @@ import {
   completePlacement,
   listPlacements,
   getPlacement,
+  listSupervisors,
   createSupervisor,
   assignIndustrySupervisor,
 } from "../controllers/internship/placementController.js";
@@ -121,6 +122,9 @@ import {
   createOrUpdatePortfolio,
   getPortfolio,
   listPortfolios,
+  validateMembership,
+  getWorkspaceData,
+  getStudentMemberships,
 } from "../controllers/internship/virtualWorkplaceController.js";
 import {
   createCareerCategory,
@@ -371,24 +375,6 @@ export function registerInternshipRoutes(app) {
   );
 
   app.patch(
-    "/api/internship/opportunities/:id",
-    requireAuth,
-    requirePermission("internship.view"),
-    requireOpportunityRead(),
-    async (req, res, next) => {
-      const allowed = await canManageOpportunity(req.user, req.opportunity);
-      if (!allowed) {
-        return res.status(403).json({
-          error: "You may only manage opportunities for your own company.",
-          code: "OPPORTUNITY_NOT_OWNED",
-        });
-      }
-      next();
-    },
-    updateOpportunity
-  );
-
-  app.patch(
     "/api/internship/opportunities/:id/approve",
     requireAuth,
     requirePermission("internship.manage"),
@@ -582,9 +568,7 @@ export function registerInternshipRoutes(app) {
     "/api/internship/supervisors",
     requireAuth,
     requirePermission("internship.view"),
-    (req, res) => {
-      res.json({ supervisors: [] });
-    }
+    listSupervisors
   );
 
   app.post(
@@ -951,11 +935,32 @@ export function registerInternshipRoutes(app) {
     createMembership
   );
 
-  app.get(
+app.get(
     "/api/internship/virtual-workplace/simulations/:id/memberships",
     requireAuth,
     requirePermission("internship.view"),
     listSimulationMemberships
+  );
+
+  app.get(
+    "/api/internship/virtual-workplace/memberships/:id/validate",
+    requireAuth,
+    requirePermission("internship.view"),
+    validateMembership
+  );
+
+  app.get(
+    "/api/internship/virtual-workplace/memberships/:id/workspace",
+    requireAuth,
+    requirePermission("internship.view"),
+    getWorkspaceData
+  );
+
+  app.get(
+    "/api/internship/virtual-workplace/memberships/mine",
+    requireAuth,
+    requireStudent,
+    getStudentMemberships
   );
 
   app.post(

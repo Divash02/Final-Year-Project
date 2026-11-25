@@ -84,11 +84,23 @@ export const routeToView: Record<string, string> = {
   "/internships/opportunities": "internship",
   "/internships/applications": "internship",
   "/internships/placement": "internship",
-  "/internships/virtual-workplace": "internship",
-  "/internships/virtual-workplace/companies": "internship",
-  "/internships/virtual-workplace/projects": "internship",
-  "/internships/virtual-workplace/tasks": "internship",
   "/internships/portfolio": "internship",
+  "/virtual-workplace": "internship",
+  "/virtual-workplace/overview": "internship",
+  "/virtual-workplace/projects": "internship",
+  "/virtual-workplace/tasks": "internship",
+  "/virtual-workplace/documentation": "internship",
+  "/virtual-workplace/meetings": "internship",
+  "/virtual-workplace/communication": "internship",
+  "/virtual-workplace/submission": "internship",
+  "/virtual-workplace/reviews": "internship",
+  "/virtual-workplace/incidents": "internship",
+  "/virtual-workplace/performance": "internship",
+  "/virtual-workplace/skills": "internship",
+  "/virtual-workplace/portfolio": "internship",
+  "/virtual-workplace/team": "internship",
+  "/virtual-workplace/company": "internship",
+  "/virtual-workplace/department": "internship",
   "/graduation": "graduation",
 };
 
@@ -138,7 +150,7 @@ export function resolveRoute(pathname: string): ResolvedRoute {
     };
   }
 
-  if (pathname === "/internship" || pathname === "/internships" || pathname.startsWith("/internships/")) {
+  if (pathname === "/internship" || pathname === "/internships" || pathname.startsWith("/internships/") || pathname.startsWith("/virtual-workplace/") || pathname === "/virtual-workplace") {
     return {
       view: "internship",
       codingLab: { projectId: null, assignmentId: null },
