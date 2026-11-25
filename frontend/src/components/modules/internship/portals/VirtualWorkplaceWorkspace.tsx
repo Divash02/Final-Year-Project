@@ -91,7 +91,7 @@ import {
   ModalWrapper,
   DrawerWrapper,
 } from "../components/SharedWidgets";
-import { virtualWorkplaceApi } from "../../../services/virtualWorkplaceApi";
+import { virtualWorkplaceApi } from "../../../../services/virtualWorkplaceApi";
 import {
   VirtualWorkspaceLayout,
   VirtualWorkspaceHeader,
@@ -1286,7 +1286,6 @@ export const VirtualWorkplaceWorkspace: React.FC<VirtualWorkplaceWorkspaceProps>
         return renderProjects();
       case "vw_team":
       case "vw_communication":
-      case "vw_meetings":
         return renderTeamAndChat();
       case "vw_incidents":
         return renderIncidents();
